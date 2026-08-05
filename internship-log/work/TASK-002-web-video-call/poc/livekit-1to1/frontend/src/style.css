@@ -319,6 +319,30 @@ svg {
   border: 2px solid var(--color-surface);
 }
 
+.status-dot.online {
+  background: var(--color-success);
+}
+
+.status-dot.offline {
+  background: #bcc0c4;
+}
+
+.contact-item.contact-offline {
+  opacity: 0.72;
+}
+
+.contact-item .user-avatar .status-dot {
+  /* filled via presence class on header; list uses text status */
+}
+
+.header-call-btn:disabled,
+.start-call-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .contact-details {
   flex: 1;
   min-width: 0;

@@ -1200,34 +1200,71 @@ if (isCallRoute) {
         }
       },
       async endCall() {
+        // Prevent double-tap / concurrent hangup paths hanging the UI
+        if (this._endingCall) return
+        this._endingCall = true
         try {
-          if (this.isRecording) await this.toggleRecording()
-          await this.flushQualityLog()
-          await fetch(`${API_URL}/api/calls/${this.callId}/end`, {
+          // Never block hangup on recording/telemetry (was a source of "tắt call không được")
+          const sideWork = []
+          if (this.isRecording) {
+            sideWork.push(this.toggleRecording().catch(err => console.warn('stop recording on end', err)))
+          }
+          sideWork.push(this.flushQualityLog().catch(err => console.warn('flush quality on end', err)))
+          await Promise.race([
+            Promise.all(sideWork),
+            new Promise(resolve => setTimeout(resolve, 1500))
+          ])
+
+          const status = this.call?.status
+          let action = 'end'
+          if (status === 'Ringing') {
+            // Still ringing: caller cancels, callee rejects
+            action = this.call?.callerId === this.userId ? 'cancel' : 'reject'
+          } else if (status && status !== 'Accepted') {
+            // Already terminal — just leave UI
+            return
+          }
+
+          await fetch(`${API_URL}/api/calls/${this.callId}/${action}`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.userId }
-          })
+            headers: { 'X-User-Id': this.userId },
+            keepalive: true
+          }).catch(err => console.warn('end/cancel API', err))
         } catch (e) {
           console.error(e)
         } finally {
           this.handleCallEnded()
+          this._endingCall = false
         }
       },
       handleCallEnded() {
-        this.disconnectRoom()
+        try {
+          this.disconnectRoom()
+        } catch (e) {
+          console.warn(e)
+        }
         if (this.broadcastChannel) {
-          this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
-        }
-        // If mobile, go back to main page, else close window
-        if (window.innerWidth < 768 || window.opener) {
-          if (window.opener) {
-            window.close()
-          } else {
-            window.location.href = `/?user=${this.userId}`
+          try {
+            this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
+          } catch {
+            /* ignore */
           }
-        } else {
-          window.location.href = `/?user=${this.userId}`
         }
+        // Prefer close popup window; always navigate home as fallback so main UI unlocks
+        const home = `/?user=${encodeURIComponent(this.userId)}`
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.close()
+            // If browser blocks close, still leave call route
+            setTimeout(() => {
+              if (!window.closed) window.location.href = home
+            }, 200)
+            return
+          }
+        } catch {
+          /* ignore */
+        }
+        window.location.href = home
       },
       disconnectRoom() {
         this.stopQualityMonitoring()
@@ -1353,19 +1390,33 @@ if (isCallRoute) {
       popupState: 'none', // 'none' | 'incoming' | 'ringing' | 'active_window' | 'popup_blocked' | 'rejected' | 'busy' | 'ended' | 'error'
       popupErrorMessage: '',
       callWindowRef: null,
-      broadcastChannel: null
+      broadcastChannel: null,
+      /** userId -> online bool (same tenant only) */
+      onlineMap: {},
+      showOtherTenants: false
     },
     computed: {
       identityId() {
         return this.currentUser?.id || ''
       },
+      isCallActive() {
+        return !!(this.call && ['Ringing', 'Accepted'].includes(this.call.status))
+      },
       selectedIdentity() {
-        return this.identities.find(i => i.id === this.targetId) || this.identities.find(i => i.id !== this.identityId)
+        return this.identities.find(i => i.id === this.targetId)
+          || this.visibleContacts[0]
+          || null
       },
       visibleContacts() {
         const query = this.searchQuery.trim().toLowerCase()
-        return this.identities.filter(i => i.id !== this.identityId &&
-          (!query || `${i.id} ${i.displayName} ${i.tenantId}`.toLowerCase().includes(query)))
+        const tenant = this.currentUser?.tenantId
+        return this.identities.filter(i => {
+          if (i.id === this.identityId) return false
+          // Default: only same clinic/tenant (demo B1 is other clinic)
+          if (!this.showOtherTenants && tenant && i.tenantId !== tenant) return false
+          if (!query) return true
+          return `${i.id} ${i.displayName} ${i.tenantId}`.toLowerCase().includes(query)
+        })
       },
       peerIdentity() {
         if (!this.call) return this.selectedIdentity
@@ -1387,8 +1438,10 @@ if (isCallRoute) {
               this.popupState = 'active_window'
             }
           } else if (type === 'CALL_WINDOW_CLOSED') {
-            if (this.call && this.call.id === callId) {
-              this.popupState = 'none'
+            // Must clear call state — previously popup closed but this.call stayed set,
+            // which blocked selectUser() ("call xong chọn user không được").
+            if (!this.call || this.call.id === callId || !callId) {
+              this.clearCallUiState({ showEndedToast: false })
             }
           }
         }
@@ -1420,10 +1473,12 @@ if (isCallRoute) {
       async login(user) {
         this.currentUser = user
         this.isLoggedIn = true
+        this.onlineMap = {}
         history.replaceState(null, '', `?user=${user.id}`)
-        if (this.targetId === this.identityId) {
-          this.targetId = this.identities.find(i => i.id !== this.identityId)?.id || ''
-        }
+        const sameTenantPeers = this.identities.filter(
+          i => i.id !== user.id && i.tenantId === user.tenantId
+        )
+        this.targetId = sameTenantPeers[0]?.id || ''
         await this.connectRealtime()
       },
       async logout() {
@@ -1432,7 +1487,26 @@ if (isCallRoute) {
         this.isLoggedIn = false
         this.call = null
         this.popupState = 'none'
+        this.onlineMap = {}
         history.replaceState(null, '', location.pathname)
+      },
+      isUserOnline(userId) {
+        return !!this.onlineMap[userId]
+      },
+      applyPresenceSnapshot(snapshot) {
+        if (!snapshot?.users) return
+        const next = { ...this.onlineMap }
+        for (const u of snapshot.users) {
+          next[u.userId] = !!u.online
+        }
+        // Self is online while this page is connected
+        if (this.identityId) next[this.identityId] = true
+        this.onlineMap = next
+      },
+      clearCallUiState({ showEndedToast = false } = {}) {
+        this.call = null
+        this.popupState = showEndedToast ? 'ended' : 'none'
+        this.callWindowRef = null
       },
       async connectRealtime() {
         if (this.hub) await this.hub.stop()
@@ -1441,26 +1515,36 @@ if (isCallRoute) {
           .withAutomaticReconnect()
           .build()
 
-        this.hub.on('CallUpdated', async call => {
-          const prevStatus = this.call?.status
+        this.hub.on('CallUpdated', call => {
+          // Ignore events for other users' calls (shouldn't happen, but be safe)
+          if (call.callerId !== this.identityId && call.calleeId !== this.identityId) return
+
           this.call = call
 
           if (call.status === 'Ringing') {
-            if (call.calleeId === this.identityId) {
-              this.popupState = 'incoming'
-            } else {
-              this.popupState = 'ringing'
-            }
+            this.popupState = call.calleeId === this.identityId ? 'incoming' : 'ringing'
           } else if (call.status === 'Accepted') {
             this.popupState = 'active_window'
           } else if (call.status === 'Rejected') {
             this.popupState = 'rejected'
           } else if (call.status === 'Cancelled' || call.status === 'Ended') {
+            // Keep toast, but allow selecting users again immediately
             this.popupState = 'ended'
+            // Soft-clear after showing toast — call object kept for peerName in modal
+            // selectUser uses isCallActive (terminal statuses are not active)
           }
         })
 
+        this.hub.on('PresenceUpdated', snapshot => {
+          this.applyPresenceSnapshot(snapshot)
+        })
+
+        this.hub.onreconnected(async () => {
+          await this.refreshPresence()
+        })
+
         await this.hub.start()
+        await this.refreshPresence()
 
         // Check if there is an active call already
         try {
@@ -1480,16 +1564,48 @@ if (isCallRoute) {
           console.error(e)
         }
       },
-      selectUser(userId) {
-        if (!this.call && userId !== this.identityId) {
-          this.targetId = userId
+      async refreshPresence() {
+        try {
+          const res = await fetch(`${API_URL}/api/presence`, {
+            headers: { 'X-User-Id': this.identityId }
+          })
+          if (res.ok) {
+            this.applyPresenceSnapshot(await res.json())
+          }
+        } catch (e) {
+          console.warn('presence fetch failed', e)
         }
+      },
+      selectUser(userId) {
+        if (userId === this.identityId) return
+        // Only block while call is truly active (was: !this.call → stuck after end)
+        if (this.isCallActive) return
+        const peer = this.identities.find(i => i.id === userId)
+        if (!peer) return
+        if (!this.sameTenant(peer) && !this.showOtherTenants) return
+        this.targetId = userId
       },
       sameTenant(item) {
         return item.tenantId === this.currentUser?.tenantId
       },
+      contactStatusLabel(item) {
+        if (!this.sameTenant(item)) return 'Phòng khám / tenant khác'
+        return this.isUserOnline(item.id) ? 'Đang online' : 'Offline'
+      },
       async startCall(targetId) {
-        if (this.call && ['Ringing', 'Accepted'].includes(this.call.status)) return
+        if (this.isCallActive) return
+        const peer = this.identities.find(i => i.id === targetId)
+        if (!peer) return
+        if (!this.sameTenant(peer)) {
+          this.popupErrorMessage = 'Không thể gọi user thuộc phòng khám / tenant khác.'
+          this.popupState = 'error'
+          return
+        }
+        if (!this.isUserOnline(targetId)) {
+          this.popupErrorMessage = 'User đang offline (chưa mở app / mất kết nối realtime). Chỉ gọi được khi họ online.'
+          this.popupState = 'error'
+          return
+        }
         this.targetId = targetId
         const isMobile = window.innerWidth < 768
 
@@ -1596,8 +1712,7 @@ if (isCallRoute) {
         } catch (e) {
           console.error(e)
         } finally {
-          this.popupState = 'none'
-          this.call = null
+          this.clearCallUiState({ showEndedToast: false })
         }
       },
       async cancelCall() {
@@ -1610,8 +1725,7 @@ if (isCallRoute) {
         } catch (e) {
           console.error(e)
         } finally {
-          this.popupState = 'none'
-          this.call = null
+          this.clearCallUiState({ showEndedToast: false })
         }
       },
       reopenCallWindow() {
@@ -1630,9 +1744,11 @@ if (isCallRoute) {
         }
       },
       closePopup() {
-        this.popupState = 'none'
-        if (this.call && ['Rejected', 'Cancelled', 'Ended'].includes(this.call.status)) {
-          this.call = null
+        // Always release selection lock after terminal or dismiss
+        if (!this.isCallActive) {
+          this.clearCallUiState({ showEndedToast: false })
+        } else {
+          this.popupState = 'none'
         }
       }
     },
@@ -1691,18 +1807,24 @@ if (isCallRoute) {
               <div
                 v-for="item in visibleContacts"
                 :key="item.id"
-                :class="['contact-item', targetId === item.id && 'selected']"
+                :class="['contact-item', targetId === item.id && 'selected', !isUserOnline(item.id) && sameTenant(item) && 'contact-offline']"
                 @click="selectUser(item.id)"
               >
                 <div class="user-avatar" :class="{ accent: item.id === targetId }">
                   {{ item.id }}
-                  <div class="status-dot"></div>
+                  <div
+                    v-if="sameTenant(item)"
+                    :class="['status-dot', isUserOnline(item.id) ? 'online' : 'offline']"
+                  ></div>
                 </div>
                 <div class="contact-details">
                   <div class="contact-name">{{ item.displayName }}</div>
-                  <div class="contact-status">{{ sameTenant(item) ? 'Sẵn sàng nhận cuộc gọi' : 'Khác tenant' }}</div>
+                  <div class="contact-status">{{ contactStatusLabel(item) }}</div>
                 </div>
               </div>
+              <p v-if="!visibleContacts.length" style="padding: 16px; color: #65676b; font-size: 13px;">
+                Không có đồng nghiệp cùng phòng khám trong danh sách demo.
+              </p>
             </div>
 
             <footer class="sidebar-user-footer">
@@ -1721,13 +1843,20 @@ if (isCallRoute) {
           <section class="main-stage">
             <header class="main-header" v-if="selectedIdentity">
               <div class="target-info">
-                <div class="user-avatar accent">{{ selectedIdentity.id }}<div class="status-dot"></div></div>
+                <div class="user-avatar accent">
+                  {{ selectedIdentity.id }}
+                  <div :class="['status-dot', isUserOnline(selectedIdentity.id) ? 'online' : 'offline']"></div>
+                </div>
                 <div class="target-details">
                   <span class="target-name">{{ selectedIdentity.displayName }}</span>
-                  <span class="target-status">Đang hoạt động</span>
+                  <span class="target-status">{{ contactStatusLabel(selectedIdentity) }}</span>
                 </div>
               </div>
-              <button class="header-call-btn" @click="startCall(selectedIdentity.id)">
+              <button
+                class="header-call-btn"
+                :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
+                @click="startCall(selectedIdentity.id)"
+              >
                 <svg viewBox="0 0 24 24"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
                 <span>Gọi video</span>
               </button>
@@ -1745,9 +1874,13 @@ if (isCallRoute) {
                 <div class="hero-avatar-large">{{ selectedIdentity.id }}</div>
                 <h2 style="margin: 0; font-size: 22px;">{{ selectedIdentity.displayName }}</h2>
                 <p style="margin: 0; color: #65676b; font-size: 14px;">Thực hiện cuộc gọi video 1:1 trong cửa sổ riêng</p>
-                <button class="start-call-btn" @click="startCall(selectedIdentity.id)">
+                <button
+                  class="start-call-btn"
+                  :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
+                  @click="startCall(selectedIdentity.id)"
+                >
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-                  <span>Bắt đầu cuộc gọi video</span>
+                  <span>{{ isUserOnline(selectedIdentity.id) ? 'Bắt đầu cuộc gọi video' : 'User offline — không gọi được' }}</span>
                 </button>
               </div>
             </div>

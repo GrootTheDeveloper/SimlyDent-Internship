@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins("http://localhost:5173")
+    // PoC: allow local Vite + any HTTPS origin (VPS / sslip.io). Tighten for production.
+    .SetIsOriginAllowed(_ => true)
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IdentityRegistry>();
+builder.Services.AddSingleton<PresenceRegistry>();
 builder.Services.AddSingleton<LiveKitTokenService>();
 builder.Services.AddSingleton<CallQualityStore>();
 builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
@@ -20,6 +22,17 @@ app.UseCors();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/api/identities", (IdentityRegistry registry) => Results.Ok(registry.All));
+
+// Online presence for the caller's clinic (tenant) only.
+app.MapGet("/api/presence", (
+    HttpRequest request,
+    IdentityRegistry identities,
+    PresenceRegistry presence) =>
+{
+    var current = CurrentIdentity(request, identities);
+    if (current is null) return Results.Unauthorized();
+    return Results.Ok(presence.SnapshotForTenant(identities, current.TenantId));
+});
 
 app.MapPost("/api/calls", async (
     HttpRequest request,
@@ -34,7 +47,10 @@ app.MapPost("/api/calls", async (
     if (callee is null) return Results.BadRequest(new { error = "Unknown callee." });
     if (caller.Id == callee.Id) return Results.BadRequest(new { error = "Self-call is not allowed." });
     if (caller.TenantId != callee.TenantId)
-        return Results.Json(new { error = "Cross-tenant call denied." }, statusCode: 403);
+        return Results.Json(new { error = "Không thể gọi user phòng khám / tenant khác." }, statusCode: 403);
+
+    // Soft check: prefer online callees (still allow call if SignalR reconnecting briefly).
+    // Hard product rule can be enabled later; for PoC we only surface presence in UI.
 
     var now = DateTimeOffset.UtcNow;
     var busy = calls.Values.Any(call => {
