@@ -173,7 +173,21 @@ Local LAN PoC vẫn dùng `scripts/start.ps1` + `docker-compose.yml` như cũ.
 4. Điền `.env` rồi `./scripts/start-vps.sh`  
 5. Hai máy (khác Wi‑Fi/4G) mở `https://DOMAIN/?user=A1` và `A2`
 
-## 12. CI/CD GitHub Actions (push → VPS)
+## 12. Auth thực tế (JWT) + Presence
+
+| Khái niệm | Cách triển khai |
+|-----------|-----------------|
+| **Login** | `POST /api/auth/login` `{ userId, password }` → **JWT access token** |
+| **Gọi API** | Header `Authorization: Bearer <token>` |
+| **SignalR online** | Cùng JWT qua `accessTokenFactory` (query `access_token`) |
+| **Lưu token** | `localStorage` (SPA). Production có thể chuyển refresh token → HttpOnly cookie |
+| **Mật khẩu demo** | `Demo@123` (hash bằng ASP.NET `PasswordHasher`) |
+| **Online/Offline** | `OnConnected` / `OnDisconnected` trên hub (đóng tab = offline) |
+| **Không còn** | Giả danh bằng header `X-User-Id` |
+
+Env (tuỳ chọn): `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_LIFETIME_MINUTES` (mặc định 480).
+
+## 13. CI/CD GitHub Actions (push → VPS)
 
 Workflow: [`.github/workflows/deploy-livekit-vps.yml`](../../../../.github/workflows/deploy-livekit-vps.yml)
 

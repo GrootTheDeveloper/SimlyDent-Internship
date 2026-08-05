@@ -1,7 +1,10 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace LiveKitPoc.Api;
 
+[Authorize]
 public sealed class CallHub(
     IdentityRegistry identities,
     PresenceRegistry presence,
@@ -11,7 +14,8 @@ public sealed class CallHub(
 
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.GetHttpContext()?.Request.Query["userId"].ToString();
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? Context.User?.FindFirstValue("sub");
         var identity = identities.Find(userId);
         if (identity is null)
         {
@@ -53,6 +57,5 @@ public sealed class CallHub(
 
     public static string TenantGroup(string tenantId) => $"tenant:{tenantId.ToUpperInvariant()}";
 
-    /// <summary>Legacy alias used by Program.cs notify helpers.</summary>
     public static string Group(string userId) => UserGroup(userId);
 }

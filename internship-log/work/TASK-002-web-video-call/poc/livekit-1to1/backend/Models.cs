@@ -53,3 +53,5 @@ public sealed record CallView(
 
 public sealed record CreateCallRequest(string CalleeId);
 public sealed record TokenResponse(string Url, string Token, DateTimeOffset ExpiresAt);
+
+// Login DTOs live in Program.cs as file-scoped records for the auth endpoints.

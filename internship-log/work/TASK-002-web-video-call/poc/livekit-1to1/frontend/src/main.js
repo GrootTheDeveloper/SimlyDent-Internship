@@ -15,6 +15,57 @@ const API_URL = typeof import.meta.env.VITE_API_URL === 'string'
   ? import.meta.env.VITE_API_URL
   : (window.location.hostname === 'localhost' ? 'http://localhost:5080' : '')
 
+// ---- Auth (production-shaped SPA): JWT access token in localStorage ----
+// Real products often put refresh token in HttpOnly cookie; access token short-lived.
+const AUTH_TOKEN_KEY = 'simlydent_access_token'
+const AUTH_USER_KEY = 'simlydent_auth_user'
+const DEMO_PASSWORD_HINT = 'Demo@123'
+
+function getAccessToken() {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+function setAuthSession(accessToken, user) {
+  localStorage.setItem(AUTH_TOKEN_KEY, accessToken)
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
+}
+
+function clearAuthSession() {
+  localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_USER_KEY)
+}
+
+function readCachedUser() {
+  try {
+    const raw = localStorage.getItem(AUTH_USER_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+/** Headers for authenticated API calls (Bearer JWT). */
+function authHeaders(extra = {}) {
+  const headers = { ...extra }
+  const token = getAccessToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = authHeaders(options.headers || {})
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers })
+  if (res.status === 401 && !path.startsWith('/api/auth/login')) {
+    // Token expired / invalid — force re-login on main app
+    clearAuthSession()
+  }
+  return res
+}
+
 const initialQualityStats = () => ({
   incomingResolution: 'Chưa có',
   incomingFps: 0,
@@ -709,7 +760,9 @@ if (isCallRoute) {
   // 1. STANDALONE CALL WINDOW APP (/call/{callId})
   // =========================================================================
   const callId = path.replace('/call/', '').trim()
-  const userId = new URLSearchParams(window.location.search).get('user') || 'A1'
+  // Identity comes from JWT session (not spoofable query alone).
+  const cached = readCachedUser()
+  const userId = cached?.id || new URLSearchParams(window.location.search).get('user') || ''
 
   new Vue({
     el: '#app',
@@ -782,6 +835,25 @@ if (isCallRoute) {
         this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_OPENED', callId: this.callId })
       }
 
+      if (!getAccessToken()) {
+        this.error = 'Chưa đăng nhập. Hãy mở trang chính và login trước.'
+        return
+      }
+      // Resolve identity from JWT (source of truth)
+      try {
+        const meRes = await apiFetch('/api/auth/me')
+        if (meRes.ok) {
+          const me = await meRes.json()
+          this.userId = me.id
+        } else {
+          this.error = 'Phiên đăng nhập hết hạn. Hãy login lại trên trang chính.'
+          return
+        }
+      } catch (e) {
+        this.error = 'Không xác thực được phiên: ' + e.message
+        return
+      }
+
       await this.loadIdentities()
       await this.verifyAndConnect()
 
@@ -799,7 +871,7 @@ if (isCallRoute) {
     methods: {
       async loadIdentities() {
         try {
-          const res = await fetch(`${API_URL}/api/identities`)
+          const res = await apiFetch(`/api/identities`)
           this.identities = await res.json()
         } catch (e) {
           console.error(e)
@@ -811,8 +883,8 @@ if (isCallRoute) {
           await this.connectRealtime()
 
           // Verify Call with Backend
-          const res = await fetch(`${API_URL}/api/calls/${this.callId}`, {
-            headers: { 'X-User-Id': this.userId }
+          const res = await apiFetch(`/api/calls/${this.callId}`, {
+            headers: authHeaders()
           })
           if (!res.ok) {
             throw new Error('Cuộc gọi không tồn tại hoặc bạn không có quyền truy cập.')
@@ -832,7 +904,9 @@ if (isCallRoute) {
       async connectRealtime() {
         if (this.hub) await this.hub.stop()
         this.hub = new signalR.HubConnectionBuilder()
-          .withUrl(`${API_URL}/hubs/calls?userId=${encodeURIComponent(this.userId)}`)
+          .withUrl(`${API_URL}/hubs/calls`, {
+            accessTokenFactory: () => getAccessToken()
+          })
           .withAutomaticReconnect()
           .build()
 
@@ -855,12 +929,9 @@ if (isCallRoute) {
         this.joining = true
         try {
           // Fetch Media Token
-          const res = await fetch(`${API_URL}/api/calls/${this.callId}/token`, {
+          const res = await apiFetch(`/api/calls/${this.callId}/token`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-User-Id': this.userId
-            }
+            headers: authHeaders({ 'Content-Type': 'application/json' })
           })
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}))
@@ -1108,7 +1179,7 @@ if (isCallRoute) {
         const url = `${API_URL}/api/calls/${this.callId}/quality/samples`
         if (useBeacon && navigator.sendBeacon) {
           const sent = navigator.sendBeacon(
-            `${url}?userId=${encodeURIComponent(this.userId)}`,
+            `${url}?access_token=${encodeURIComponent(getAccessToken())}`,
             new Blob([payload], { type: 'application/json' })
           )
           if (sent) this.qualityLogBuffer.splice(0, samples.length)
@@ -1120,10 +1191,7 @@ if (isCallRoute) {
           try {
             const res = await fetch(url, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Id': this.userId
-              },
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: payload,
               keepalive: true
             })
@@ -1141,8 +1209,8 @@ if (isCallRoute) {
       async downloadQualityLog(format) {
         try {
           await this.flushQualityLog()
-          const res = await fetch(`${API_URL}/api/calls/${this.callId}/quality/export?format=${format}`, {
-            headers: { 'X-User-Id': this.userId }
+          const res = await apiFetch(`/api/calls/${this.callId}/quality/export?format=${format}`, {
+            headers: authHeaders()
           })
           if (!res.ok) {
             const body = await res.json().catch(() => ({}))
@@ -1166,9 +1234,9 @@ if (isCallRoute) {
         this.error = ''
         try {
           const action = this.isRecording ? 'stop' : 'start'
-          const res = await fetch(`${API_URL}/api/calls/${this.callId}/recording/${action}`, {
+          const res = await apiFetch(`/api/calls/${this.callId}/recording/${action}`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.userId }
+            headers: authHeaders()
           })
           const body = await res.json().catch(() => ({}))
           if (!res.ok) throw new Error(body.error || 'Không thể thay đổi trạng thái ghi hình.')
@@ -1181,8 +1249,8 @@ if (isCallRoute) {
       },
       async downloadRecording() {
         try {
-          const res = await fetch(`${API_URL}/api/calls/${this.callId}/recording/file`, {
-            headers: { 'X-User-Id': this.userId }
+          const res = await apiFetch(`/api/calls/${this.callId}/recording/file`, {
+            headers: authHeaders()
           })
           if (!res.ok) {
             const body = await res.json().catch(() => ({}))
@@ -1225,9 +1293,9 @@ if (isCallRoute) {
             return
           }
 
-          await fetch(`${API_URL}/api/calls/${this.callId}/${action}`, {
+          await apiFetch(`/api/calls/${this.callId}/${action}`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.userId },
+            headers: authHeaders(),
             keepalive: true
           }).catch(err => console.warn('end/cancel API', err))
         } catch (e) {
@@ -1285,7 +1353,7 @@ if (isCallRoute) {
         this.flushQualityLog(true)
         if (this.call && ['Accepted', 'Ringing'].includes(this.call.status)) {
           const action = this.call.status === 'Accepted' ? 'end' : 'cancel'
-          navigator.sendBeacon(`${API_URL}/api/calls/${this.callId}/${action}?userId=${encodeURIComponent(this.userId)}`)
+          navigator.sendBeacon(`${API_URL}/api/calls/${this.callId}/${action}?access_token=${encodeURIComponent(getAccessToken())}`)
         }
         if (this.broadcastChannel) {
           this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
@@ -1381,6 +1449,11 @@ if (isCallRoute) {
     el: '#app',
     data: {
       identities: [],
+      loginAccounts: [],
+      loginUserId: 'A1',
+      loginPassword: DEMO_PASSWORD_HINT,
+      loginError: '',
+      loginBusy: false,
       currentUser: null,
       isLoggedIn: false,
       targetId: 'A2',
@@ -1447,47 +1520,96 @@ if (isCallRoute) {
         }
       }
 
-      await this.loadIdentities()
-      const urlUser = new URLSearchParams(window.location.search).get('user')
-      if (urlUser) {
-        const user = this.identities.find(i => i.id === urlUser)
-        if (user) {
-          this.login(user)
-        }
-      }
+      await this.bootstrapAuth()
     },
     beforeDestroy() {
       if (this.hub) this.hub.stop()
       if (this.broadcastChannel) this.broadcastChannel.close()
     },
     methods: {
+      async bootstrapAuth() {
+        // Public account list for login picker
+        try {
+          const res = await fetch(`${API_URL}/api/auth/accounts`)
+          if (res.ok) this.loginAccounts = await res.json()
+        } catch (err) {
+          this.loginError = 'Không tải được danh sách tài khoản: ' + err.message
+        }
+
+        // Restore JWT session if still valid
+        if (getAccessToken()) {
+          try {
+            const meRes = await apiFetch('/api/auth/me')
+            if (meRes.ok) {
+              const me = await meRes.json()
+              await this.enterApp(me)
+              return
+            }
+          } catch {
+            /* fall through to login */
+          }
+          clearAuthSession()
+        }
+        this.isLoggedIn = false
+      },
       async loadIdentities() {
         try {
-          const res = await fetch(`${API_URL}/api/identities`)
+          const res = await apiFetch(`/api/identities`)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
           this.identities = await res.json()
         } catch (err) {
-          this.popupErrorMessage = 'Không thể tải danh sách tài khoản: ' + err.message
+          this.popupErrorMessage = 'Không thể tải danh sách liên hệ: ' + err.message
           this.popupState = 'error'
         }
       },
-      async login(user) {
+      selectLoginAccount(user) {
+        this.loginUserId = user.id
+        this.loginPassword = DEMO_PASSWORD_HINT
+        this.loginError = ''
+      },
+      async submitLogin() {
+        this.loginBusy = true
+        this.loginError = ''
+        try {
+          const res = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: this.loginUserId,
+              password: this.loginPassword
+            })
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(body.error || 'Đăng nhập thất bại')
+          }
+          setAuthSession(body.accessToken, body.user)
+          await this.enterApp(body.user)
+        } catch (err) {
+          this.loginError = err.message
+        } finally {
+          this.loginBusy = false
+        }
+      },
+      async enterApp(user) {
         this.currentUser = user
         this.isLoggedIn = true
         this.onlineMap = {}
-        history.replaceState(null, '', `?user=${user.id}`)
-        const sameTenantPeers = this.identities.filter(
-          i => i.id !== user.id && i.tenantId === user.tenantId
-        )
+        history.replaceState(null, '', `?user=${encodeURIComponent(user.id)}`)
+        await this.loadIdentities()
+        const sameTenantPeers = this.identities.filter(i => i.id !== user.id)
         this.targetId = sameTenantPeers[0]?.id || ''
         await this.connectRealtime()
       },
       async logout() {
         if (this.hub) await this.hub.stop()
+        clearAuthSession()
         this.currentUser = null
         this.isLoggedIn = false
         this.call = null
         this.popupState = 'none'
         this.onlineMap = {}
+        this.identities = []
         history.replaceState(null, '', location.pathname)
       },
       isUserOnline(userId) {
@@ -1511,7 +1633,9 @@ if (isCallRoute) {
       async connectRealtime() {
         if (this.hub) await this.hub.stop()
         this.hub = new signalR.HubConnectionBuilder()
-          .withUrl(`${API_URL}/hubs/calls?userId=${encodeURIComponent(this.identityId)}`)
+          .withUrl(`${API_URL}/hubs/calls`, {
+            accessTokenFactory: () => getAccessToken()
+          })
           .withAutomaticReconnect()
           .build()
 
@@ -1548,8 +1672,8 @@ if (isCallRoute) {
 
         // Check if there is an active call already
         try {
-          const res = await fetch(`${API_URL}/api/calls/active`, {
-            headers: { 'X-User-Id': this.identityId }
+          const res = await apiFetch(`/api/calls/active`, {
+            headers: authHeaders()
           })
           if (res.ok && res.status !== 204) {
             const activeCall = await res.json()
@@ -1566,8 +1690,8 @@ if (isCallRoute) {
       },
       async refreshPresence() {
         try {
-          const res = await fetch(`${API_URL}/api/presence`, {
-            headers: { 'X-User-Id': this.identityId }
+          const res = await apiFetch(`/api/presence`, {
+            headers: authHeaders()
           })
           if (res.ok) {
             this.applyPresenceSnapshot(await res.json())
@@ -1616,12 +1740,9 @@ if (isCallRoute) {
         }
 
         try {
-          const res = await fetch(`${API_URL}/api/calls`, {
+          const res = await apiFetch(`/api/calls`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-User-Id': this.identityId
-            },
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ calleeId: targetId })
           })
 
@@ -1668,9 +1789,9 @@ if (isCallRoute) {
         }
 
         try {
-          const res = await fetch(`${API_URL}/api/calls/${this.call.id}/accept`, {
+          const res = await apiFetch(`/api/calls/${this.call.id}/accept`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.identityId }
+            headers: authHeaders()
           })
 
           if (!res.ok) {
@@ -1705,9 +1826,9 @@ if (isCallRoute) {
       async rejectCall() {
         if (!this.call) return
         try {
-          await fetch(`${API_URL}/api/calls/${this.call.id}/reject`, {
+          await apiFetch(`/api/calls/${this.call.id}/reject`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.identityId }
+            headers: authHeaders()
           })
         } catch (e) {
           console.error(e)
@@ -1718,9 +1839,9 @@ if (isCallRoute) {
       async cancelCall() {
         if (!this.call) return
         try {
-          await fetch(`${API_URL}/api/calls/${this.call.id}/cancel`, {
+          await apiFetch(`/api/calls/${this.call.id}/cancel`, {
             method: 'POST',
-            headers: { 'X-User-Id': this.identityId }
+            headers: authHeaders()
           })
         } catch (e) {
           console.error(e)
@@ -1761,13 +1882,16 @@ if (isCallRoute) {
               <div class="login-logo">S</div>
               <h1>SimlyDent Call</h1>
             </div>
-            <p>Chọn tài khoản thử nghiệm để đăng nhập</p>
+            <p>Đăng nhập bằng tài khoản phòng khám (JWT session)</p>
+            <p style="font-size: 12px; color: #65676b; margin: -12px 0 16px;">Mật khẩu demo mọi user: <strong>Demo@123</strong></p>
             <div class="demo-account-list">
               <button
-                v-for="user in identities"
+                v-for="user in loginAccounts"
                 :key="user.id"
+                type="button"
                 class="account-btn"
-                @click="login(user)"
+                :class="{ selected: loginUserId === user.id }"
+                @click="selectLoginAccount(user)"
               >
                 <div class="account-avatar">{{ user.id }}</div>
                 <div class="account-info">
@@ -1777,6 +1901,26 @@ if (isCallRoute) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
               </button>
             </div>
+            <div style="margin-top: 16px; text-align: left;">
+              <label style="font-size: 12px; color: #65676b; display: block; margin-bottom: 6px;">Mật khẩu</label>
+              <input
+                v-model="loginPassword"
+                type="password"
+                autocomplete="current-password"
+                style="width: 100%; padding: 10px 12px; border: 1px solid #e4e6eb; border-radius: 10px; font-size: 14px; box-sizing: border-box;"
+                @keyup.enter="submitLogin"
+              />
+            </div>
+            <p v-if="loginError" style="color: #fa383e; font-size: 13px; margin: 12px 0 0;">{{ loginError }}</p>
+            <button
+              type="button"
+              class="start-call-btn"
+              style="width: 100%; margin-top: 16px; justify-content: center;"
+              :disabled="loginBusy || !loginUserId"
+              @click="submitLogin"
+            >
+              {{ loginBusy ? 'Đang đăng nhập…' : 'Đăng nhập' }}
+            </button>
           </div>
         </div>
 

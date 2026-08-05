@@ -1,47 +1,114 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using LiveKitPoc.Api;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    // PoC: allow local Vite + any HTTPS origin (VPS / sslip.io). Tighten for production.
     .SetIsOriginAllowed(_ => true)
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()));
-builder.Services.AddSignalR();
+
+builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddSingleton<IdentityRegistry>();
 builder.Services.AddSingleton<PresenceRegistry>();
 builder.Services.AddSingleton<LiveKitTokenService>();
 builder.Services.AddSingleton<CallQualityStore>();
 builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
 builder.Services.AddHttpClient<LiveKitEgressService>();
+builder.Services.AddSignalR();
+
+var authTokens = new AuthTokenService(builder.Configuration);
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = authTokens.ValidationParameters();
+        // SignalR cannot set Authorization header easily from browser — token via query.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // SignalR + sendBeacon cannot always set Authorization header.
+                var accessToken = context.Request.Query["access_token"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(accessToken))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-app.MapGet("/api/identities", (IdentityRegistry registry) => Results.Ok(registry.All));
 
-// Online presence for the caller's clinic (tenant) only.
+// ---- Auth (real-world shape: password verify → JWT access token) ----
+app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>
+    Results.Ok(registry.All.Select(u => new
+    {
+        u.Id,
+        u.TenantId,
+        u.DisplayName
+    })));
+
+app.MapPost("/api/auth/login", (
+    LoginRequest body,
+    IdentityRegistry identities,
+    AuthTokenService tokens) =>
+{
+    if (!identities.TryAuthenticate(body.UserId, body.Password, out var user) || user is null)
+        return Results.Json(new { error = "Sai tài khoản hoặc mật khẩu." }, statusCode: 401);
+
+    var (accessToken, expiresAt) = tokens.CreateAccessToken(user);
+    return Results.Ok(new LoginResponse(
+        accessToken,
+        expiresAt,
+        new AuthUserDto(user.Id, user.TenantId, user.DisplayName)));
+});
+
+app.MapGet("/api/auth/me", (ClaimsPrincipal principal, IdentityRegistry identities) =>
+{
+    var user = CurrentIdentity(principal, identities);
+    return user is null
+        ? Results.Unauthorized()
+        : Results.Ok(new AuthUserDto(user.Id, user.TenantId, user.DisplayName));
+}).RequireAuthorization();
+
+app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry registry) =>
+{
+    var current = CurrentIdentity(principal, registry);
+    if (current is null) return Results.Unauthorized();
+    // Same clinic only — production directory is scoped by org/tenant.
+    var peers = registry.All
+        .Where(u => string.Equals(u.TenantId, current.TenantId, StringComparison.OrdinalIgnoreCase))
+        .Select(u => new AuthUserDto(u.Id, u.TenantId, u.DisplayName));
+    return Results.Ok(peers);
+}).RequireAuthorization();
+
 app.MapGet("/api/presence", (
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     PresenceRegistry presence) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     return Results.Ok(presence.SnapshotForTenant(identities, current.TenantId));
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls", async (
-    HttpRequest request,
+    ClaimsPrincipal principal,
     CreateCallRequest body,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hub) =>
 {
-    var caller = CurrentIdentity(request, identities);
+    var caller = CurrentIdentity(principal, identities);
     if (caller is null) return Results.Unauthorized();
     var callee = identities.Find(body.CalleeId);
     if (callee is null) return Results.BadRequest(new { error = "Unknown callee." });
@@ -49,11 +116,9 @@ app.MapPost("/api/calls", async (
     if (caller.TenantId != callee.TenantId)
         return Results.Json(new { error = "Không thể gọi user phòng khám / tenant khác." }, statusCode: 403);
 
-    // Soft check: prefer online callees (still allow call if SignalR reconnecting briefly).
-    // Hard product rule can be enabled later; for PoC we only surface presence in UI.
-
     var now = DateTimeOffset.UtcNow;
-    var busy = calls.Values.Any(call => {
+    var busy = calls.Values.Any(call =>
+    {
         if (!call.IsActive) return false;
         var timeout = call.Status == CallStatus.Ringing ? TimeSpan.FromSeconds(45) : TimeSpan.FromMinutes(2);
         if (now - call.UpdatedAt > timeout)
@@ -84,43 +149,43 @@ app.MapPost("/api/calls", async (
     calls[id] = call;
     await hub.Clients.Group(CallHub.Group(callee.Id)).SendAsync("CallUpdated", call.ToView());
     return Results.Created($"/api/calls/{id}", call.ToView());
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/calls/active", (
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     var active = calls.Values
         .Where(call => call.TenantId == current.TenantId && call.Contains(current.Id) && call.IsActive)
         .OrderByDescending(call => call.CreatedAt)
         .FirstOrDefault();
     return active is null ? Results.NoContent() : Results.Ok(active.ToView());
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/calls/{id:guid}", (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
     return Results.Ok(call.ToView());
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/accept", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hub) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || call.CalleeId != current.Id)
         return Results.NotFound();
@@ -134,21 +199,23 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
     }
     await NotifyParticipants(hub, call);
     return Results.Ok(call.ToView());
-});
+}).RequireAuthorization();
 
-app.MapPost("/api/calls/{id:guid}/reject", Transition(CallStatus.Rejected, callerOnly: false, calleeOnly: true));
-app.MapPost("/api/calls/{id:guid}/cancel", Transition(CallStatus.Cancelled, callerOnly: true, calleeOnly: false));
+app.MapPost("/api/calls/{id:guid}/reject", Transition(CallStatus.Rejected, callerOnly: false, calleeOnly: true))
+    .RequireAuthorization();
+app.MapPost("/api/calls/{id:guid}/cancel", Transition(CallStatus.Cancelled, callerOnly: true, calleeOnly: false))
+    .RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/end", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hub,
     LiveKitEgressService egress,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -180,16 +247,17 @@ app.MapPost("/api/calls/{id:guid}/end", async (
         await NotifyParticipants(hub, call);
     }
     return Results.Ok(call.ToView());
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/token", (
     Guid id,
     HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitTokenService tokens) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -200,18 +268,18 @@ app.MapPost("/api/calls/{id:guid}/token", (
     }
     var (token, expiresAt) = tokens.CreateJoinToken(current, call.RoomName, TimeSpan.FromMinutes(5));
     return Results.Ok(new TokenResponse(LiveKitWebSocketUrl(request), token, expiresAt));
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/recording/start", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitEgressService egress,
     IHubContext<CallHub> hub,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -252,18 +320,18 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
         await NotifyParticipants(hub, call);
         return Results.Json(new { error = $"Không thể bắt đầu ghi hình: {ex.Message}" }, statusCode: 503);
     }
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitEgressService egress,
     IHubContext<CallHub> hub,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -300,16 +368,16 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
         await NotifyParticipants(hub, call);
         return Results.Json(new { error = $"Không thể dừng ghi hình: {ex.Message}" }, statusCode: 503);
     }
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/calls/{id:guid}/recording/file", (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IConfiguration configuration) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -321,18 +389,18 @@ app.MapGet("/api/calls/{id:guid}/recording/file", (
     return File.Exists(path)
         ? Results.File(path, "video/mp4", call.RecordingFileName, enableRangeProcessing: true)
         : Results.NotFound(new { error = "Recording file was not found." });
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/quality/samples", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     QualitySampleBatchRequest batch,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -350,33 +418,33 @@ app.MapPost("/api/calls/{id:guid}/quality/samples", async (
 
     await qualityStore.AppendAsync(call, current, batch, cancellationToken);
     return Results.Accepted(value: new { stored = batch.Samples.Count });
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/calls/{id:guid}/quality/summary", async (
     Guid id,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
     return Results.Ok(await qualityStore.BuildReportAsync(id, cancellationToken));
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/calls/{id:guid}/quality/export", async (
     Guid id,
     string? format,
-    HttpRequest request,
+    ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -400,20 +468,25 @@ app.MapGet("/api/calls/{id:guid}/quality/export", async (
             WriteIndented = true
         });
     return Results.File(payload, "application/json", $"call-{id:N}-quality.json");
-});
+}).RequireAuthorization();
 
-app.MapHub<CallHub>("/hubs/calls");
+app.MapHub<CallHub>("/hubs/calls").RequireAuthorization();
 app.Run();
 
-static TestIdentity? CurrentIdentity(HttpRequest request, IdentityRegistry identities) =>
-    identities.Find(request.Headers["X-User-Id"].FirstOrDefault() ?? request.Query["userId"].FirstOrDefault());
+static TestIdentity? CurrentIdentity(ClaimsPrincipal? principal, IdentityRegistry identities)
+{
+    if (principal?.Identity?.IsAuthenticated != true) return null;
+    var id = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? principal.FindFirstValue("sub");
+    return identities.Find(id);
+}
 
-static Func<Guid, HttpRequest, IdentityRegistry, ConcurrentDictionary<Guid, CallSession>, IHubContext<CallHub>, Task<IResult>> Transition(
+static Func<Guid, ClaimsPrincipal, IdentityRegistry, ConcurrentDictionary<Guid, CallSession>, IHubContext<CallHub>, Task<IResult>> Transition(
     CallStatus target,
     bool callerOnly,
-    bool calleeOnly) => async (id, request, identities, calls, hub) =>
+    bool calleeOnly) => async (id, principal, identities, calls, hub) =>
 {
-    var current = CurrentIdentity(request, identities);
+    var current = CurrentIdentity(principal, identities);
     if (current is null) return Results.Unauthorized();
     if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
         return Results.NotFound();
@@ -450,3 +523,8 @@ static string LiveKitWebSocketUrl(HttpRequest request)
     var host = string.IsNullOrWhiteSpace(forwardedHost) ? request.Host.Value : forwardedHost;
     return $"{scheme}://{host}";
 }
+
+// DTOs
+file sealed record LoginRequest(string UserId, string Password);
+file sealed record AuthUserDto(string Id, string TenantId, string DisplayName);
+file sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt, AuthUserDto User);

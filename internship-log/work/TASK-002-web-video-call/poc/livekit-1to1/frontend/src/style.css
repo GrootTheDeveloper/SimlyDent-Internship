@@ -134,6 +134,11 @@ svg {
   transform: translateY(-1px);
 }
 
+.account-btn.selected {
+  background: #e7f3ff;
+  border-color: var(--color-primary);
+}
+
 .account-avatar {
   width: 44px;
   height: 44px;
