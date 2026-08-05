@@ -448,27 +448,79 @@ async function prepareLocalTracksForOrientation(localTracks) {
   }
 }
 
-/** Keep video element fully visible inside its box (no cover/crop). */
+/**
+ * True letterbox layout for remote (and local pip) video.
+ *
+ * Why object-fit alone failed:
+ *   width:100% + height:100% makes the <video> *element* fill the landscape
+ *   stage. Some paths still paint as if filling that box (looks "zoomed" with
+ *   no side bars). We instead size the element to the largest rect that fits
+ *   stream aspect inside the host — black bars are the host background.
+ *
+ * Portrait stream (e.g. 720×1280) on landscape host → height-limited, bars L/R.
+ * Landscape stream on landscape host → width-limited or full, as appropriate.
+ */
 function applyVideoDisplayFit(element, hostEl = null) {
   if (!element) return
-  const apply = () => {
-    const w = element.videoWidth || 0
-    const h = element.videoHeight || 0
+
+  const layout = () => {
+    const vw = element.videoWidth || 0
+    const vh = element.videoHeight || 0
     element.classList.remove('is-portrait', 'is-landscape')
-    if (w > 0 && h > 0) {
-      element.classList.add(h > w ? 'is-portrait' : 'is-landscape')
+    if (vw > 0 && vh > 0) {
+      element.classList.add(vh > vw ? 'is-portrait' : 'is-landscape')
       if (hostEl?.classList?.contains('local-video-container')) {
-        hostEl.classList.toggle('pip-portrait', h > w)
+        hostEl.classList.toggle('pip-portrait', vh > vw)
       }
     }
-    element.style.setProperty('width', '100%', 'important')
-    element.style.setProperty('height', '100%', 'important')
+
+    // Default CSS: auto + max 100% (already letterbox-friendly)
     element.style.setProperty('object-fit', 'contain', 'important')
     element.style.setProperty('object-position', 'center center', 'important')
+    element.style.setProperty('max-width', '100%', 'important')
+    element.style.setProperty('max-height', '100%', 'important')
+
+    if (!hostEl || vw <= 0 || vh <= 0) {
+      element.style.setProperty('width', 'auto', 'important')
+      element.style.setProperty('height', 'auto', 'important')
+      return
+    }
+
+    const cw = hostEl.clientWidth
+    const ch = hostEl.clientHeight
+    if (cw <= 0 || ch <= 0) return
+
+    // contain: scale = min(host/stream) on each axis
+    const scale = Math.min(cw / vw, ch / vh)
+    const drawW = Math.max(1, Math.floor(vw * scale))
+    const drawH = Math.max(1, Math.floor(vh * scale))
+
+    element.style.setProperty('width', `${drawW}px`, 'important')
+    element.style.setProperty('height', `${drawH}px`, 'important')
   }
-  apply()
-  element.addEventListener('loadedmetadata', apply)
-  element.addEventListener('resize', apply)
+
+  layout()
+  element.addEventListener('loadedmetadata', layout)
+  element.addEventListener('resize', layout)
+  element.addEventListener('playing', layout)
+
+  if (hostEl && typeof ResizeObserver === 'function') {
+    if (element._letterboxRO) {
+      try {
+        element._letterboxRO.disconnect()
+      } catch {
+        /* ignore */
+      }
+    }
+    const ro = new ResizeObserver(() => layout())
+    ro.observe(hostEl)
+    element._letterboxRO = ro
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', layout)
+    element._letterboxOnWinResize = layout
+  }
 }
 
 function cumulativeDelta(previous, key, current) {
