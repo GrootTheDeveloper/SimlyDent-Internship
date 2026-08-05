@@ -1,6 +1,6 @@
 import Vue from 'vue/dist/vue.esm.js'
 import * as signalR from '@microsoft/signalr'
-import { createLocalTracks, Room, RoomEvent, Track, VideoPresets } from 'livekit-client'
+import { createLocalTracks, Room, RoomEvent, Track, VideoPreset, VideoPresets } from 'livekit-client'
 import './style.css'
 
 const API_URL = typeof import.meta.env.VITE_API_URL === 'string'
@@ -25,6 +25,83 @@ const createClientSessionId = () => globalThis.crypto?.randomUUID?.()
   || `client-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const finiteOrNull = value => Number.isFinite(value) ? value : null
+
+/** Prefer real device orientation so portrait callers are not cropped into 16:9. */
+function isPortraitCapturePreferred() {
+  try {
+    const type = screen.orientation?.type || ''
+    if (type.startsWith('portrait')) return true
+    if (type.startsWith('landscape')) return false
+  } catch {
+    /* ignore */
+  }
+  if (typeof window.matchMedia === 'function') {
+    if (window.matchMedia('(orientation: portrait)').matches) return true
+    if (window.matchMedia('(orientation: landscape)').matches) return false
+  }
+  return window.innerHeight >= window.innerWidth
+}
+
+/**
+ * Capture resolution aligned with UI orientation.
+ * Landscape: 1280×720. Portrait: 720×1280 so receiver can letterbox (fit by height)
+ * instead of a zoomed center crop of a forced landscape frame.
+ */
+function preferredVideoCaptureResolution() {
+  if (isPortraitCapturePreferred()) {
+    // Swap h720 so long edge stays vertical on phone portrait.
+    return new VideoPreset(
+      VideoPresets.h720.height,
+      VideoPresets.h720.width,
+      VideoPresets.h720.encoding.maxBitrate,
+      VideoPresets.h720.encoding.maxFramerate
+    ).resolution
+  }
+  return VideoPresets.h720.resolution
+}
+
+/** Portrait simulcast layers (height-major) when publishing from a vertical device. */
+function preferredSimulcastLayers() {
+  if (!isPortraitCapturePreferred()) {
+    return [VideoPresets.h540, VideoPresets.h216]
+  }
+  return [
+    new VideoPreset(
+      VideoPresets.h540.height,
+      VideoPresets.h540.width,
+      VideoPresets.h540.encoding.maxBitrate,
+      VideoPresets.h540.encoding.maxFramerate
+    ),
+    new VideoPreset(
+      VideoPresets.h216.height,
+      VideoPresets.h216.width,
+      VideoPresets.h216.encoding.maxBitrate,
+      VideoPresets.h216.encoding.maxFramerate
+    )
+  ]
+}
+
+/**
+ * Display policy for telehealth:
+ * - Portrait remote on landscape screen: fit by height (full vertical frame, side bars)
+ * - Landscape remote: fit by width / contain in box
+ */
+function applyVideoDisplayFit(element) {
+  if (!element) return
+  const apply = () => {
+    const w = element.videoWidth || 0
+    const h = element.videoHeight || 0
+    element.classList.remove('is-portrait', 'is-landscape')
+    if (w > 0 && h > 0) {
+      element.classList.add(h > w ? 'is-portrait' : 'is-landscape')
+    }
+    element.style.setProperty('object-fit', 'contain', 'important')
+    element.style.setProperty('object-position', 'center center', 'important')
+  }
+  apply()
+  element.addEventListener('loadedmetadata', apply)
+  element.addEventListener('resize', apply)
+}
 
 function cumulativeDelta(previous, key, current) {
   if (!Number.isFinite(current)) return null
@@ -336,6 +413,7 @@ if (isCallRoute) {
           this.mediaPermissionState = 'requesting'
           let localTracks = []
           try {
+            const captureResolution = preferredVideoCaptureResolution()
             localTracks = await createLocalTracks({
               audio: {
                 echoCancellation: true,
@@ -344,7 +422,8 @@ if (isCallRoute) {
               },
               video: {
                 facingMode: 'user',
-                resolution: VideoPresets.h720.resolution
+                // Portrait devices publish 720×1280 so B (landscape) can contain by height.
+                resolution: captureResolution
               }
             })
           } catch (e) {
@@ -368,7 +447,7 @@ if (isCallRoute) {
             publishDefaults: {
               simulcast: true,
               videoCodec: 'vp8',
-              videoSimulcastLayers: [VideoPresets.h540, VideoPresets.h216]
+              videoSimulcastLayers: preferredSimulcastLayers()
             }
           })
           room.on(RoomEvent.TrackSubscribed, track => this.attachRemoteTrack(track))
@@ -428,8 +507,7 @@ if (isCallRoute) {
           element.playsInline = true
           element.setAttribute('playsinline', '')
           element.setAttribute('webkit-playsinline', '')
-          element.style.setProperty('object-fit', 'contain', 'important')
-          element.style.setProperty('object-position', 'center center', 'important')
+          applyVideoDisplayFit(element)
           const host = this.$refs.remoteMedia
           if (host) {
             host.querySelectorAll('video').forEach(n => n.remove())
@@ -467,8 +545,7 @@ if (isCallRoute) {
         element.playsInline = true
         element.setAttribute('playsinline', '')
         element.setAttribute('webkit-playsinline', '')
-        element.style.setProperty('object-fit', 'contain', 'important')
-        element.style.setProperty('object-position', 'center center', 'important')
+        applyVideoDisplayFit(element)
         this.$refs.localMedia.replaceChildren(element)
         element.play().catch(() => {})
       },

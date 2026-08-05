@@ -912,9 +912,27 @@ svg {
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  /* contain = never crop; portrait on landscape B letterboxes left/right (fit by height) */
   object-fit: contain !important;
   object-position: center center !important;
   background: #121316;
+}
+
+/* Explicit height-first for portrait remote (clinic / phone vertical → desktop horizontal) */
+.remote-video-container video.is-portrait {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+}
+
+.remote-video-container video.is-landscape {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
 }
 
 .remote-video-status {
@@ -1013,6 +1031,18 @@ svg {
   object-fit: contain !important;
   object-position: center center !important;
   background: #121316;
+}
+
+.local-video-container video.is-portrait {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+}
+
+.local-video-container video.is-landscape {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 100% !important;
 }
 
 .call-window-controls {
