@@ -445,19 +445,64 @@ async function prepareLocalTracksForOrientation(localTracks) {
 }
 
 /**
- * True letterbox layout for remote (and local pip) video.
+ * Local PiP: size <video> to stream aspect within max box; host is fit-content
+ * (no oversized grey frame — border is on the video itself).
+ */
+function applyLocalPipFit(element, hostEl) {
+  const layout = () => {
+    const vw = element.videoWidth || 0
+    const vh = element.videoHeight || 0
+    element.classList.remove('is-portrait', 'is-landscape')
+    if (vw > 0 && vh > 0) {
+      element.classList.add(vh > vw ? 'is-portrait' : 'is-landscape')
+    }
+
+    // Let CSS max-width/max-height + intrinsic ratio hug the frame.
+    // Clear any previous remote letterbox pixel sizing.
+    element.style.removeProperty('width')
+    element.style.removeProperty('height')
+    element.style.setProperty('width', 'auto', 'important')
+    element.style.setProperty('height', 'auto', 'important')
+    element.style.setProperty('object-fit', 'contain', 'important')
+    element.style.setProperty('object-position', 'center center', 'important')
+
+    if (vw > 0 && vh > 0 && hostEl) {
+      // Optional: explicit pixel size so host fit-content is exact (no 1px gap)
+      const maxW = Math.min(126, Math.floor(window.innerWidth * 0.28) || 126)
+      const maxH = Math.min(168, Math.floor(window.innerHeight * 0.32) || 168)
+      const scale = Math.min(maxW / vw, maxH / vh)
+      const drawW = Math.max(1, Math.round(vw * scale))
+      const drawH = Math.max(1, Math.round(vh * scale))
+      element.style.setProperty('width', `${drawW}px`, 'important')
+      element.style.setProperty('height', `${drawH}px`, 'important')
+      hostEl.style.width = `${drawW}px`
+      hostEl.style.height = `${drawH}px`
+    }
+  }
+
+  layout()
+  element.addEventListener('loadedmetadata', layout)
+  element.addEventListener('resize', layout)
+  element.addEventListener('playing', layout)
+  window.addEventListener('resize', layout)
+  element._letterboxOnWinResize = layout
+}
+
+/**
+ * True letterbox layout for remote video on the main stage.
  *
  * Why object-fit alone failed:
  *   width:100% + height:100% makes the <video> *element* fill the landscape
- *   stage. Some paths still paint as if filling that box (looks "zoomed" with
- *   no side bars). We instead size the element to the largest rect that fits
- *   stream aspect inside the host — black bars are the host background.
- *
- * Portrait stream (e.g. 720×1280) on landscape host → height-limited, bars L/R.
- * Landscape stream on landscape host → width-limited or full, as appropriate.
+ *   stage. We size the element to the largest rect that fits stream aspect —
+ *   black bars are the host background.
  */
 function applyVideoDisplayFit(element, hostEl = null) {
   if (!element) return
+
+  if (hostEl?.classList?.contains('local-video-container')) {
+    applyLocalPipFit(element, hostEl)
+    return
+  }
 
   const layout = () => {
     const vw = element.videoWidth || 0
@@ -465,12 +510,8 @@ function applyVideoDisplayFit(element, hostEl = null) {
     element.classList.remove('is-portrait', 'is-landscape')
     if (vw > 0 && vh > 0) {
       element.classList.add(vh > vw ? 'is-portrait' : 'is-landscape')
-      if (hostEl?.classList?.contains('local-video-container')) {
-        hostEl.classList.toggle('pip-portrait', vh > vw)
-      }
     }
 
-    // Default CSS: auto + max 100% (already letterbox-friendly)
     element.style.setProperty('object-fit', 'contain', 'important')
     element.style.setProperty('object-position', 'center center', 'important')
     element.style.setProperty('max-width', '100%', 'important')
@@ -486,7 +527,6 @@ function applyVideoDisplayFit(element, hostEl = null) {
     const ch = hostEl.clientHeight
     if (cw <= 0 || ch <= 0) return
 
-    // contain: scale = min(host/stream) on each axis
     const scale = Math.min(cw / vw, ch / vh)
     const drawW = Math.max(1, Math.floor(vw * scale))
     const drawH = Math.max(1, Math.floor(vh * scale))
