@@ -172,3 +172,43 @@ Local LAN PoC vẫn dùng `scripts/start.ps1` + `docker-compose.yml` như cũ.
 3. Mở port **80, 443, 7881, 3478, 50000–50050/udp**  
 4. Điền `.env` rồi `./scripts/start-vps.sh`  
 5. Hai máy (khác Wi‑Fi/4G) mở `https://DOMAIN/?user=A1` và `A2`
+
+## 12. CI/CD GitHub Actions (push → VPS)
+
+Workflow: [`.github/workflows/deploy-livekit-vps.yml`](../../../../.github/workflows/deploy-livekit-vps.yml)
+
+Khi push `main` và có thay đổi trong `poc/livekit-1to1/**` (hoặc bấm **Run workflow**), Actions SSH vào VPS → `git reset --hard origin/main` → `./scripts/start-vps.sh` → smoke API.
+
+### Secrets (GitHub repo → Settings → Secrets and variables → Actions)
+
+| Name | Ví dụ |
+|------|--------|
+| `VPS_HOST` | `103.28.32.118` |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | Toàn bộ private key OpenSSH (kể cả dòng `BEGIN`/`END`) |
+
+### Tạo deploy key (một lần)
+
+Trên máy dev (PowerShell):
+
+```powershell
+ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\simlydent_vps_deploy -C "github-actions-livekit" -N '""'
+Get-Content $env:USERPROFILE\.ssh\simlydent_vps_deploy.pub
+```
+
+Trên VPS (SSH root):
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'PASTE_PUBLIC_KEY_HERE' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+GitHub secret `VPS_SSH_KEY` = nội dung file **private** `simlydent_vps_deploy` (không phải `.pub`).
+
+### Lưu ý
+
+- File `.env` trên VPS **không** nằm trong git — CI không ghi đè secret.  
+- `infra/livekit.vps.runtime.yaml` được sinh lại mỗi lần deploy.  
+- Path cố định: `/opt/SimlyDent-Internship/.../livekit-1to1`  
+- Repo GitHub cần **public** (hoặc VPS có credential `git pull`); hiện clone HTTPS public.
