@@ -63,6 +63,8 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
       LIVEKIT_HTTP_URL: http://livekit:7880
+      JWT_SECRET: ${JWT_SECRET:-simlydent-poc-dev-jwt-secret-change-me-32chars!!}
+      JWT_LIFETIME_MINUTES: ${JWT_LIFETIME_MINUTES:-480}
       RECORDINGS_PATH: /recordings
       QUALITY_LOGS_PATH: /telemetry
     volumes:
