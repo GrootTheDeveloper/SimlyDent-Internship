@@ -1,0 +1,50 @@
+\Needspace{8\baselineskip}
+\section{Sàng lọc giải pháp triển khai}
+
+Điều kiện khảo sát gồm mã nguồn và giấy phép công khai, khả năng self-host signaling và
+media, hỗ trợ WebRTC trên web và không phụ thuộc cloud của nhà cung cấp. Hoạt động của
+kho mã nguồn phản ánh trạng thái duy trì. Độ ổn định production cần kết quả qualification
+và dữ liệu vận hành.
+
+\begin{longtable}{|>{\bfseries\raggedright\arraybackslash}p{0.16\textwidth}|>{\raggedright\arraybackslash}p{0.13\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}|>{\raggedright\arraybackslash}p{0.34\textwidth}|}
+\hline
+Giải pháp & Giấy phép & Loại giải pháp & Kết quả sàng lọc \\
+\hline
+\endfirsthead
+\hline
+Giải pháp & Giấy phép & Loại giải pháp & Kết quả sàng lọc \\
+\hline
+\endhead
+LiveKit & Apache-2.0 & Programmable SFU & Chọn cho PoC ưu tiên \\
+\hline
+mediasoup & ISC & SFU cấp thấp & Giữ làm phương án đối chứng \\
+\hline
+Raw WebRTC + coturn & Chuẩn WebRTC; coturn mã nguồn mở & P2P/TURN tự xây & Giữ làm baseline kiến trúc \\
+\hline
+Janus & GPL-3.0 & WebRTC gateway và plugin & Có điều kiện; cần duyệt giấy phép \\
+\hline
+Jitsi Meet & Apache-2.0 & Nền tảng hội nghị & Không chọn; mô hình phòng họp \\
+\hline
+OpenVidu Community & Apache-2.0 cho thành phần cộng đồng & Phân phối tương thích LiveKit & Không chọn; thêm lớp phân phối và ranh giới Community/PRO \\
+\hline
+Element Call & AGPL-3.0 & Ứng dụng MatrixRTC & Không chọn; phụ thuộc Matrix homeserver và LiveKit \\
+\hline
+MiroTalk SFU & AGPL-3.0 & Ứng dụng hội nghị trên mediasoup & Không chọn; sản phẩm hoàn chỉnh \\
+\hline
+Nextcloud Talk & AGPL-3.0 & Ứng dụng giao tiếp Nextcloud & Không chọn; phụ thuộc hệ sinh thái Nextcloud \\
+\hline
+Pion WebRTC & MIT & Thư viện WebRTC cho Go & Loại khỏi nhóm giải pháp module \\
+\hline
+\caption{Kết quả sàng lọc giải pháp.}
+\label{tab:solution-screening}
+\end{longtable}
+
+Jitsi gồm web app, Jitsi Videobridge, Jicofo và Prosody
+\cite{jitsi-repo,jitsi-architecture}. OpenVidu Community phân phối API tương thích
+LiveKit; multi-node và high availability thuộc edition thương mại
+\cite{openvidu-docs}. Element Call sử dụng MatrixRTC và LiveKit. MiroTalk và Nextcloud
+Talk là ứng dụng giao tiếp hoàn chỉnh \cite{element-call,mirotalk,nextcloud-talk}. Pion
+cung cấp WebRTC API ở cấp thư viện để xây media server \cite{pion-repo}.
+
+Stringee và các API truyền thông theo mô hình managed service không đạt điều kiện
+self-host và bị loại khỏi ma trận PoC.

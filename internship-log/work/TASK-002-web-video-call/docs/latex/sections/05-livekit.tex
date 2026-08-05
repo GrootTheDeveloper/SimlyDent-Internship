@@ -1,0 +1,51 @@
+\section{LiveKit và mediasoup}
+
+\subsection{LiveKit}
+
+LiveKit là SFU mã nguồn mở theo giấy phép Apache-2.0. Nền tảng cung cấp SDK trình duyệt,
+room, participant, track, JWT grants, server API và webhook
+\cite{livekit-repo,livekit-selfhost}. Hệ thống có thể self-host toàn bộ media server.
+Token chứa identity, room và quyền publish/subscribe; backend ký token bằng API secret
+\cite{livekit-tokens}.
+
+Frontend sử dụng JavaScript SDK và tự xây giao diện. Backend quản lý direct-call
+lifecycle. Room Service sử dụng HTTP/Twirp; backend có thể gọi API mà không cần SDK
+chính thức \cite{livekit-room-api}.
+Recording yêu cầu Egress riêng và Redis khi tự host \cite{livekit-egress}. Core PoC
+không bao gồm recording.
+
+LiveKit quản lý room và media. Backend SimlyDent quản lý incoming, busy và no-answer theo
+user. LiveKit chưa có server SDK .NET chính thức. PoC đã xác nhận backend .NET tự phát
+được JWT HS256 đúng room, identity và permission grant. Room Service chưa được sử dụng.
+
+\subsection{mediasoup}
+
+mediasoup là SFU cấp thấp theo giấy phép ISC. Server có dạng Node.js module hoặc Rust
+crate \cite{mediasoup-repo}. Ứng dụng tự quản lý signaling, protocol, authorization,
+reconnect, worker lifecycle và quan sát.
+
+Trong hệ thống sử dụng backend .NET, mediasoup cần một dịch vụ Node.js hoặc Rust riêng.
+Điều kiện lựa chọn mediasoup là yêu cầu kiểm soát media thấp tầng chưa được LiveKit đáp
+ứng. Chi phí bổ sung gồm phát triển, triển khai và vận hành dịch vụ media riêng.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.22\textwidth}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+Tiêu chí & LiveKit & mediasoup \\
+\hline
+Mức trừu tượng & SFU và SDK cấp sản phẩm & SFU cấp thấp \\
+\hline
+Direct-call state & Tự xây & Tự xây \\
+\hline
+Phù hợp backend .NET & JWT đã kiểm chứng; Twirp chưa dùng & Cần Node.js/Rust sidecar \\
+\hline
+Khối lượng media engineering & Thấp hơn & Cao hơn \\
+\hline
+Vai trò đề xuất & Phương án ưu tiên tiếp tục kiểm chứng & Đối chứng có điều kiện \\
+\hline
+\end{tabularx}
+\caption{So sánh LiveKit và mediasoup.}
+\label{tab:livekit-mediasoup}
+\end{table}

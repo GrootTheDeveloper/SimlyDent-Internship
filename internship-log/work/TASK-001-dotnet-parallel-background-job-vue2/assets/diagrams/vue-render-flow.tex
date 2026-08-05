@@ -1,0 +1,36 @@
+\begin{tikzpicture}[
+  node distance=3.2mm,
+  every node/.style={font=\scriptsize,align=center},
+  flowbox/.style={draw,rounded corners=1.5mm,minimum height=25mm,minimum width=20.5mm,text width=18mm,thick},
+  number/.style={circle,fill=orange!80!black,text=white,font=\scriptsize\bfseries,inner sep=1.4mm},
+  arrow/.style={-{Latex[length=1.8mm]},thick,draw=orange!80!black}
+]
+\node[flowbox,fill=orange!12,draw=orange!70!black] (s1) {State\\thay đổi};
+\node[flowbox,fill=orange!8,draw=orange!70!black,right=of s1] (s2) {Getter/setter\\của Vue 2\\phát hiện};
+\node[flowbox,fill=green!12,draw=green!55!black,right=of s2] (s3) {Watcher\\được\\thông báo};
+\node[flowbox,fill=blue!10,draw=blue!55,right=of s3] (s4) {Render\\function\\chạy lại};
+\node[flowbox,fill=violet!10,draw=violet!60,right=of s4] (s5) {Tạo\\Virtual DOM\\mới};
+\node[flowbox,fill=blue!8,draw=blue!55,right=of s5] (s6) {So sánh diff\\và tạo\\bản vá patch};
+\node[flowbox,fill=green!12,draw=green!55!black,right=of s6] (s7) {DOM thật / UI\\được cập nhật};
+
+\foreach \a/\b in {s1/s2,s2/s3,s3/s4,s4/s5,s5/s6,s6/s7}
+  \draw[arrow] (\a) -- (\b);
+
+\node[number,above=2mm of s1] (n1) {1};
+\node[number,above=2mm of s2] (n2) {2};
+\node[number,above=2mm of s3] (n3) {3};
+\node[number,above=2mm of s4] (n4) {4};
+\node[number,above=2mm of s5] (n5) {5};
+\node[number,above=2mm of s6] (n6) {6};
+\node[number,above=2mm of s7] (n7) {7};
+
+\node[draw=orange!70!black,dashed,rounded corners=1.5mm,below=7mm of s2,text width=43mm,minimum height=12mm]
+  (detectnote) {Vue 2 dùng getter/setter để biết dependency nào đã thay đổi};
+\draw[dashed,-{Latex[length=1.6mm]},draw=orange!70!black]
+  (s2.south) -- (detectnote.north);
+
+\node[draw=green!55!black,rounded corners=1.5mm,fill=green!8,below=7mm of s6,text width=50mm,minimum height=12mm,font=\small\bfseries,text=green!45!black]
+  (resultnote) {Chỉ phần giao diện chịu ảnh hưởng được cập nhật};
+\draw[dashed,-{Latex[length=1.6mm]},draw=green!55!black]
+  (s7.south) -- (resultnote.north east);
+\end{tikzpicture}

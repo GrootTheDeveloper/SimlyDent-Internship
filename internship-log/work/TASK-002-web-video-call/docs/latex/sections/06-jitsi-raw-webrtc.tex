@@ -1,0 +1,51 @@
+\section{Janus, Jitsi và Raw WebRTC}
+
+\subsection{Raw WebRTC kết hợp coturn}
+
+Raw WebRTC sử dụng API trình duyệt, SignalR hoặc WebSocket cho signaling và coturn cho
+STUN/TURN \cite{w3c-webrtc,coturn-repo}. Ứng dụng kiểm soát trực tiếp SDP, ICE, relay và
+thống kê. Media 1:1 ưu tiên đường P2P khi mạng cho phép.
+
+Ứng dụng phải tự triển khai glare handling, renegotiation, ICE restart, reconnect, device
+switching, credential TURN, quan sát, tương thích trình duyệt và recording. Vai trò hiện
+tại của Raw WebRTC là baseline PoC. Điều kiện production gồm năng lực phát triển WebRTC
+và vận hành hạ tầng truyền thông nội bộ.
+
+\subsection{Janus}
+
+Janus là WebRTC gateway theo giấy phép GPL-3.0. VideoCall plugin chuyển tiếp media giữa
+hai peer và gọi theo username \cite{janus-repo,janus-videocall}. Backend vẫn phải quản
+lý user, tenant, quyền và trạng thái cuộc gọi. Điều kiện PoC: phê duyệt nghĩa vụ
+GPL-3.0.
+
+\subsection{Jitsi Meet}
+
+Jitsi Meet là nền tảng hội nghị mã nguồn mở theo giấy phép Apache-2.0. Nền tảng hỗ trợ
+self-host và nhúng qua IFrame. Kiến trúc và API tổ chức quanh conference room
+\cite{jitsi-repo,jitsi-architecture}. Luồng gọi A--B theo user cần thêm lớp lời mời và
+state. Tùy biến sâu yêu cầu duy trì fork của toàn bộ ứng dụng hội nghị.
+
+Jitsi phục vụ mô hình phòng họp. Kết quả sàng lọc: không chọn cho PoC gọi trực tiếp theo
+user và giao diện do SimlyDent sở hữu.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.19\textwidth}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+Tiêu chí & Raw WebRTC + coturn & Janus & Jitsi \\
+\hline
+Mô hình & P2P/TURN tự xây & Gateway/plugin & Conference platform \\
+\hline
+UI tùy biến & Toàn quyền & Toàn quyền & IFrame hoặc fork \\
+\hline
+Direct-call lifecycle & Tự xây & Plugin mẫu; production state tự xây & Tự xây ngoài meeting room \\
+\hline
+Điều kiện chính & Năng lực WebRTC nội bộ & Chấp nhận GPL-3.0 & Chấp nhận meeting UX \\
+\hline
+Vai trò & Baseline & Có điều kiện & Không chọn cho core PoC \\
+\hline
+\end{tabularx}
+\caption{Vai trò của Raw WebRTC, Janus và Jitsi.}
+\label{tab:other-candidates}
+\end{table}

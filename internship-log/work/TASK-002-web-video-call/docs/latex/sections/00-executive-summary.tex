@@ -1,0 +1,25 @@
+\section*{Mục tiêu và phạm vi}
+
+Báo cáo đánh giá giải pháp mã nguồn mở, self-host cho cuộc gọi video 1:1 trên web. Tiêu
+chí chính gồm quyền kiểm soát giao diện, vòng đời cuộc gọi, định danh, phân quyền, đường
+truyền media và dữ liệu vận hành. Dịch vụ managed-only bị loại khỏi tập ứng viên.
+
+Phạm vi phiên bản đầu gồm lời mời gọi, chấp nhận, từ chối, hủy, bận, không trả lời,
+truyền âm thanh--hình ảnh và kết thúc cuộc gọi. Phạm vi mở rộng gồm recording, gọi nhóm,
+chia sẻ màn hình và thông báo khi trình duyệt đã đóng.
+
+LiveKit self-host là phương án được đề xuất để tiếp tục kiểm chứng.
+mediasoup được dùng để đối chiếu khi cần điều khiển media ở mức thấp. Raw WebRTC kết
+hợp coturn là mốc đối chiếu cho kết nối 1:1 và TURN. Janus yêu cầu phê duyệt giấy phép
+GPL-3.0 trước khi thử nghiệm.
+
+Feasibility PoC sử dụng LiveKit Server 1.13.1, backend ASP.NET Core, SignalR và frontend
+Vue 2. Kết quả smoke test ứng dụng và bảo mật đạt 15/15. Các mục đã xác nhận gồm tenant
+isolation, token theo room/identity, busy reservation, xử lý event lặp, HTTPS API và
+signaling WSS. Giao diện đạt kiểm tra tại viewport 360x800, 390x844 và trên iPhone thật.
+
+Laptop và iPhone đã cùng vào phòng, cấp quyền và phát media; laptop nhận được video từ
+iPhone. Popup nhận cuộc gọi và màn hình gọi riêng đã được triển khai. Video dọc được giữ
+đúng tỷ lệ và không cắt khung hình. Các mục chưa nghiệm thu gồm A/V hai chiều sau bản
+sửa, Android, kết nối khác mạng, TURN, khôi phục kết nối, tải và vận hành. Trạng thái
+hiện tại: chưa phê duyệt production.

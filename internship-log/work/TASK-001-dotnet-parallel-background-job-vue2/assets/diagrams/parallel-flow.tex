@@ -1,0 +1,20 @@
+\begin{tikzpicture}[
+  node distance=7mm and 10mm,
+  every node/.style={font=\small,align=center},
+  flowbox/.style={draw,rounded corners=2mm,minimum height=10mm,minimum width=23mm,thick},
+  arrow/.style={-{Latex[length=2mm]},thick}
+]
+\node[flowbox,fill=gray!12,draw=gray!65] (source) {Dữ liệu\\đầu vào};
+\node[flowbox,fill=blue!12,draw=blue!55,right=of source] (split) {Chia thành\\các partition};
+\node[flowbox,fill=blue!15,draw=blue!55,above right=of split] (w1) {ThreadPool\\worker 1};
+\node[flowbox,fill=green!15,draw=green!55!black,right=of split] (w2) {ThreadPool\\worker 2};
+\node[flowbox,fill=orange!18,draw=orange!70!black,below right=of split] (w3) {ThreadPool\\worker 3};
+\node[flowbox,fill=gray!12,draw=gray!65,right=15mm of w2] (result) {Chờ và ghép\\kết quả};
+\draw[arrow] (source) -- (split);
+\draw[arrow] (split) -- (w1);
+\draw[arrow] (split) -- (w2);
+\draw[arrow] (split) -- (w3);
+\draw[arrow] (w1) -- (result);
+\draw[arrow] (w2) -- (result);
+\draw[arrow] (w3) -- (result);
+\end{tikzpicture}

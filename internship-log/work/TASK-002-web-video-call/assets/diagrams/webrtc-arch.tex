@@ -1,0 +1,26 @@
+\begin{tikzpicture}[
+    node distance=2.5cm and 4cm,
+    box/.style={draw, rectangle, rounded corners, minimum width=2.5cm, minimum height=1.5cm, align=center, thick},
+    arrow/.style={-{Stealth[length=3mm]}, thick}
+]
+
+% Nodes
+\node[box, fill=blue!10] (browserA) {Trình duyệt A\\(Caller)};
+\node[box, fill=green!10, right=of browserA] (signal) {Máy chủ tín hiệu\\(Signaling)};
+\node[box, fill=blue!10, right=of signal] (browserB) {Trình duyệt B\\(Callee)};
+\node[box, fill=orange!10, below=of signal, yshift=1cm] (stun) {STUN / TURN\\Server};
+
+% Arrows signaling
+\draw[arrow, dashed] (browserA) -- node[above] {Offer / ICE} (signal);
+\draw[arrow, dashed] (signal) -- node[above] {Offer / ICE} (browserB);
+\draw[arrow, dashed] (browserB) -- node[below] {Answer / ICE} (signal);
+\draw[arrow, dashed] (signal) -- node[below] {Answer / ICE} (browserA);
+
+% Arrows STUN
+\draw[arrow, dotted] (browserA) -- node[left] {Lấy Public IP/Relay} (stun);
+\draw[arrow, dotted] (browserB) -- node[right] {Lấy Public IP/Relay} (stun);
+
+% Direct media arrow
+\draw[{Stealth[length=3mm]}-{Stealth[length=3mm]}, ultra thick, blue] (browserA.south) -- ++(0,-1.5cm) -| node[above, near start] {Luồng Media P2P hoặc qua TURN} (browserB.south);
+
+\end{tikzpicture}

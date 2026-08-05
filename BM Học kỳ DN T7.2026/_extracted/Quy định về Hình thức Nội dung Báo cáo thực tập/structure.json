@@ -1,0 +1,1665 @@
+{
+  "filename": "Quy định về Hình thức Nội dung Báo cáo thực tập.docx",
+  "sections": [
+    {
+      "page_width_cm": 21.0,
+      "page_height_cm": 29.7,
+      "left_margin_cm": 3.0,
+      "right_margin_cm": 2.0,
+      "top_margin_cm": 2.0,
+      "bottom_margin_cm": 2.0,
+      "orientation": "portrait"
+    }
+  ],
+  "headers_footers": [
+    {
+      "section": 0
+    }
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "Phụ lục 6: HÌNH THỨC VÀ NỘI DUNG BÁO CÁO THỰC TẬP",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phụ lục 6: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "HÌNH THỨC VÀ NỘI DUNG BÁO CÁO THỰC TẬP",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Hình thức trình bày (bắt buộc): ",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hình thức trình bày (bắt buộc): ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "1.1 Trình bày, in ấn và đóng quyển:",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "1.1 Trình bày, in ấn và đóng quyển:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Đánh máy và in một mặt trên khổ giấy A4. ",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Đánh máy và in một mặt trên",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " khổ giấy A4.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Nội dung: chữ thường, sử dụng bảng mã Tiếng Việt Unicode, font chữ Times New Roman, cỡ chữ 13; giãn cách dòng (Line spacing): 1.5 lines; cách đoạn (Spacing): Before: 6pt; Apter: 6pt; Header/footer: 1.0 cm; chấm xuống dòng phải thụt đầu dòng.",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Nội dung: chữ thường, sử dụng bảng mã Tiếng Việt Unicode, f",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ont chữ Times New Roman, ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "cỡ chữ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " 13",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "; giãn ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "c",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ách dòng (Line spacing): 1.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "5 lines; c",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ách đoạn (Spacing): Before: 6pt; Apter: 6pt; Header/footer: 1.0 cm",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "; c",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "hấm xuống dòng phải thụt đầu dòng.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Tựa tiêu đề: sử dụng chữ in, cỡ chữ to hơn chữ thường, in đậm (font size từ 13-16 tùy theo số chữ của tựa tiêu đề); đề mục có thể in đậm, in nghiêng, gạch dưới.",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Tựa tiêu đề: sử dụng chữ in, cỡ chữ to hơn chữ thường, in đậm ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "(",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "f",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ont ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "s",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ize từ 13",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "-16",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " tùy theo số chữ của tựa tiêu đề)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "; đề mục có thể in đậm, in nghiêng, gạch dưới.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Các bảng biểu có thể tăng giảm cỡ chữ để phù hợp với khổ giấy. Các bảng biểu đặt theo chiều ngang thì đầu bảng đặt ở lề trái.",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Các bảng biểu có thể tăng giảm cỡ chữ để phù hợp với khổ giấy. Các bảng biểu đặt theo chiều ngang thì đầu bảng đặt ở lề trái.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Page Setup: Top: 2 cm; Bottom: 2 cm; Left: 3 cm; Right: 1.5 cm.",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Page Setup: Top: 2 cm; Bottom: 2 cm; Left: 3 cm; Right: 1.5 cm.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId5",
+          "filename": "image1.png",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Quy định về Hình thức Nội dung Báo cáo thực tập\\images\\image1.png",
+          "width_cm": 11.14,
+          "height_cm": 2.52
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Gạch dưới tiêu đề trên (Header) và gạch trên tiêu đề dưới (Footer) bằng đường sọc ngang đơn như hình minh họa ở trên. (Tuyệt đối không được ghi tên giảng viên hướng dẫn hoặc tên sinh viên vào Header và Footer).",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Gạch dưới tiêu đề trên (Header) và gạch trên tiêu đề dưới (Footer) bằng đường sọc ngang đơn như hình minh họa ở trên. (Tuyệt đối không được ghi tên giảng viên hướng dẫn hoặc tên sinh viên vào Header và Footer)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Quyển báo cáo thực tập gồm có các nội dung và đóng theo thứ tự sau đây: ",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Quyển báo cáo ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " gồm",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " có các nội dung và đóng theo thứ tự sau đây",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ": ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Bìa cứng: giấy A4 màu trắng (xem mẫu Phụ lục 3), bên ngoài phủ bìa kiếng trong suốt;",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Bì",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "a ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "cứng: giấy A4 màu trắng ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "(xem",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " mẫu",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " Phụ lục 3)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ", bên ngoài phủ bìa kiếng trong suốt;",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Bìa phụ: giấy A4 bình thường, nội dung như bìa chính;",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Bìa phụ: giấy A4 bình thường, nội dung như bìa chính;",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Lời cảm ơn;",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Lời cảm ơn",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Mục lục;",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Mục lục;",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Phiếu nhận xét của đơn vị thực tập (xem Phụ lục 4, có chữ ký của người có trách nhiệm và đóng dấu mộc tròn của doanh nghiệp);",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phiếu nhận xét của đơn vị thực tập (xem Phụ lục 4",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ", có chữ ký của người có trách nhiệm và đóng dấu mộc tròn của doanh nghiệp",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ")",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Phiếu ghi nhận quá trình thực hiện báo cáo thực tập (xem Phụ lục 5);",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phiếu ghi nhận quá trình thực hiện báo cáo thực tập (xem Phụ lục 5)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Nội dung báo cáo thực tập (xem hướng dẫn ở bên dưới)",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Nội dung báo cáo thực tập (xem hướng dẫn ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ở ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "bên dưới)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "1.2 Đánh số trang:",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "1.2 Đánh số trang:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Vị trí đánh số trang: lề trên, góc phải (Top of page, Right, Header).",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Vị trí đánh số trang: lề trên, góc phải (Top of page, Right, Header).",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Các trang phụ: Từ trang Lời cảm ơn đến hết danh mục các từ viết tắt – thuật ngữ Anh – Việt được đánh số trang theo số La Mã, kiểu chữ thường (i, ii, iii, iv, v, …)",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Các trang phụ: Từ trang Lời cảm ơn đến hết danh mục các từ viết tắt – thuật ngữ Anh – Việt được đánh số trang theo số La Mã, kiểu chữ thường (i, ii, iii, iv, v, …)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Phần chính: từ phần I đến hết Phần phụ lục được đánh số trang bằng số Ả rập (1, 2, 3, 4, 5, 6,…).",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phần chính: từ phần I đến hết Phần phụ lục được đánh số trang bằng số Ả rập (1, 2, 3, 4, 5, 6,…).",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Không đánh số trang cho các trang: Trang bìa phụ; Lời cảm ơn; Mục lục; Phiếu nhận xét của đơn vị thực tập; Phiếu ghi nhận quá trình thực hiện báo cáo thực tập.",
+      "style": "List Paragraph",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Không đánh số trang cho các trang: Trang bìa phụ; ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Lời cảm ơn;",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " Mục lục; ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Phiếu nhận xét của đơn vị thực tập; Phiếu ghi nhận quá trình thực hiện báo cáo thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "2. Nội dung:",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "2. Nội dung:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Phần mở đầu",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phần mở đầu",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Nêu lý do chọn DN làm nơi thực tập;",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Nêu lý do chọn ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " làm nơi ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Giới thiệu tổng quát về kế hoạch thực tập của bản thân tại đơn vị, trong đó, xác định những mục tiêu của kế hoạch;",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Giới thiệu tổng quát về kế hoạch ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " của bản thân tại đơn vị, trong đó, xác định những mục tiêu của kế hoạch;",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Kết cấu của báo cáo thực tập.",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Kết cấu của báo cáo ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Phần nội dung",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phần nội dung",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Chương 1: Giới thiệu DN",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Chương 1: Giới thiệu ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Giới thiệu tổng quan về DN;",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Giới thiệu tổng quan về ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Cơ cấu tổ chức quản lý DN;",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Cơ cấu tổ chức quản lý ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Kết quả kinh doanh, hoạt động của DN.",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Kết quả kinh doanh, hoạt động của ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Chương 2: Mô tả quy trình nghiệp vụ / dịch vụ tại DN",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Chương 2: Mô tả quy trình nghiệp vụ / dịch vụ tại ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Trong phần này, sinh viên mô tả quy trình một nghiệp vụ, một dịch vụ tại bộ phận mà bản thân tham gia công việc thực tập.",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Trong phần này, sinh viên mô tả quy trình một nghiệp vụ, một dịch vụ tại bộ phận mà bản thân tham gia công việc ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Chương 3: Bài học kinh nghiệm cho bản thân sau khi thực hiện Kế hoạch thực tập",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Chương 3: Bài học kinh nghiệm cho bản thân sau khi thực hiện Kế hoạch ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Xác định những yêu cầu cần có (tư duy, kiến thức, kỹ năng và thái độ) để tham gia vào hoạt động của DN;",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Xác định những yêu cầu cần có (tư duy, kiến thức, kỹ năng và thái độ) để tham gia vào hoạt động của ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ";",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Đánh giá bản thân: Đã học hỏi, rèn luyện được gì? Có ưu điểm, hạn chế gì? Cần khắc phục, bổ sung gì? (kiến thức, kỹ năng, thái độ);",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Đánh giá bản thân: Đã học hỏi, rèn luyện được gì? Có ưu điểm, hạn chế gì? Cần khắc phục, bổ sung gì? (kiến thức, kỹ năng, thái độ);",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Những đề xuất, kiến nghị (nếu có) cho DN, Nhà trường,...",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Những đề xuất, kiến nghị (nếu có) cho ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "DN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ", ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "N",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "hà trường,...",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Phần kết luận: Có thể viết kết luận đóng lại vấn đề (tóm tắt lại những gì đã học được trong HP-HKDN) hoặc mở vấn đề (những vấn đề, đề tài phát triển thành ĐA/KLTN trong học kỳ kế tiếp).",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Phần kết luận: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Có thể viết kết luận đóng lại vấn đề (tóm tắt lại những gì đã học được trong ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "HP-HKDN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ") hoặc mở vấn đề (những vấn đề, đề tài phát triển thành Đ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "A/KLTN ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "trong học kỳ kế tiếp).",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Danh mục tài liệu tham khảo (nếu có)",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Danh mục tài liệu tham khảo ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "(nếu có)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    }
+  ],
+  "images": {
+    "word/media/image1.png": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Quy định về Hình thức Nội dung Báo cáo thực tập\\images\\image1.png",
+      "filename": "image1.png",
+      "width_px": 904,
+      "height_px": 184,
+      "format": "PNG"
+    }
+  }
+}

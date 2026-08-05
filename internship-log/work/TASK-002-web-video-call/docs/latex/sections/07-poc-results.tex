@@ -1,0 +1,67 @@
+\section{Kết quả feasibility PoC}
+
+\subsection{Phạm vi triển khai}
+
+PoC gồm LiveKit Server 1.13.1, backend ASP.NET Core, SignalR và frontend Vue 2. Docker
+Compose đóng gói toàn bộ stack. Backend quản lý tenant, lời mời, trạng thái cuộc gọi,
+busy reservation và token. LiveKit quản lý signaling WebRTC và media room.
+
+State machine gồm \texttt{Ringing}, \texttt{Accepted}, \texttt{Rejected},
+\texttt{Cancelled} và \texttt{Ended}. Backend cấp token LiveKit sau trạng thái
+\texttt{Accepted}. Token có TTL 5 phút và giới hạn theo room, identity. API secret nằm
+tại backend và LiveKit.
+
+Giao diện hiện có danh sách người dùng và nút gọi. Phía nhận có popup chấp nhận hoặc từ
+chối. Sau khi chấp nhận, hai phía mở màn hình \texttt{/call/\{callId\}} riêng với video
+từ xa, video cục bộ và các nút bật/tắt camera, microphone, kết thúc cuộc gọi. Video dọc
+được giữ đúng tỷ lệ, co theo chiều cao vùng gọi và không cắt khung hình.
+
+\subsection{Kết quả kiểm tra}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.31\textwidth}|>{\raggedright\arraybackslash}p{0.14\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+Hạng mục & Kết quả & Phạm vi bằng chứng \\
+\hline
+Build và khởi động stack & Đạt & Các service chính trong Docker Compose đang chạy \\
+\hline
+Application/security smoke & 15/15 đạt & Tenant isolation, token scope, busy, duplicate transition và refresh ringing \\
+\hline
+HTTPS API qua Quick Tunnel & Đạt & UI và API trả HTTP 200; URL tunnel không cố định \\
+\hline
+LiveKit signaling WSS & Đạt & WebSocket kết nối và nhận frame signaling đầu tiên \\
+\hline
+Responsive và iPhone & Đạt & Viewport 360x800, 390x844; đã đối chiếu trên iPhone thật \\
+\hline
+Media thiết bị thật & Một phần & Hai phía phát media; laptop nhận video iPhone; chưa nghiệm thu hai chiều \\
+\hline
+Kết nối khác mạng & Chưa kiểm tra & LiveKit hiện quảng bá IP LAN của host \\
+\hline
+Forced TURN/relay & Chưa kiểm tra & Chưa triển khai public host và TURN \\
+\hline
+Reconnect, tải và raw stats & Chưa kiểm tra & Chưa thu selected candidate và dữ liệu vận hành \\
+\hline
+\end{tabularx}
+\caption{Bằng chứng feasibility PoC tại thời điểm báo cáo.}
+\label{tab:poc-evidence}
+\end{table}
+
+Cloudflare Quick Tunnel cung cấp HTTPS và WebSocket cho phiên demo. Laptop và iPhone đã
+cùng vào một phòng LiveKit qua mạng Windows Mobile Hotspot. Server ghi nhận cả hai phía
+phát audio và video; laptop nhận được video từ iPhone. Client đã được bổ sung đăng ký
+chủ động luồng nhận, gắn lại track có sẵn và inline playback cho iOS. Chưa có lần nghiệm
+thu cuối cho A/V hai chiều sau bản sửa nên hạng mục media vẫn được đánh dấu một phần.
+
+Phương án production
+yêu cầu domain, TLS và media endpoint cố định. Media server hiện quảng bá địa chỉ LAN;
+bằng chứng cuộc gọi khác mạng chưa có. Kiểm tra responsive hiện giới hạn ở viewport
+360x800, 390x844 và một iPhone; Android chưa được kiểm tra.
+
+\subsection{Mức độ kiểm chứng}
+
+PoC đã xác nhận trạng thái cuộc gọi trực tiếp, tích hợp backend .NET, token scope, tenant
+isolation và khả năng phát media giữa laptop với iPhone trong cùng mạng thử nghiệm.
+LiveKit tiếp tục là phương án ưu tiên. Các mục còn mở gồm nghiệm thu A/V hai chiều,
+Android, kết nối khác mạng, TURN, khôi phục kết nối, tải, giám sát và vận hành.

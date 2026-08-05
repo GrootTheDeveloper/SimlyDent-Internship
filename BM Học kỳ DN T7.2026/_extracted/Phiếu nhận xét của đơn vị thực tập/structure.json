@@ -1,0 +1,1772 @@
+{
+  "filename": "Phiếu nhận xét của đơn vị thực tập.docx",
+  "sections": [
+    {
+      "page_width_cm": 21.0,
+      "page_height_cm": 29.7,
+      "left_margin_cm": 2.0,
+      "right_margin_cm": 2.0,
+      "top_margin_cm": 2.0,
+      "bottom_margin_cm": 2.0,
+      "orientation": "portrait"
+    }
+  ],
+  "headers_footers": [
+    {
+      "section": 0,
+      "footer": [
+        ""
+      ]
+    }
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId11",
+          "filename": "image2.png",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Phiếu nhận xét của đơn vị thực tập\\images\\image2.png",
+          "width_cm": 3.66,
+          "height_cm": 2.31
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "KHOA ………",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "KHOA ……",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "…",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "BÁO CÁO THỰC TẬP",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "BÁO CÁO THỰC TẬP",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 18.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Họ và tên sinh viên: \t MSSV: \t",
+      "style": "List Paragraph",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Họ và tên sinh viên",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ": ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t MSSV: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Ngành: \tChuyên ngành: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Ngành: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tChuyên ngành: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \tEmail: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tEmail: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Giảng viên hướng dẫn: \t",
+      "style": "List Paragraph",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Giảng viên hướng dẫn",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ": ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \tEmail: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tEmail: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Cán bộ quản lý tại đơn vị thực tập: \t",
+      "style": "List Paragraph",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "C",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "án bộ quản lý ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "tại",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " đơn vị",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " thực t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ": ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \tEmail: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tEmail: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.5,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId12",
+          "filename": "image3.jpeg",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Phiếu nhận xét của đơn vị thực tập\\images\\image3.jpeg",
+          "width_cm": 15.32,
+          "height_cm": 8.62
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "table",
+      "rows": 3,
+      "cols": 2,
+      "data": [
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "PHIẾU NHẬN XÉT",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "PHIẾU NHẬN XÉT",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "CỦA ĐƠN VỊ THỰC TẬP",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "CỦA ĐƠN VỊ THỰC TẬP",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Về ý thức kỷ luật:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về ý thức kỷ luật:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về tinh thần trách nhiệm, thái độ học tập:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về tinh thần",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " trách nhiệm,",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " thái độ học tập:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về quan hệ với đồng nghiệp:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về quan hệ",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " với đồng nghiệp",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về kỹ năng nghề nghiệp:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về kỹ năng nghề nghiệp:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Các nhận xét khác:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Các nhận xét khác:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Đánh giá chung của đơn vị thực tập:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Đánh giá chung của đơn vị thực tập:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\tChấm điểm (theo thang điểm 10, làm tròn đến 0,5):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Chấm điểm",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " (theo ",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "thang điểm",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " 10, làm tròn đến 0,5)",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\tNgày _____ tháng _____ năm _____",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "XÁC NHẬN CỦA ĐƠN VỊ THỰC TẬP\tCÁN BỘ QUẢN LÝ",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "XÁC NHẬN CỦA ĐƠN VỊ THỰC TẬP",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "\tCÁN BỘ QUẢN LÝ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "              (Ký tên và đóng dấu)\t(Ký và ghi rõ họ tên)",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "       ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "      ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " (Ký tên và đóng dấu)",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t(Ký và ghi rõ họ tên)",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              },
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Về ý thức kỷ luật:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về ý thức kỷ luật:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về tinh thần trách nhiệm, thái độ học tập:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về tinh thần",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " trách nhiệm,",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " thái độ học tập:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về quan hệ với đồng nghiệp:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về quan hệ",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " với đồng nghiệp",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Về kỹ năng nghề nghiệp:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Về kỹ năng nghề nghiệp:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Các nhận xét khác:",
+                "alignment": "left",
+                "style": "List Paragraph",
+                "runs": [
+                  {
+                    "text": "Các nhận xét khác:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Đánh giá chung của đơn vị thực tập:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Đánh giá chung của đơn vị thực tập:",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\tChấm điểm (theo thang điểm 10, làm tròn đến 0,5):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Chấm điểm",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " (theo ",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "thang điểm",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " 10, làm tròn đến 0,5)",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\tNgày _____ tháng _____ năm _____",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "XÁC NHẬN CỦA ĐƠN VỊ THỰC TẬP\tCÁN BỘ QUẢN LÝ",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "XÁC NHẬN CỦA ĐƠN VỊ THỰC TẬP",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "\tCÁN BỘ QUẢN LÝ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "              (Ký tên và đóng dấu)\t(Ký và ghi rõ họ tên)",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "       ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "      ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " (Ký tên và đóng dấu)",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t(Ký và ghi rõ họ tên)",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              },
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              },
+              {
+                "text": "\tNgày _____ tháng _____ năm _____\tNgày _____ tháng _____ năm _____",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              },
+              {
+                "text": "\tNgày _____ tháng _____ năm _____\tNgày _____ tháng _____ năm _____",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "Ngày",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " _____ tháng _____ năm _____",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          }
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\tGVHD\tSinh viên thực hiện",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\tGVHD",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Sinh viên thực hiện",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\t (Ký và ghi rõ họ tên)\t(Ký và ghi rõ họ tên)",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " (Ký và ghi rõ họ tên)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t(Ký và ghi rõ họ tên)",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        }
+      ]
+    }
+  ],
+  "images": {
+    "word/media/image1.gif": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Phiếu nhận xét của đơn vị thực tập\\images\\image1.gif",
+      "filename": "image1.gif",
+      "width_px": 15,
+      "height_px": 15,
+      "format": "GIF"
+    },
+    "word/media/image2.png": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Phiếu nhận xét của đơn vị thực tập\\images\\image2.png",
+      "filename": "image2.png",
+      "width_px": 322,
+      "height_px": 203,
+      "format": "PNG"
+    },
+    "word/media/image3.jpeg": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Phiếu nhận xét của đơn vị thực tập\\images\\image3.jpeg",
+      "filename": "image3.jpeg",
+      "width_px": 891,
+      "height_px": 501,
+      "format": "JPEG"
+    }
+  }
+}

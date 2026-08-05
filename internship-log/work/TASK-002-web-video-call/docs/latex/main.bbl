@@ -1,0 +1,731 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{w3c-mediacapture}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=446a1ae6601a5c59360c7d591c3992da}{%
+           family={{W3C}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{bibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorbibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authornamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \field{extraname}{1}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Media Capture and Streams}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.w3.org/TR/mediacapture-streams/
+      \endverb
+      \verb{url}
+      \verb https://www.w3.org/TR/mediacapture-streams/
+      \endverb
+    \endentry
+    \entry{w3c-webrtc}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=446a1ae6601a5c59360c7d591c3992da}{%
+           family={{W3C}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{bibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorbibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authornamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \field{extraname}{2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{WebRTC: Real-Time Communication in Browsers}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.w3.org/TR/webrtc/
+      \endverb
+      \verb{url}
+      \verb https://www.w3.org/TR/webrtc/
+      \endverb
+    \endentry
+    \entry{rfc9429}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=8156eae38e17275f0d4e90ae1051c2ab}{%
+           family={{IETF}},
+           familyi={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{bibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorbibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authornamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \field{extraname}{1}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{RFC 9429: JavaScript Session Establishment Protocol}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.rfc-editor.org/rfc/rfc9429.html
+      \endverb
+      \verb{url}
+      \verb https://www.rfc-editor.org/rfc/rfc9429.html
+      \endverb
+    \endentry
+    \entry{rfc8825}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=8156eae38e17275f0d4e90ae1051c2ab}{%
+           family={{IETF}},
+           familyi={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{bibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorbibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authornamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \field{extraname}{2}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{RFC 8825: Overview: Real-Time Protocols for Browser-Based Applications}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.rfc-editor.org/rfc/rfc8825.html
+      \endverb
+      \verb{url}
+      \verb https://www.rfc-editor.org/rfc/rfc8825.html
+      \endverb
+    \endentry
+    \entry{rfc8445}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=8156eae38e17275f0d4e90ae1051c2ab}{%
+           family={{IETF}},
+           familyi={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{bibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorbibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authornamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \field{extraname}{3}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{RFC 8445: Interactive Connectivity Establishment}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.rfc-editor.org/rfc/rfc8445.html
+      \endverb
+      \verb{url}
+      \verb https://www.rfc-editor.org/rfc/rfc8445.html
+      \endverb
+    \endentry
+    \entry{rfc8656}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=8156eae38e17275f0d4e90ae1051c2ab}{%
+           family={{IETF}},
+           familyi={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{fullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{bibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorbibnamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authornamehash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhash}{8156eae38e17275f0d4e90ae1051c2ab}
+      \strng{authorfullhashraw}{8156eae38e17275f0d4e90ae1051c2ab}
+      \field{extraname}{4}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{RFC 8656: Traversal Using Relays around NAT}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.rfc-editor.org/rfc/rfc8656.html
+      \endverb
+      \verb{url}
+      \verb https://www.rfc-editor.org/rfc/rfc8656.html
+      \endverb
+    \endentry
+    \entry{w3c-stats}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=446a1ae6601a5c59360c7d591c3992da}{%
+           family={{W3C}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{fullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{bibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorbibnamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authornamehash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhash}{446a1ae6601a5c59360c7d591c3992da}
+      \strng{authorfullhashraw}{446a1ae6601a5c59360c7d591c3992da}
+      \field{extraname}{3}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{WebRTC Statistics API}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.w3.org/TR/webrtc-stats/
+      \endverb
+      \verb{url}
+      \verb https://www.w3.org/TR/webrtc-stats/
+      \endverb
+    \endentry
+    \entry{jitsi-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=97ca4b92aa4c23d12e40a2c2d7582927}{%
+           family={{Jitsi}},
+           familyi={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{fullhash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{fullhashraw}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{bibnamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorbibnamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authornamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorfullhash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorfullhashraw}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \field{extraname}{1}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Jitsi Meet Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/jitsi/jitsi-meet
+      \endverb
+      \verb{url}
+      \verb https://github.com/jitsi/jitsi-meet
+      \endverb
+    \endentry
+    \entry{jitsi-architecture}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=97ca4b92aa4c23d12e40a2c2d7582927}{%
+           family={{Jitsi}},
+           familyi={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{fullhash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{fullhashraw}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{bibnamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorbibnamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authornamehash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorfullhash}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \strng{authorfullhashraw}{97ca4b92aa4c23d12e40a2c2d7582927}
+      \field{extraname}{2}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Jitsi Meet Architecture}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://jitsi.github.io/handbook/docs/architecture/
+      \endverb
+      \verb{url}
+      \verb https://jitsi.github.io/handbook/docs/architecture/
+      \endverb
+    \endentry
+    \entry{openvidu-docs}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=c5fcf42a112843a9294f4a162a6b3be3}{%
+           family={{OpenVidu}},
+           familyi={O\bibinitperiod}}}%
+      }
+      \strng{namehash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{fullhash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{fullhashraw}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{bibnamehash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{authorbibnamehash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{authornamehash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{authorfullhash}{c5fcf42a112843a9294f4a162a6b3be3}
+      \strng{authorfullhashraw}{c5fcf42a112843a9294f4a162a6b3be3}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{OpenVidu Platform Documentation}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://openvidu.io/latest/docs/
+      \endverb
+      \verb{url}
+      \verb https://openvidu.io/latest/docs/
+      \endverb
+    \endentry
+    \entry{element-call}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=231afe47f3f37d3808096b36c28b4ded}{%
+           family={{Element}},
+           familyi={E\bibinitperiod}}}%
+      }
+      \strng{namehash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{fullhash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{fullhashraw}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{bibnamehash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{authorbibnamehash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{authornamehash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{authorfullhash}{231afe47f3f37d3808096b36c28b4ded}
+      \strng{authorfullhashraw}{231afe47f3f37d3808096b36c28b4ded}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Element Call Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/element-hq/element-call
+      \endverb
+      \verb{url}
+      \verb https://github.com/element-hq/element-call
+      \endverb
+    \endentry
+    \entry{mirotalk}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=c84f1dbd4217d04d24ba75695927c79f}{%
+           family={{MiroTalk}},
+           familyi={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{fullhash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{fullhashraw}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{bibnamehash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{authorbibnamehash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{authornamehash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{authorfullhash}{c84f1dbd4217d04d24ba75695927c79f}
+      \strng{authorfullhashraw}{c84f1dbd4217d04d24ba75695927c79f}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{MiroTalk SFU Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/miroslavpejic85/mirotalksfu
+      \endverb
+      \verb{url}
+      \verb https://github.com/miroslavpejic85/mirotalksfu
+      \endverb
+    \endentry
+    \entry{nextcloud-talk}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=d666a3dbc79e42eb871913a5c586fcf3}{%
+           family={{Nextcloud}},
+           familyi={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{fullhash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{fullhashraw}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{bibnamehash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{authorbibnamehash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{authornamehash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{authorfullhash}{d666a3dbc79e42eb871913a5c586fcf3}
+      \strng{authorfullhashraw}{d666a3dbc79e42eb871913a5c586fcf3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Nextcloud Talk Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/nextcloud/spreed
+      \endverb
+      \verb{url}
+      \verb https://github.com/nextcloud/spreed
+      \endverb
+    \endentry
+    \entry{pion-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=ef6fcb91943c7c9cba2d789e7cfd9cd2}{%
+           family={{Pion}},
+           familyi={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{fullhash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{fullhashraw}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{bibnamehash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{authorbibnamehash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{authornamehash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{authorfullhash}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \strng{authorfullhashraw}{ef6fcb91943c7c9cba2d789e7cfd9cd2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Pion WebRTC Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/pion/webrtc
+      \endverb
+      \verb{url}
+      \verb https://github.com/pion/webrtc
+      \endverb
+    \endentry
+    \entry{livekit-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=3141e135f3ab68f10caf21eb2d7ca1d4}{%
+           family={{LiveKit}},
+           familyi={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{bibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorbibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authornamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \field{extraname}{1}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{LiveKit Server Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/livekit/livekit
+      \endverb
+      \verb{url}
+      \verb https://github.com/livekit/livekit
+      \endverb
+    \endentry
+    \entry{livekit-selfhost}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=3141e135f3ab68f10caf21eb2d7ca1d4}{%
+           family={{LiveKit}},
+           familyi={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{bibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorbibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authornamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \field{extraname}{2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Self-hosting overview}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://docs.livekit.io/transport/self-hosting/
+      \endverb
+      \verb{url}
+      \verb https://docs.livekit.io/transport/self-hosting/
+      \endverb
+    \endentry
+    \entry{livekit-tokens}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=3141e135f3ab68f10caf21eb2d7ca1d4}{%
+           family={{LiveKit}},
+           familyi={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{bibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorbibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authornamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \field{extraname}{3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Tokens and grants}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://docs.livekit.io/home/server/generating-tokens
+      \endverb
+      \verb{url}
+      \verb https://docs.livekit.io/home/server/generating-tokens
+      \endverb
+    \endentry
+    \entry{livekit-room-api}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=3141e135f3ab68f10caf21eb2d7ca1d4}{%
+           family={{LiveKit}},
+           familyi={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{bibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorbibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authornamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \field{extraname}{4}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Room service API}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://docs.livekit.io/reference/other/roomservice-api/
+      \endverb
+      \verb{url}
+      \verb https://docs.livekit.io/reference/other/roomservice-api/
+      \endverb
+    \endentry
+    \entry{livekit-egress}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=3141e135f3ab68f10caf21eb2d7ca1d4}{%
+           family={{LiveKit}},
+           familyi={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{fullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{bibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorbibnamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authornamehash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhash}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \strng{authorfullhashraw}{3141e135f3ab68f10caf21eb2d7ca1d4}
+      \field{extraname}{5}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Self-hosted Egress service}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://docs.livekit.io/transport/self-hosting/egress/
+      \endverb
+      \verb{url}
+      \verb https://docs.livekit.io/transport/self-hosting/egress/
+      \endverb
+    \endentry
+    \entry{mediasoup-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=b495ae993b31b3fd9fab4f40c9c3c2cd}{%
+           family={{mediasoup}},
+           familyi={m\bibinitperiod}}}%
+      }
+      \strng{namehash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{fullhash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{fullhashraw}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{bibnamehash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{authorbibnamehash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{authornamehash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{authorfullhash}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \strng{authorfullhashraw}{b495ae993b31b3fd9fab4f40c9c3c2cd}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{mediasoup Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/versatica/mediasoup
+      \endverb
+      \verb{url}
+      \verb https://github.com/versatica/mediasoup
+      \endverb
+    \endentry
+    \entry{coturn-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=171212489d3aaae9a9ad4b60f4c7248b}{%
+           family={{coturn}},
+           familyi={c\bibinitperiod}}}%
+      }
+      \strng{namehash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{fullhash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{fullhashraw}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{bibnamehash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{authorbibnamehash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{authornamehash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{authorfullhash}{171212489d3aaae9a9ad4b60f4c7248b}
+      \strng{authorfullhashraw}{171212489d3aaae9a9ad4b60f4c7248b}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{coturn TURN server Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/coturn/coturn
+      \endverb
+      \verb{url}
+      \verb https://github.com/coturn/coturn
+      \endverb
+    \endentry
+    \entry{janus-repo}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=f2b537692297d1bcdcfc185f25863332}{%
+           family={{Meetecho}},
+           familyi={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{fullhash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{fullhashraw}{f2b537692297d1bcdcfc185f25863332}
+      \strng{bibnamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorbibnamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authornamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorfullhash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorfullhashraw}{f2b537692297d1bcdcfc185f25863332}
+      \field{extraname}{1}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Janus WebRTC Server Repository}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/meetecho/janus-gateway
+      \endverb
+      \verb{url}
+      \verb https://github.com/meetecho/janus-gateway
+      \endverb
+    \endentry
+    \entry{janus-videocall}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=f2b537692297d1bcdcfc185f25863332}{%
+           family={{Meetecho}},
+           familyi={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{fullhash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{fullhashraw}{f2b537692297d1bcdcfc185f25863332}
+      \strng{bibnamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorbibnamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authornamehash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorfullhash}{f2b537692297d1bcdcfc185f25863332}
+      \strng{authorfullhashraw}{f2b537692297d1bcdcfc185f25863332}
+      \field{extraname}{2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Janus VideoCall plugin}
+      \field{urlday}{5}
+      \field{urlmonth}{8}
+      \field{urlyear}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://janus.conf.meetecho.com/docs/videocall
+      \endverb
+      \verb{url}
+      \verb https://janus.conf.meetecho.com/docs/videocall
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

@@ -1,0 +1,55 @@
+\section{Vòng đời cuộc gọi trực tiếp}
+
+\subsection{Ranh giới trách nhiệm}
+
+WebRTC xử lý kết nối media, không quản lý nghiệp vụ cuộc gọi \cite{rfc8825}. Backend quản
+lý người gọi, người nhận, tenant, trạng thái bận, thời gian đổ chuông và
+\texttt{CallSession}. Media room hoặc peer connection biểu diễn phiên truyền thông.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.28\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+Thành phần & Trách nhiệm \\
+\hline
+Backend ứng dụng & Xác thực, tenant, quyền gọi, presence, busy reservation, trạng thái và call log \\
+\hline
+Kênh realtime & Phân phối incoming call, accept, reject, cancel và terminal event \\
+\hline
+Nền tảng media & Signaling WebRTC, transport, SFU/gateway, track và thống kê media \\
+\hline
+STUN/TURN & NAT traversal và relay khi đường trực tiếp không khả dụng \\
+\hline
+Frontend & Thiết bị, giao diện cuộc gọi, hiển thị state và remote media \\
+\hline
+\end{tabularx}
+\caption{Ranh giới trách nhiệm của module video call.}
+\label{tab:responsibility-boundary}
+\end{table}
+
+\subsection{State machine và race condition}
+
+State machine gồm \texttt{Initiated}, \texttt{Ringing}, \texttt{Connecting},
+\texttt{InCall}, \texttt{Reconnecting} và các trạng thái kết thúc. Accept, reject,
+cancel và timeout được ghi bằng chuyển trạng thái nguyên tử. Với nhiều tab hoặc thiết bị,
+backend chỉ chấp nhận một thao tác accept. Event lặp hoặc đến muộn không được thay đổi
+terminal state.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{call-state-machine-custom.png}
+  \caption{State machine của cuộc gọi trực tiếp.}
+  \label{fig:call-state-machine}
+\end{figure}
+
+Backend cấp media credential sau khi xác nhận người nhận, tenant và trạng thái accept.
+Token có thời hạn ngắn, giới hạn theo room, identity và quyền publish/subscribe. Event
+của media server phục vụ đối soát. Cơ sở dữ liệu vẫn lưu trạng thái nghiệp vụ chính thức.
+
+\subsection{Presence và nhiều session}
+
+Presence cho biết session đang có khả năng nhận signaling. Backend dùng busy reservation
+riêng để khóa trạng thái bận. Khi không còn session hợp lệ, cuộc gọi chuyển sang
+\texttt{Unavailable}. Khi hết thời gian đổ chuông, cuộc gọi chuyển sang
+\texttt{NoAnswer} hoặc \texttt{Missed}.

@@ -1,0 +1,19 @@
+\begin{tikzpicture}[
+  node distance=7mm and 16mm,
+  every node/.style={font=\small,align=center},
+  arrow/.style={-{Latex[length=2mm]},thick}
+]
+\node[font=\small\bfseries] (start) {Chương trình đang tốn thời gian hoặc cần sống lâu vì điều gì?};
+\node[below left=of start] (cpu) {CPU\\đang tính toán};
+\node[below=of start] (io) {Đang chờ I/O\\API, DB, file};
+\node[below right=of start] (life) {Công việc độc lập\\với một request};
+\node[below=of cpu] (parallel) {Tuần tự trước;\\đo rồi cân nhắc Parallel};
+\node[below=of io] (async) {async/await;\\giới hạn số việc đồng thời};
+\node[below=of life] (worker) {Hosted service;\\scheduler nếu cần lưu job};
+\draw[arrow] (start) -- (cpu);
+\draw[arrow] (start) -- (io);
+\draw[arrow] (start) -- (life);
+\draw[arrow] (cpu) -- (parallel);
+\draw[arrow] (io) -- (async);
+\draw[arrow] (life) -- (worker);
+\end{tikzpicture}

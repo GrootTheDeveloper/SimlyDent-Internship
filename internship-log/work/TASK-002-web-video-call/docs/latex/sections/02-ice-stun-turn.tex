@@ -1,0 +1,33 @@
+\section{ICE, STUN, TURN và topology media}
+
+\subsection{NAT traversal}
+
+ICE tìm đường truyền qua NAT bằng các candidate \cite{rfc8445}. Host candidate là địa
+chỉ cục bộ. Server-reflexive candidate là địa chỉ công khai do STUN phát hiện. Relay
+candidate là địa chỉ chuyển tiếp do TURN cấp. Hai phía trao đổi và kiểm tra các candidate
+qua signaling.
+
+TURN chuyển tiếp media khi đường truyền trực tiếp thất bại \cite{rfc8656}. Môi trường
+production yêu cầu TURN do hệ thống kiểm soát, credential có thời hạn, TLS và giám sát
+băng thông.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{webrtc-arch-custom.png}
+  \caption{Signaling, STUN/TURN và các đường truyền media trong WebRTC.}
+  \label{fig:webrtc-architecture}
+\end{figure}
+
+Kiểm thử TURN phải đặt \texttt{iceTransportPolicy=relay} hoặc xác nhận selected candidate
+pair có loại \texttt{relay}. WebRTC Statistics API cung cấp candidate pair, RTT, jitter,
+packet loss, bitrate và thông tin frame \cite{w3c-stats}.
+
+\subsection{P2P và SFU}
+
+Trong mô hình P2P, hai trình duyệt truyền media trực tiếp. TURN tiếp nhận media khi P2P
+thất bại. Ứng dụng tự quản lý khôi phục kết nối, quan sát và tương thích trình duyệt.
+
+Trong mô hình SFU, mỗi client gửi media tới máy chủ và nhận track do máy chủ chuyển tiếp.
+SFU tập trung việc điều phối track, quan sát, mở rộng và recording. Đổi lại, máy chủ phải
+xử lý băng thông media. Với cuộc gọi 1:1, quyết định dùng SFU dựa trên yêu cầu vận hành
+và mở rộng.

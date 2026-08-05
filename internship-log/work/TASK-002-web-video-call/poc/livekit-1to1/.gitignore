@@ -1,0 +1,9 @@
+.env
+backend/bin/
+backend/obj/
+frontend/dist/
+frontend/node_modules/
+evidence/*.json
+evidence/*.log
+certs/
+recordings/*.mp4

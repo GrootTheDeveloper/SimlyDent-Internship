@@ -1,0 +1,23 @@
+{
+	default_sni {$LAN_IP}
+}
+
+https://{$LAN_IP}:8443 {
+  tls internal
+
+  @api path /api/*
+  reverse_proxy @api backend:8080
+
+  @hubs path /hubs/*
+  reverse_proxy @hubs backend:8080
+
+  @livekit path /rtc*
+  reverse_proxy @livekit livekit:7880
+
+  reverse_proxy frontend:80
+}
+
+:8088 {
+  root * /data/caddy/pki/authorities/local
+  file_server
+}

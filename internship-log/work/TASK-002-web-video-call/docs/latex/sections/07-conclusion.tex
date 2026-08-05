@@ -1,0 +1,53 @@
+\section{Kiến trúc đề xuất và kết luận}
+
+\subsection{Kiến trúc LiveKit self-host}
+
+Backend .NET quản lý \texttt{CallSession}, tenant, quyền, busy reservation và call log.
+SignalR hoặc WebSocket truyền lời mời và trạng thái. Sau khi ghi nhận accept, backend
+phát token LiveKit ngắn hạn theo room và identity. Hai client sau đó kết nối vào media
+room.
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[height=0.69\textheight,keepaspectratio]{call-sequence-custom.png}
+  \caption{Trình tự xử lý cuộc gọi trực tiếp và thiết lập media.}
+  \label{fig:call-sequence}
+\end{figure}
+
+LiveKit room thiết lập kết nối media; LiveKit event phục vụ đối soát. PostgreSQL lưu
+trạng thái nghiệp vụ chính thức. TURN chạy trên hạ tầng doanh nghiệp và sử dụng
+credential có thời hạn.
+
+\subsection{Các bước kiểm chứng tiếp theo}
+
+\begin{enumerate}
+  \item Triển khai public domain, chứng thư TLS, media ports và TURN/TLS; xác nhận kết
+  nối khác mạng và relay-only bằng selected candidate statistics.
+  \item Kiểm tra A/V hai chiều trên desktop, Chrome Android và Safari iOS bằng thiết bị
+  thật; thực hiện no-answer, multi-tab, reconnect và thay đổi mạng.
+  \item Thay identity giả lập bằng authentication của hệ thống; lưu call state và call
+  log trong PostgreSQL; bổ sung webhook reconciliation, timeout và rate limiting.
+  \item Thu thập CPU, RAM, băng thông, chất lượng media, TURN ratio và lỗi kết nối theo
+  workload đã được phê duyệt.
+  \item Chỉ thử nghiệm mediasoup khi LiveKit không đáp ứng một yêu cầu kiểm soát media
+  đã xác định. Raw WebRTC được dùng làm mốc đối chiếu cho kết nối 1:1 và TURN.
+\end{enumerate}
+
+\subsection{Kết luận}
+
+\begin{enumerate}
+  \item WebRTC xử lý kết nối và truyền media. Backend SimlyDent quản lý user, tenant,
+  lời mời, trạng thái và call log.
+  \item LiveKit self-host là ứng viên ưu tiên. Tích hợp .NET qua JWT đã được kiểm chứng.
+  Room Service chưa được sử dụng.
+  \item mediasoup dành cho yêu cầu điều khiển media cấp thấp. Raw WebRTC kết hợp coturn
+  giữ vai trò mốc đối chiếu kỹ thuật.
+  \item Janus yêu cầu phê duyệt GPL-3.0. Jitsi và các ứng dụng hội nghị hoàn chỉnh bị
+  loại khỏi PoC hiện tại.
+  \item PoC đã xác nhận trạng thái ứng dụng, tenant isolation, token scope và phát media
+  giữa laptop với iPhone trong cùng mạng thử nghiệm. Nghiệm thu A/V hai chiều, Android,
+  khác mạng, TURN, khôi phục kết nối, tải và vận hành vẫn còn mở.
+  \item Trạng thái hiện tại: chưa phê duyệt production.
+\end{enumerate}
+
+\clearpage

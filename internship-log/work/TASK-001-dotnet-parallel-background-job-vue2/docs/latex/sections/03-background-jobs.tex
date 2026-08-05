@@ -1,0 +1,113 @@
+\section{Background Job trong .NET}
+
+\subsection{Background Job giải quyết vấn đề gì?}
+
+Khi người dùng gọi một API, máy chủ nhận yêu cầu, xử lý và trả kết quả. Khoảng thời
+gian đó là vòng đời của một HTTP request. Những việc như dọn dữ liệu mỗi đêm, đồng
+bộ dữ liệu định kỳ hoặc liên tục đọc hàng đợi không nên phụ thuộc vào request, vì
+chúng vẫn phải tiếp tục sau khi máy chủ đã trả kết quả cho người dùng.
+
+Vì không phụ thuộc vào request, Background Job có thể chạy một lần, chạy định kỳ hoặc
+chờ dữ liệu mới để xử lý. Vòng đời của công việc gồm thời điểm bắt đầu, quá trình
+thực hiện, thời điểm dừng và việc xử lý lỗi. Cách thực hiện bên trong có thể là tuần
+tự, bất đồng bộ hoặc song song tùy loại tác vụ.
+
+Không nên chỉ tạo một \texttt{Task} trong request rồi bỏ mặc. Cách làm này thường
+được gọi là \textbf{fire-and-forget}: request không chờ và cũng không theo dõi kết
+quả. Nếu ứng dụng dừng, công việc có thể chưa hoàn tất; nếu công việc lỗi, lỗi cũng
+khó được ghi nhận và xử lý đúng nơi.
+
+\subsection{Các thành phần có sẵn trong .NET}
+
+.NET cung cấp \textbf{Generic Host} (gọi ngắn là \textbf{Host}) để quản lý quá trình
+khởi động và dừng ứng dụng. Background Job được đăng ký với Host dưới dạng
+\textbf{hosted service} \cite{ms-generic-host,ms-hosted-services}.
+
+\begin{itemize}
+  \item \texttt{IHostedService} là một \textbf{interface}, tức hợp đồng quy định
+  các phương thức mà hosted service phải có. \texttt{StartAsync} là phương thức Host
+  gọi để khởi động service; \texttt{StopAsync} là phương thức Host gọi khi ứng dụng
+  dừng.
+
+  \item \texttt{BackgroundService} là lớp cơ sở đã hiện thực
+  \texttt{IHostedService}. Lập trình viên kế thừa lớp này và viết
+  \texttt{ExecuteAsync}, phương thức chứa công việc được thực hiện trong thời gian
+  service hoạt động.
+
+  \item Worker Service là mẫu project tạo sẵn Host và một
+  \texttt{BackgroundService}. Mẫu này tạo cấu trúc ban đầu cho một ứng dụng chuyên
+  chạy Background Job.
+\end{itemize}
+
+\subsection{Vòng đời của hosted service}
+
+Khi ứng dụng khởi động, Host gọi các hosted service đã đăng ký. Khi ứng dụng chuẩn
+bị dừng, Host gửi tín hiệu yêu cầu dừng và chờ chúng kết thúc an toàn.
+
+Tín hiệu dừng được truyền bằng \textbf{cancellation token}, tức một đối tượng mang
+trạng thái yêu cầu hủy. Token không cưỡng bức thread kết thúc; code trong service
+phải kiểm tra hoặc truyền token cho các thao tác bất đồng bộ để chúng chủ động dừng.
+
+\begin{center}
+\resizebox{0.84\textwidth}{!}{\input{../../assets/diagrams/background-lifecycle}}
+\captionof{figure}{Vòng đời cơ bản của một hosted service}
+\label{fig:background-lifecycle}
+\end{center}
+
+Luồng trong \figref{fig:background-lifecycle} diễn ra như sau: Host gọi
+\texttt{StartAsync} để khởi động service; phần việc chính chạy trong
+\texttt{ExecuteAsync}; khi ứng dụng dừng, Host báo hủy rồi gọi
+\texttt{StopAsync}. Service cần ngừng nhận việc mới, kết thúc hoặc dừng an toàn việc
+đang làm và giải phóng tài nguyên. Quá trình đó gọi là \textbf{graceful shutdown}.
+
+\subsection{Những vấn đề cần quản lý}
+
+Hosted service chỉ cung cấp nơi chạy công việc theo vòng đời ứng dụng. Phần xử lý
+vẫn phải xác định rõ:
+
+\begin{itemize}
+  \item \textbf{Thời điểm chạy:} chạy một lần khi ứng dụng khởi động, lặp theo
+  khoảng thời gian hay liên tục chờ dữ liệu mới.
+
+  \item \textbf{Dừng công việc:} truyền cancellation token xuống các thao tác đang
+  chờ để ứng dụng có thể dừng an toàn.
+
+  \item \textbf{Xử lý lỗi:} ghi nhật ký để biết công việc nào thất bại. Chỉ thử lại
+  những lỗi tạm thời và tránh để một lần chạy lại tạo dữ liệu trùng.
+
+  \item \textbf{Khả năng mất công việc:} hosted service không tự lưu job. Nếu một
+  job bắt buộc phải tiếp tục sau khi ứng dụng khởi động lại, cần lưu nó bên ngoài
+  bộ nhớ hoặc dùng một hệ thống quản lý job.
+\end{itemize}
+
+Hosted service quản lý Background Job gắn với vòng đời ứng dụng. Hàng đợi bền vững, lịch sử
+chạy và lịch thực thi phức tạp thuộc phạm vi của hệ thống quản lý job chuyên dụng.
+
+\subsection{Thay đổi từ .NET Core 3.1 đến .NET 8}
+
+{\small
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.27\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.31\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.32\textwidth}|}
+\caption{Thay đổi của Background Job từ .NET Core 3.1 đến .NET 8}\label{tab:background-version}\\
+\hline
+\textbf{.NET Core 3.1} & \textbf{Đến .NET 8} & \textbf{Ý nghĩa khi sử dụng} \\
+\hline
+Lỗi không được xử lý trong \texttt{ExecuteAsync} có thể làm Background Job ngừng nhưng Host vẫn chạy và không ghi nhật ký lỗi mặc định. & Từ .NET 6, lỗi được ghi vào nhật ký và mặc định làm Host dừng. & Lỗi của Background Job dễ được phát hiện hơn; ứng dụng phải quyết định lỗi nào được xử lý, thử lại hoặc để Host dừng. \\
+\hline
+Thường dùng \texttt{Timer}, bộ hẹn giờ gọi hàm theo mốc thời gian, hoặc \texttt{Task.Delay} để chờ giữa các lần chạy. & \texttt{PeriodicTimer} có từ .NET 6; đây là bộ hẹn giờ cho phép chờ bất đồng bộ đến lần chạy tiếp theo \cite{ms-periodic-timer}. & Vòng lặp định kỳ dễ đọc, dễ nhận cancellation token và tránh hai lượt vô tình chạy chồng nhau. \\
+\hline
+Code thường đọc trực tiếp \texttt{DateTime} hoặc đồng hồ hệ thống. & .NET 8 có \texttt{TimeProvider}, lớp cung cấp thời gian và bộ hẹn giờ qua một giao diện có thể thay thế. & Khi kiểm thử có thể dùng thời gian giả thay vì phải chờ đồng hồ thật. \\
+\hline
+\texttt{IHostedService} chỉ có các mốc khởi động và dừng cơ bản. & .NET 8 có \texttt{IHostedLifecycleService}, interface bổ sung các mốc trước và sau khi khởi động hoặc dừng. & Hữu ích khi nhiều service phải phối hợp thứ tự; Background Job thông thường vẫn dùng \texttt{BackgroundService}. \\
+\hline
+\end{longtable}
+}
+
+Thay đổi đáng chú ý nhất đối với code cũ là cách Host xử lý lỗi chưa được bắt trong
+\texttt{ExecuteAsync}. Từ .NET 6, lỗi được ghi vào nhật ký và mặc định làm Host dừng; đây là
+thay đổi hành vi có thể ảnh hưởng ứng dụng nâng cấp từ .NET Core 3.1
+\cite{ms-hosting-exception}. \texttt{TimeProvider} hỗ trợ kiểm thử code phụ thuộc
+vào thời gian; \texttt{IHostedLifecycleService} hỗ trợ phối hợp các mốc vòng đời
+chi tiết. Cả hai là API được bổ sung trong .NET 8
+\cite{ms-time-provider,ms-hosted-lifecycle}.

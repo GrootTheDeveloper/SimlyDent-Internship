@@ -1,0 +1,75 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+namespace LiveKitPoc.Api;
+
+public sealed class LiveKitTokenService(IConfiguration configuration)
+{
+    private readonly string _apiKey = configuration["LIVEKIT_API_KEY"] ?? "devkey";
+    private readonly string _apiSecret = configuration["LIVEKIT_API_SECRET"]
+        ?? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.");
+    public (string Token, DateTimeOffset ExpiresAt) CreateJoinToken(
+        TestIdentity identity,
+        string roomName,
+        TimeSpan ttl)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = now.Add(ttl);
+        var header = new Dictionary<string, object> { ["alg"] = "HS256", ["typ"] = "JWT" };
+        var payload = new Dictionary<string, object?>
+        {
+            ["iss"] = _apiKey,
+            ["sub"] = $"{identity.TenantId}:{identity.Id}",
+            ["name"] = identity.DisplayName,
+            ["nbf"] = now.ToUnixTimeSeconds(),
+            ["exp"] = expiresAt.ToUnixTimeSeconds(),
+            ["jti"] = Guid.NewGuid().ToString("N"),
+            ["metadata"] = JsonSerializer.Serialize(new { identity.Id, identity.TenantId }),
+            ["video"] = new
+            {
+                roomJoin = true,
+                room = roomName,
+                canPublish = true,
+                canSubscribe = true,
+                canPublishData = true
+            }
+        };
+
+        var encodedHeader = Base64Url(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var unsignedToken = $"{encodedHeader}.{encodedPayload}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_apiSecret));
+        var signature = Base64Url(hmac.ComputeHash(Encoding.ASCII.GetBytes(unsignedToken)));
+        return ($"{unsignedToken}.{signature}", expiresAt);
+    }
+
+    public string CreateRoomRecordToken(TimeSpan ttl)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var header = new Dictionary<string, object> { ["alg"] = "HS256", ["typ"] = "JWT" };
+        var payload = new Dictionary<string, object?>
+        {
+            ["iss"] = _apiKey,
+            ["sub"] = "simlydent-recording-service",
+            ["nbf"] = now.ToUnixTimeSeconds(),
+            ["exp"] = now.Add(ttl).ToUnixTimeSeconds(),
+            ["jti"] = Guid.NewGuid().ToString("N"),
+            ["video"] = new { roomRecord = true, roomCreate = true }
+        };
+        return Sign(header, payload);
+    }
+
+    private string Sign(Dictionary<string, object> header, Dictionary<string, object?> payload)
+    {
+        var encodedHeader = Base64Url(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var unsignedToken = $"{encodedHeader}.{encodedPayload}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_apiSecret));
+        var signature = Base64Url(hmac.ComputeHash(Encoding.ASCII.GetBytes(unsignedToken)));
+        return $"{unsignedToken}.{signature}";
+    }
+
+    private static string Base64Url(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+}

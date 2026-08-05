@@ -1,0 +1,31 @@
+\section{Thu nhận media và signaling}
+
+\subsection{Camera và microphone}
+
+Trình duyệt truy cập camera và microphone bằng \texttt{getUserMedia()}. API yêu cầu
+HTTPS và quyền của người dùng. Kết quả trả về là một \texttt{MediaStream} chứa các
+\texttt{MediaStreamTrack}. Ứng dụng đưa các track này vào
+\texttt{RTCPeerConnection} để truyền qua WebRTC \cite{w3c-mediacapture,w3c-webrtc}.
+
+Frontend quản lý quyền thiết bị, thiết bị đang chọn và trạng thái track. Backend không
+truy cập camera hoặc microphone. Các trường hợp bắt buộc xử lý gồm từ chối quyền, mất
+thiết bị, đổi camera, tắt track và trình duyệt chuyển sang background.
+
+\subsection{RTCPeerConnection và SDP}
+
+\texttt{RTCPeerConnection} quản lý luồng gửi, luồng nhận, ICE transport, codec và trạng
+thái kết nối. Hai phía trao đổi offer và answer chứa SDP. SDP mô tả loại media, codec,
+hướng truyền, ICE credential và tham số RTP/RTCP \cite{rfc9429}.
+
+Trình tự tối thiểu gồm tạo peer connection, thêm local track, tạo offer, đặt local
+description, chuyển offer tới phía còn lại, tạo answer và trao đổi ICE candidate. Remote
+track được gắn vào phần tử media khi sự kiện \texttt{track} phát sinh.
+
+\subsection{Vai trò của signaling}
+
+WebRTC không cung cấp kênh signaling. Ứng dụng sử dụng WebSocket, SignalR hoặc HTTPS để
+trao đổi offer, answer và ICE candidate \cite{rfc8825}. Kênh này cũng truyền các sự kiện
+cuộc gọi: incoming, accept, reject, cancel, busy, timeout và hangup.
+
+Media signaling và call-control signaling phải được phân loại rõ. Backend quản lý trạng
+thái nghiệp vụ. Event của trình duyệt phản ánh trạng thái kết nối tại từng endpoint.

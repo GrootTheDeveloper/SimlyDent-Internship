@@ -1,0 +1,19 @@
+\Needspace{0.14\textheight}
+\section{Kết luận}
+
+\begin{enumerate}
+  \item Parallel phù hợp với phép tính CPU đủ nặng, có thể chia thành các phần tương
+  đối độc lập và chỉ nên áp dụng sau khi so sánh với bản tuần tự. Từ .NET 6,
+  \texttt{Parallel.ForEachAsync} bổ sung cách xử lý collection bằng hàm bất đồng bộ
+  với số thao tác đồng thời được giới hạn.
+
+  \item Background Job có thể triển khai bằng \texttt{IHostedService},
+  \texttt{BackgroundService} hoặc mẫu project Worker Service. .NET 6 thay đổi cách
+  Host xử lý lỗi chưa được bắt và bổ sung \texttt{PeriodicTimer}; .NET 8 bổ sung
+  \texttt{TimeProvider} và các mốc vòng đời chi tiết hơn. Khi cần lưu job, tự động thử lại hoặc
+  lịch phức tạp, cần cân nhắc Hangfire, Quartz.NET hay một hàng đợi bền vững.
+
+  \item Vue 2 tổ chức component bằng Options API, liên kết template với state qua
+  directive, props và event. Khi state thay đổi, hệ thống reactivity lên lịch dựng
+  Virtual DOM mới, so sánh với cây trước và cập nhật phần DOM thật bị ảnh hưởng.
+\end{enumerate}

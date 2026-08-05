@@ -1,0 +1,2490 @@
+{
+  "filename": "Sổ nhật ký thực tập.docx",
+  "sections": [
+    {
+      "page_width_cm": 21.0,
+      "page_height_cm": 29.7,
+      "left_margin_cm": 2.0,
+      "right_margin_cm": 2.0,
+      "top_margin_cm": 2.0,
+      "bottom_margin_cm": 2.0,
+      "orientation": "portrait"
+    },
+    {
+      "page_width_cm": 21.0,
+      "page_height_cm": 29.7,
+      "left_margin_cm": 2.0,
+      "right_margin_cm": 2.0,
+      "top_margin_cm": 2.0,
+      "bottom_margin_cm": 2.0,
+      "orientation": "portrait"
+    }
+  ],
+  "headers_footers": [
+    {
+      "section": 0,
+      "footer": [
+        ""
+      ]
+    },
+    {
+      "section": 1,
+      "footer": [
+        ""
+      ]
+    }
+  ],
+  "body": [
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId11",
+          "filename": "image2.png",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image2.png",
+          "width_cm": 3.66,
+          "height_cm": 2.31
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "SỔ NHẬT KÝ THỰC TẬP",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "SỔ NHẬT KÝ THỰC TẬP",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 15.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Họ và tên sinh viên: \t MSSV: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Họ và tên s",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "inh viên: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t MSSV: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \t Email: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Email: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Ngành: \t Chuyên ngành:\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Ngành: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t Chuyên ngành:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Học kỳ: \t Năm học: \tMã lớp HP: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Học kỳ: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t Năm học: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tMã lớp HP: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Thời gian thực tập:  từ ngày .… / .… / ….… đến ngày .… / …. / …….",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Thời gian thực tập:  từ ngày ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "… / ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "… / …",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "… đến ngày ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "… / …",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " / ……",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Đơn vị thực tập: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Đơn vị thực tập: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Địa chỉ: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Địa chỉ: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Cán bộ quản lý tại ĐVTT:\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Cán bộ ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "quản lý",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " tại ĐVTT:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \tEmail: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tEmail: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Giảng viên hướng dẫn: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Giảng viên hướng dẫn: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Điện thoại: \tEmail: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Điện thoại: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tEmail: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId12",
+          "filename": "image3.jpeg",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image3.jpeg",
+          "width_cm": 13.26,
+          "height_cm": 7.46
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "image",
+          "rId": "rId14",
+          "filename": "image4.png",
+          "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image4.png",
+          "width_cm": 3.96,
+          "height_cm": 1.32
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "NHẬT KÝ THỰC TẬP",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "NHẬT KÝ THỰC TẬP",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "rows": 9,
+      "cols": 4,
+      "data": [
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Tuần: 01",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Tuần: 01",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Tuần: 01",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Tuần: 01",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 2,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Nội dung công việc",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nội dung công việc",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": "restart"
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "SV tự ",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "SV tự ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "đánh giá (*)",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "đánh giá",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "(*)",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": "restart"
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Ngày",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ngày",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Nội dung công việc",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nội dung công việc",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": "restart"
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "SV tự ",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "SV tự ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "đánh giá (*)",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "đánh giá",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "(*)",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": "restart"
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ Hai",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Hai",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ ",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Ba",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ba",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ ",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Tư",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Tư",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ Năm",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ Năm",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ Sáu",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "Sáu",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Thứ Bảy",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Thứ Bảy",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "    /    /",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "    /    /",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": []
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ],
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "Nhận xét của Cán bộ quản lý:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nhận xét của Cán bộ quản lý:",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Chấm điểm (*):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Chấm ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "điểm (*)",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Ký xác nhận, ghi rõ họ tên: \t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ký xác nhận",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ", ghi ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "rõ ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "họ tên",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 4,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Nhận xét của Cán bộ quản lý:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nhận xét của Cán bộ quản lý:",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Chấm điểm (*):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Chấm ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "điểm (*)",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Ký xác nhận, ghi rõ họ tên: \t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ký xác nhận",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ", ghi ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "rõ ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "họ tên",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 4,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Nhận xét của Cán bộ quản lý:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nhận xét của Cán bộ quản lý:",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Chấm điểm (*):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Chấm ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "điểm (*)",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Ký xác nhận, ghi rõ họ tên: \t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ký xác nhận",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ", ghi ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "rõ ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "họ tên",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 4,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "Nhận xét của Cán bộ quản lý:",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Nhận xét của Cán bộ quản lý:",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Chấm điểm (*):\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Chấm ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "điểm (*)",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Ký xác nhận, ghi rõ họ tên: \t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "Ký xác nhận",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ", ghi ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "rõ ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "họ tên",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": ":",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": true,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "\t",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "\t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 4,
+            "vmerge": null
+          }
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Ghi chú: Mỗi tuần 1 trang; Sổ nhật ký thực tập có 2 tờ bìa và có có tối đa 12 trang để ghi chép từ 8 đến 12 tuần.",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "Ghi ch",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ú: Mỗi tuần 1 trang; Sổ nhật ký ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "thực tập có 2 tờ bìa và có ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "có tối đa 12 trang ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "để ghi chép t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ừ 8 đến ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "1",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "2",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " tuần",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ".",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "*Điểm\tNếu mức độ hoàn thành",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "*",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Điểm",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tNếu m",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ức độ hoàn thành",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\tA\t80%\t-\t100%\t  ",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "A",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "80%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t-",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t100%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t  ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\tB\t65%\t-\t< 80%\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\tB",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "65%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t-",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t< 80%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\tC\t50%\t-\t< 65%\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\tC",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "50%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t-",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t< 65%",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\tF\t< 50",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\tF",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "< 50",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 14.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    }
+  ],
+  "images": {
+    "word/media/image1.gif": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image1.gif",
+      "filename": "image1.gif",
+      "width_px": 15,
+      "height_px": 15,
+      "format": "GIF"
+    },
+    "word/media/image4.png": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image4.png",
+      "filename": "image4.png",
+      "width_px": 359,
+      "height_px": 120,
+      "format": "PNG"
+    },
+    "word/media/image3.jpeg": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image3.jpeg",
+      "filename": "image3.jpeg",
+      "width_px": 891,
+      "height_px": 501,
+      "format": "JPEG"
+    },
+    "word/media/image2.png": {
+      "saved_as": "F:\\SimlyDent\\BM Học kỳ DN T7.2026\\_extracted\\Sổ nhật ký thực tập\\images\\image2.png",
+      "filename": "image2.png",
+      "width_px": 322,
+      "height_px": 203,
+      "format": "PNG"
+    }
+  }
+}

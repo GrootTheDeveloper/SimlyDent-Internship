@@ -1,0 +1,16 @@
+\begin{tikzpicture}[
+  node distance=8mm,
+  every node/.style={font=\small,align=center},
+  flowbox/.style={draw,rounded corners=2mm,minimum height=11mm,minimum width=25mm,thick},
+  arrow/.style={-{Latex[length=2mm]},thick}
+]
+\node[flowbox,fill=gray!12,draw=gray!65] (host) {Host\\khởi động};
+\node[flowbox,fill=blue!15,draw=blue!55,right=of host] (start) {Gọi\\StartAsync};
+\node[flowbox,fill=green!15,draw=green!55!black,right=of start] (execute) {Chạy\\ExecuteAsync};
+\node[flowbox,fill=orange!18,draw=orange!70!black,right=of execute] (cancel) {Báo hủy qua\\cancellation token};
+\node[flowbox,fill=gray!12,draw=gray!65,right=of cancel] (stop) {Chờ\\StopAsync};
+\draw[arrow] (host) -- (start);
+\draw[arrow] (start) -- (execute);
+\draw[arrow] (execute) -- (cancel);
+\draw[arrow] (cancel) -- (stop);
+\end{tikzpicture}

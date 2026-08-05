@@ -1,0 +1,1065 @@
+{
+  "filename": "BM01_Giay tiep nhan sv thuc tap.docx",
+  "sections": [
+    {
+      "page_width_cm": 21.0,
+      "page_height_cm": 29.7,
+      "left_margin_cm": 2.0,
+      "right_margin_cm": 2.0,
+      "top_margin_cm": 1.8,
+      "bottom_margin_cm": 1.8,
+      "orientation": "portrait"
+    }
+  ],
+  "headers_footers": [
+    {
+      "section": 0
+    }
+  ],
+  "body": [
+    {
+      "type": "table",
+      "rows": 1,
+      "cols": 2,
+      "data": [
+        [
+          {
+            "paragraphs": [
+              {
+                "text": "(DOANH NGHIỆP)……………..",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "(DOANH NGHIỆP)",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": "……………..",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "…………………….",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "…………………….",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          },
+          {
+            "paragraphs": [
+              {
+                "text": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆTNAM",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆTNAM",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "Độc lập – Tự do – Hạnh phúc",
+                "alignment": "center",
+                "style": "Heading 1",
+                "runs": [
+                  {
+                    "text": "Độc lập – Tự do – Hạnh phúc",
+                    "bold": true,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "____________________",
+                "alignment": "center",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "____________________",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              },
+              {
+                "text": "         …………., ngày ……. tháng ……. năm …….",
+                "alignment": "left",
+                "style": "Normal",
+                "runs": [
+                  {
+                    "text": "         ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "………….",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": ", ngày",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "…….",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " t",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "háng",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "…….",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  },
+                  {
+                    "text": " ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "năm ",
+                    "bold": null,
+                    "italic": true,
+                    "underline": null
+                  },
+                  {
+                    "text": "…….",
+                    "bold": null,
+                    "italic": null,
+                    "underline": null
+                  }
+                ]
+              }
+            ],
+            "colspan": 1,
+            "vmerge": null
+          }
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "center",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "GIẤY TIẾP NHẬN",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "GIẤY TIẾP NHẬN",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 15.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "SINH VIÊN THỰC TẬP",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "SINH VIÊN THỰC TẬP",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 15.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "(Dành cho sinh viên thực tập theo phân công của Nhà trường)",
+      "style": "Normal",
+      "alignment": "center",
+      "content": [
+        {
+          "type": "text",
+          "text": "(Dành cho sinh viên thực tập theo phân công của ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.0,
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Nhà trường",
+          "font": {
+            "name": "Times New Roman",
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ")",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 12.0,
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": "center",
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "Doanh nghiệp tiếp nhận thực tập:\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Doanh nghiệp",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "tiếp nhận thực tập",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ":",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Địa chỉ: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Địa chỉ: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Mã số thuế:\t Điện thoại:\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Mã số thuế:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Điện thoại:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Đồng ý tiếp nhận sinh viên: \t ",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Đồng ý tiếp nhận ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "sinh viên",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ":",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "MSSV:\tNgành: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "M",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "SSV",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ":",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "N",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "gành: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Sinh viên Trường Đại học Quản lý và Công nghệ Thành phố Hồ Chí Minh",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Sinh viên",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " Trường Đại học Quản lý và Công nghệ Thành phố Hồ Chí Minh",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Thực tập tại Bộ phận/Phòng ban: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Thực tập tại ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Bộ phận/",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Phòng ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "ban",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ":",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Với nhiệm vụ: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Với nhiệm vụ: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Thời gian thực tập từ ngày:\tđến ngày: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Thời gian thực tập từ ngày:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tđến ngày: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Cán bộ quản lý hướng dẫn thực tập: \t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Cán bộ quản lý hướng dẫn thực tập: ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Email:\tĐiện thoại:\t",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "Email",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ":",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Điện thoại:",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Sinh viên thực tập chấp hành đúng nội quy kỷ luật và phân công của Doanh nghiệp./.",
+      "style": "Normal",
+      "alignment": "justify",
+      "content": [
+        {
+          "type": "text",
+          "text": "S",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "inh viên thực tập chấp hành đúng nội quy kỷ luật và phân công của Doanh nghiệp.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "/.",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    },
+    {
+      "type": "paragraph",
+      "text": "                                                                         \tXác nhận của Doanh nghiệp                                                               ",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "                                                                         ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "\tXác nhận của Doanh nghiệp",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": true,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "                                                               ",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "\t(Ký & ghi rõ Họ tên, chức vụ, đóng dấu)",
+      "style": "Normal",
+      "alignment": null,
+      "content": [
+        {
+          "type": "text",
+          "text": "\t",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "(",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": "Ký & ghi rõ Họ tên, chức vụ, đóng dấu",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": true,
+            "underline": null
+          }
+        },
+        {
+          "type": "text",
+          "text": ")",
+          "font": {
+            "name": "Times New Roman",
+            "size_pt": 13.0,
+            "bold": null,
+            "italic": null,
+            "underline": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "",
+      "style": "Normal",
+      "alignment": null,
+      "content": []
+    }
+  ],
+  "images": {}
+}

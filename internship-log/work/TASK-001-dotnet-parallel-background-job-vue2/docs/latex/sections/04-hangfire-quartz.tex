@@ -1,0 +1,35 @@
+\subsection{Phân biệt hosted service, Hangfire và Quartz.NET}
+
+\textbf{Hangfire} là thư viện .NET dùng để lưu, xếp hàng và thực thi Background Job.
+Thông tin job được lưu trong database, nhờ đó job vẫn còn sau khi ứng dụng khởi động
+lại. Hangfire hỗ trợ tự động thử lại và cung cấp giao diện theo dõi trạng thái
+\cite{hangfire-docs,hangfire-retry}. Hangfire cũng hỗ trợ đăng ký job chạy lặp theo
+lịch \cite{hangfire-recurring}.
+
+\textbf{Quartz.NET} là thư viện lập lịch cho .NET. Quartz.NET tách việc cần làm thành
+\textbf{job} và thời điểm chạy thành
+\textbf{trigger}; công cụ này phù hợp khi bài toán trọng tâm là biểu thức cron
+(chuỗi mô tả lịch lặp) hoặc lịch ngày phức tạp
+\cite{quartz-jobs-triggers,quartz-job-stores}.
+
+{\scriptsize
+\renewcommand{\arraystretch}{1.0}
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.18\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.25\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.23\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.24\textwidth}|}
+\caption{So sánh hosted service, Hangfire và Quartz.NET}\label{tab:job-tools}\\
+\hline
+\textbf{Tiêu chí} & \textbf{Hosted service} & \textbf{Hangfire} & \textbf{Quartz.NET} \\
+\hline
+Lưu job & Không tự lưu qua lần khởi động lại; ứng dụng phải thiết kế thêm. & Lưu job vào database đã cấu hình. & Có thể lưu trong RAM hoặc database. \\
+\hline
+Lập lịch & Tự viết vòng lặp, bộ hẹn giờ hoặc hàng đợi. & Hỗ trợ job chạy ngay, chạy trễ và chạy lặp. & Mạnh về trigger, biểu thức cron và lịch ngày. \\
+\hline
+Nên chọn khi & Background Job nhỏ, cùng tiến trình và chấp nhận tự quản lý độ bền. & Cần lưu job, thử lại và vận hành thuận tiện. & Lịch hoặc quan hệ job--trigger phức tạp. \\
+\hline
+\end{longtable}
+}
+
+Background Job nhỏ và không cần lưu từng job thường chỉ cần hosted service. Khi job không
+được phép mất hoặc cần lịch và theo dõi vận hành, mới cần công cụ bên ngoài.

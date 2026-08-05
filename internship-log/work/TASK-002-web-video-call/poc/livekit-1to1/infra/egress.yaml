@@ -1,0 +1,8 @@
+log_level: info
+ws_url: ws://livekit:7880
+insecure: true
+redis:
+  address: redis:6379
+backup_storage: /out
+health_port: 8080
+prometheus_port: 9090

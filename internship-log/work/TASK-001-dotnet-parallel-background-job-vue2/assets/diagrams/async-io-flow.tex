@@ -1,0 +1,21 @@
+\begin{tikzpicture}[
+  node distance=8mm and 10mm,
+  every node/.style={font=\small,align=center},
+  flowbox/.style={draw,rounded corners=2mm,minimum height=11mm,minimum width=28mm,thick},
+  arrow/.style={-{Latex[length=2mm]},thick},
+  waitarrow/.style={-{Latex[length=2mm]},thick,dashed,draw=gray!75}
+]
+\node[font=\small\bfseries] (threadlabel) {Thread};
+\node[flowbox,fill=blue!15,draw=blue!55,right=of threadlabel] (start) {Bắt đầu\\phương thức};
+\node[flowbox,fill=orange!18,draw=orange!70!black,right=of start] (send) {Gửi yêu cầu I/O\\rồi gặp await};
+\node[flowbox,fill=green!15,draw=green!55!black,right=of send] (free) {Thread quay lại\\ThreadPool};
+\node[flowbox,fill=blue!12,draw=blue!55,right=of free] (resume) {Tiếp tục xử lý\\sau await};
+
+\node[font=\small\bfseries,below=16mm of threadlabel] (iolabel) {I/O};
+\node[flowbox,fill=gray!12,draw=gray!65,below=16mm of send] (io) {Mạng, database hoặc file\\thực hiện thao tác};
+
+\draw[arrow] (start) -- (send);
+\draw[arrow] (send) -- (free);
+\draw[arrow] (send) -- (io);
+\draw[waitarrow] (io) -| node[pos=0.72,below,font=\scriptsize] {hoàn tất} (resume);
+\end{tikzpicture}

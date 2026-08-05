@@ -1,0 +1,20 @@
+# Hệ điều hành và IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# File tạm
+*.tmp
+*.log
+*.bak
+~$*
+
+# Bí mật và cấu hình cục bộ
+.env
+.env.*
+!.env.example
+secrets/
+
+# Nội dung chưa được làm sạch
+assets/raw/

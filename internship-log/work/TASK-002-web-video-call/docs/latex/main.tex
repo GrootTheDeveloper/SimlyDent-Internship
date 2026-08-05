@@ -1,0 +1,147 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\setmainfont{Times New Roman}
+
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{graphicx}
+\graphicspath{{../../assets/diagrams/}}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{csquotes}
+\usepackage{booktabs}
+\DeclareQuoteStyle{vietnamese}
+  {\textquotedblleft}{\textquotedblright}{\textquoteleft}{\textquoteright}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\DeclareLanguageMapping{vietnamese}{english}
+\DeclareFieldFormat{urldate}{%
+  \mkbibparens{truy cập ngày\space
+  \mkdayzeros{\thefield{urlday}}/\mkmonthzeros{\thefield{urlmonth}}/\thefield{urlyear}}}
+\addbibresource{references.bib}
+\setcounter{biburlnumpenalty}{100}
+\setcounter{biburlucpenalty}{200}
+\setcounter{biburllcpenalty}{200}
+\AtBeginBibliography{\footnotesize}
+\setlength{\bibitemsep}{0.05em}
+
+\definecolor{internallinkblue}{HTML}{0057A8}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=internallinkblue,
+  urlcolor=blue,
+  citecolor=blue,
+  pdftitle={Giải pháp open-source cho video call 1:1 trên web},
+  pdfauthor={Đặng Phúc An Khang}
+}
+
+\newcommand{\figref}[1]{\hyperref[#1]{Hình~\ref*{#1}}}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  rulecolor=\color{gray!65},
+  framerule=0.5pt,
+  framesep=5pt,
+  numbers=none,
+  showstringspaces=false,
+  tabsize=2,
+  xleftmargin=0.5em,
+  xrightmargin=0.5em,
+  aboveskip=0.5em,
+  belowskip=0.5em
+}
+
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\setlist{itemsep=0.2em,topsep=0.3em,leftmargin=*}
+\setlength{\parskip}{0.25em}
+\setlength{\emergencystretch}{2em}
+\captionsetup{
+  font=small,
+  labelfont=bf,
+  labelsep=period,
+  justification=centering,
+  skip=0.2em,
+  hypcap=false
+}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{TASK-002 - BÁO CÁO KỸ THUẬT}
+\fancyhead[R]{Đặng Phúc An Khang}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[L]{TASK-002 - BÁO CÁO KỸ THUẬT}
+  \fancyhead[R]{Đặng Phúc An Khang}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0.4pt}
+}
+
+\fancypagestyle{firstpage}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\begin{document}
+
+\thispagestyle{firstpage}
+\begin{center}
+  {\small\bfseries BÁO CÁO NGHIÊN CỨU KỸ THUẬT\par}
+  \vspace{0.25cm}
+  {\LARGE\bfseries Giải pháp open-source cho video call 1:1 trên web\par}
+  \vspace{0.15cm}
+  {\Large Kiến trúc tự triển khai và phương án kiểm chứng\par}
+\end{center}
+
+\vspace{0.45cm}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.22}
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.18\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}|>{\bfseries\raggedright\arraybackslash}p{0.19\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+Người thực hiện & Đặng Phúc An Khang & Bộ phận & Kỹ thuật \\
+\hline
+Vị trí & Thực tập sinh Full-stack Developer & Người giao và duyệt & CTO Tín Nguyễn \\
+\hline
+Thời gian thực hiện & 04/08/2026 - 05/08/2026 & Ngày báo cáo & 05/08/2026 \\
+\hline
+\end{tabularx}
+\end{center}
+
+\vspace{0.35cm}
+
+\input{sections/00-executive-summary}
+\input{sections/01-media-capture-signaling}
+\input{sections/02-ice-stun-turn}
+\input{sections/03-direct-call-lifecycle}
+\input{sections/04-stringee}
+\input{sections/05-livekit}
+\input{sections/06-jitsi-raw-webrtc}
+\input{sections/07-poc-results}
+\input{sections/07-conclusion}
+
+\printbibliography[title={Tài liệu tham khảo}]
+
+\end{document}

@@ -1,0 +1,33 @@
+\begin{tikzpicture}[
+  every node/.style={font=\small,align=center},
+  part/.style={draw,rounded corners=1.5mm,minimum width=42mm,minimum height=9mm,thick},
+  group/.style={draw=blue!60,rounded corners=2mm,thick,inner sep=4mm},
+  arrow/.style={-{Latex[length=2mm]},very thick}
+]
+\node[font=\small\bfseries,text=blue!60!black] (ptitle) {Component cha};
+\node[part,fill=blue!12,draw=blue!55,below=3mm of ptitle] (pstate) {State\\dữ liệu do component cha quản lý};
+\node[part,fill=green!12,draw=green!55!black,below=3mm of pstate] (pmethods) {Methods\\xử lý hành vi và cập nhật state};
+\node[part,fill=orange!12,draw=orange!70!black,below=3mm of pmethods] (ptemplate) {Template / UI\\hiển thị dữ liệu};
+\node[group,fit=(ptitle)(pstate)(pmethods)(ptemplate)] (parentbox) {};
+
+\node[font=\small\bfseries,text=blue!60!black,right=65mm of ptitle] (ctitle) {Component con};
+\node[part,fill=blue!12,draw=blue!55,below=3mm of ctitle] (cstate) {State\\dữ liệu riêng của component con};
+\node[part,fill=green!12,draw=green!55!black,below=3mm of cstate] (cmethods) {Methods\\xử lý tương tác người dùng};
+\node[part,fill=orange!12,draw=orange!70!black,below=3mm of cmethods] (ctemplate) {Template / UI\\hiển thị và nhận tương tác};
+\node[group,fit=(ctitle)(cstate)(cmethods)(ctemplate)] (childbox) {};
+
+\draw[arrow,draw=blue!65] (pstate.east) --
+  node[midway,above=1.5mm,text=blue!65!black,font=\small\bfseries] {props}
+  (cstate.west);
+\node[font=\scriptsize,text=blue!55!black] at
+  ($(pstate.east)!0.5!(cstate.west)+(0,-4mm)$) {cha truyền dữ liệu xuống con};
+
+\draw[arrow,draw=orange!80!black] (cmethods.west) --
+  node[midway,above=1.5mm,text=orange!80!black,font=\small\bfseries] {event}
+  (pmethods.east);
+\node[font=\scriptsize,text=orange!70!black] at
+  ($(cmethods.west)!0.5!(pmethods.east)+(0,-4mm)$) {con dùng \texttt{\$emit} để báo cho cha};
+
+\node[below=6mm of $(ptemplate.south)!0.5!(ctemplate.south)$,font=\small]
+  {Mỗi component quản lý giao diện riêng; component cha là nguồn dữ liệu chính của props};
+\end{tikzpicture}

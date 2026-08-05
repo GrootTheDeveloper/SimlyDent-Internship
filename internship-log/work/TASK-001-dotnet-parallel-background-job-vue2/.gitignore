@@ -1,0 +1,24 @@
+# LaTeX intermediate files
+docs/latex/*.aux
+docs/latex/*.bbl
+docs/latex/*.bcf
+docs/latex/*.blg
+docs/latex/*.fdb_latexmk
+docs/latex/*.fls
+docs/latex/*.log
+docs/latex/*.out
+docs/latex/*.run.xml
+docs/latex/*.synctex.gz
+docs/latex/*.toc
+
+# Generated deliverables
+output/*
+!output/.gitkeep
+
+# Local scratch files
+*.tmp
+*.bak
+
+# Example build artifacts
+examples/vue2/node_modules/
+examples/vue2/dist/

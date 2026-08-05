@@ -1,0 +1,77 @@
+\section{Xử lý song song trong .NET/C\#}
+
+\subsection{Cơ chế data parallelism}
+
+\textbf{Data parallelism} là áp dụng cùng một phép tính lên nhiều phần tử dữ liệu.
+\textbf{Task Parallel Library (TPL)} là thư viện của .NET hỗ trợ xử lý song song.
+\textbf{ThreadPool} là tập thread được .NET quản lý và tái sử dụng, giúp lập trình
+viên không phải tự tạo và thu hồi từng thread. Khi một vòng lặp song song bắt đầu,
+TPL chia nguồn thành các
+\textbf{partition} (những nhóm phần tử nhỏ hơn), đưa các nhóm lên ThreadPool và chờ
+toàn bộ nhóm hoàn tất \cite{ms-tpl,ms-threadpool,ms-data-parallelism}.
+
+Trong \figref{fig:parallel-flow}, mỗi ``worker'' là một ThreadPool thread đang thực hiện một partition.
+Số worker thực tế do môi trường thực thi .NET và cấu hình giới hạn mức độ song song
+quyết định.
+
+\begin{center}
+\resizebox{0.80\textwidth}{!}{\input{../../assets/diagrams/parallel-flow}}
+\captionof{figure}{Luồng chia, thực hiện và ghép kết quả của một vòng lặp Parallel}
+\label{fig:parallel-flow}
+\end{center}
+
+Việc chia và ghép công việc không miễn phí. \textbf{Overhead} là thời gian phụ dùng
+để chia dữ liệu, lập lịch, đồng bộ và ghép kết quả. Nếu mỗi phần tử chỉ cần một phép
+tính rất nhanh, overhead có thể lớn hơn thời gian tiết kiệm được. Vì vậy Parallel
+chỉ có cơ hội nhanh hơn khi lượng tính toán đủ lớn và các phần ít phụ thuộc nhau
+\cite{ms-plinq-speedup}.
+
+\subsection{Các API xử lý nhiều phần tử}
+
+\textbf{Collection} là tập dữ liệu trong bộ nhớ như mảng hoặc danh sách;
+\textbf{iteration} là một lần thực hiện thân vòng lặp. Mỗi API dưới đây phù hợp với
+một dạng dữ liệu và cách xử lý khác nhau.
+\textbf{LINQ} là nhóm cú pháp và API dùng để truy vấn dữ liệu trong C\#;
+\textbf{PLINQ} là phiên bản thực thi song song một số thao tác LINQ trên collection;
+\texttt{Parallel.ForEachAsync} dành cho hàm bất đồng bộ và có từ .NET 6, nên bản
+chất khác các vòng lặp Parallel đồng bộ \cite{ms-parallel-api}.
+
+{\small
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.22\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.30\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.38\textwidth}|}
+\caption{Các API xử lý nhiều phần tử thường dùng}\label{tab:parallel-api}\\
+\hline
+\textbf{API} & \textbf{Phù hợp khi} & \textbf{Điểm cần chú ý} \\
+\hline
+\texttt{Parallel.For} & Dữ liệu được truy cập bằng chỉ số và mỗi phần tử cần tính toán CPU độc lập. & Là API đồng bộ; chỉ trả về khi toàn bộ vòng lặp hoàn tất. \\
+\hline
+\texttt{Parallel.ForEach} & Cần áp dụng cùng một phép tính CPU-bound lên từng phần tử của collection. & Không dùng để bọc các lời gọi I/O đồng bộ. \\
+\hline
+PLINQ với \texttt{AsParallel()} & Chuỗi LINQ có bước lọc, biến đổi hoặc tổng hợp đủ nặng. & Có chi phí chia, ghép dữ liệu và giữ thứ tự kết quả. \\
+\hline
+\texttt{Parallel.\allowbreak ForEachAsync} & Nhiều thao tác bất đồng bộ cần giới hạn số thao tác đang hoạt động. & Không đồng nghĩa với xử lý CPU song song; API này có từ .NET 6. \\
+\hline
+\end{longtable}
+}
+
+\subsection{Thay đổi từ .NET Core 3.1 đến .NET 8}
+
+{\small
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.29\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.29\textwidth}|
+                  >{\raggedright\arraybackslash}p{0.32\textwidth}|}
+\caption{Thay đổi trực tiếp của Parallel từ .NET Core 3.1 đến .NET 8}\label{tab:parallel-version}\\
+\hline
+\textbf{.NET Core 3.1} & \textbf{.NET 8} & \textbf{Ý nghĩa khi sử dụng} \\
+\hline
+Đã có \texttt{Parallel.For}, \texttt{Parallel.ForEach} và PLINQ. & Các API cốt lõi và cách tư duy data parallelism vẫn được giữ. & Code cũ thường không cần đổi chỉ vì chuyển sang phiên bản .NET mới. \\
+\hline
+Chưa có \texttt{Parallel.ForEachAsync}. & .NET 8 có API này vì nó được bổ sung từ .NET 6. & Có sẵn API để chạy hàm bất đồng bộ trên collection, nhận tín hiệu dừng và giới hạn số thao tác đồng thời. \\
+\hline
+\end{longtable}
+}
+
+Thay đổi trực tiếp dễ thấy nhất là \texttt{Parallel.ForEachAsync}. Việc nâng phiên bản .NET
+không bảo đảm mọi vòng lặp nhanh hơn: tốc độ còn phụ thuộc dữ liệu, phần cứng, tải hệ
+thống và cách viết code, nên vẫn phải đo trên trường hợp thực.
