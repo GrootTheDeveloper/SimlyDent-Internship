@@ -64,7 +64,8 @@ jobs:
             else
               echo "ERROR: VPS_SSH_KEY is set but not a valid private key or base64."
               echo "Create secret VPS_SSH_KEY_B64 = one-line base64 of the private key file."
-              echo "PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes(\"$env:USERPROFILE\\.ssh\\simlydent_vps_deploy\"))"
+              echo "On Windows PowerShell:"
+              echo '  [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.ssh\simlydent_vps_deploy"))'
               exit 1
             fi
           else
