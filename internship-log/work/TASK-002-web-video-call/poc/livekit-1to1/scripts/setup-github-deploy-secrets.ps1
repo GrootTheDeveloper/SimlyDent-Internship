@@ -1,9 +1,13 @@
-# One-time: create/register GitHub Actions secrets for VPS deploy.
-# Prerequisites: GitHub CLI logged in (`gh auth login`), deploy key at ~/.ssh/simlydent_vps_deploy
+# One-time: register GitHub Actions secrets for VPS deploy.
+# Prefers VPS_SSH_KEY_B64 (single-line base64) — avoids "ssh: no key found" from broken newlines.
 #
-# Usage (from repo root or any dir):
-#   .\internship-log\work\TASK-002-web-video-call\poc\livekit-1to1\scripts\setup-github-deploy-secrets.ps1
-#   .\...\setup-github-deploy-secrets.ps1 -Host 103.28.32.118 -User root
+# Prerequisites:
+#   gh auth login
+#   Deploy key: %USERPROFILE%\.ssh\simlydent_vps_deploy (+ .pub already on VPS)
+#
+# Usage:
+#   .\scripts\setup-github-deploy-secrets.ps1
+#   .\scripts\setup-github-deploy-secrets.ps1 -HostName 103.28.32.118 -User root
 
 param(
     [string]$HostName = "103.28.32.118",
@@ -26,18 +30,23 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$key = Get-Content -Raw $KeyPath
-if ($key -notmatch "BEGIN .*PRIVATE KEY") {
-    Write-Host "File does not look like a private key: $KeyPath" -ForegroundColor Red
-    exit 1
-}
+$bytes = [IO.File]::ReadAllBytes((Resolve-Path $KeyPath))
+$b64 = [Convert]::ToBase64String($bytes)
 
 Write-Host "Setting secrets on $Repo ..." -ForegroundColor Cyan
 $env:GH_REPO = $Repo
 gh secret set VPS_HOST --body $HostName
 gh secret set VPS_USER --body $User
-# Pass key via stdin to preserve newlines
-$key | gh secret set VPS_SSH_KEY
+$b64 | gh secret set VPS_SSH_KEY_B64
 
-Write-Host "Done. Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY" -ForegroundColor Green
-Write-Host "Test: GitHub → Actions → Deploy LiveKit VPS → Run workflow"
+Write-Host ""
+Write-Host "Done." -ForegroundColor Green
+Write-Host "  VPS_HOST        = $HostName"
+Write-Host "  VPS_USER        = $User"
+Write-Host "  VPS_SSH_KEY_B64 = (base64, $($b64.Length) chars)"
+Write-Host ""
+Write-Host "If you previously set VPS_SSH_KEY (raw), you can leave it; B64 is preferred."
+Write-Host "Test: Actions → Deploy LiveKit VPS → Run workflow"
+Write-Host ""
+Write-Host "Manual (no gh): create secret VPS_SSH_KEY_B64 and paste this ONE line:"
+Write-Host $b64

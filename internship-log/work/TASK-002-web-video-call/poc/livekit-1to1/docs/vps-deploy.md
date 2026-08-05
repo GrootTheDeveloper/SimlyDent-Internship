@@ -181,11 +181,24 @@ Khi push `main` và có thay đổi trong `poc/livekit-1to1/**` (hoặc bấm **
 
 ### Secrets (GitHub repo → Settings → Secrets and variables → Actions)
 
-| Name | Ví dụ |
-|------|--------|
-| `VPS_HOST` | `103.28.32.118` |
-| `VPS_USER` | `root` |
-| `VPS_SSH_KEY` | Toàn bộ private key OpenSSH (kể cả dòng `BEGIN`/`END`) |
+| Name | Ví dụ | Ghi chú |
+|------|--------|---------|
+| `VPS_HOST` | `103.28.32.118` | |
+| `VPS_USER` | `root` | |
+| `VPS_SSH_KEY_B64` | *(một dòng base64)* | **Khuyến nghị** — tránh lỗi `ssh: no key found` khi paste key multiline |
+| `VPS_SSH_KEY` | private key raw | Tuỳ chọn nếu không dùng B64 |
+
+Lấy base64 trên Windows:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.ssh\simlydent_vps_deploy"))
+```
+
+Hoặc:
+
+```powershell
+.\scripts\setup-github-deploy-secrets.ps1   # cần gh auth login
+```
 
 ### Tạo deploy key (một lần)
 
@@ -204,7 +217,7 @@ echo 'PASTE_PUBLIC_KEY_HERE' >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-GitHub secret `VPS_SSH_KEY` = nội dung file **private** `simlydent_vps_deploy` (không phải `.pub`).
+**Không** dán file `.pub` vào secret. Secret là **private** key (hoặc base64 của private key).
 
 ### Lưu ý
 
