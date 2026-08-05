@@ -39,6 +39,9 @@ function isPortraitCapturePreferred() {
     if (window.matchMedia('(orientation: portrait)').matches) return true
     if (window.matchMedia('(orientation: landscape)').matches) return false
   }
+  // visualViewport is more accurate on mobile browsers than innerWidth alone
+  const vv = window.visualViewport
+  if (vv && vv.height > 0 && vv.width > 0) return vv.height >= vv.width
   return window.innerHeight >= window.innerWidth
 }
 
@@ -49,7 +52,6 @@ function isPortraitCapturePreferred() {
  */
 function preferredVideoCaptureResolution() {
   if (isPortraitCapturePreferred()) {
-    // Swap h720 so long edge stays vertical on phone portrait.
     return new VideoPreset(
       VideoPresets.h720.height,
       VideoPresets.h720.width,
@@ -82,11 +84,59 @@ function preferredSimulcastLayers() {
 }
 
 /**
- * Display policy for telehealth:
- * - Portrait remote on landscape screen: fit by height (full vertical frame, side bars)
- * - Landscape remote: fit by width / contain in box
+ * Many mobile browsers ignore height>width and still open 1280×720.
+ * Push ideal portrait constraints; fall back silently if the device rejects them.
  */
-function applyVideoDisplayFit(element) {
+async function enforcePortraitCaptureIfNeeded(localTracks) {
+  if (!isPortraitCapturePreferred()) return
+  const videoTrack = localTracks.find(t => t.kind === Track.Kind.Video)
+  const mst = videoTrack?.mediaStreamTrack
+  if (!mst || typeof mst.applyConstraints !== 'function') return
+
+  const settings = mst.getSettings?.() || {}
+  const w = settings.width || 0
+  const h = settings.height || 0
+  // Already tall frame — nothing to do
+  if (h > w && w > 0) return
+
+  const portraitIdeals = [
+    {
+      width: { ideal: 720 },
+      height: { ideal: 1280 },
+      aspectRatio: { ideal: 9 / 16 },
+      frameRate: { ideal: 30 }
+    },
+    {
+      width: { ideal: 540 },
+      height: { ideal: 960 },
+      aspectRatio: { ideal: 9 / 16 },
+      frameRate: { ideal: 24 }
+    },
+    {
+      aspectRatio: { ideal: 9 / 16 }
+    }
+  ]
+
+  for (const constraints of portraitIdeals) {
+    try {
+      await mst.applyConstraints(constraints)
+      const next = mst.getSettings?.() || {}
+      if ((next.height || 0) > (next.width || 0)) {
+        console.info('[media] portrait capture applied', next.width, 'x', next.height)
+        return
+      }
+    } catch (e) {
+      console.warn('[media] portrait constraint rejected', constraints, e)
+    }
+  }
+  console.warn(
+    '[media] device still landscape after portrait attempts',
+    mst.getSettings?.()
+  )
+}
+
+/** Keep video element fully visible inside its box (no cover/crop). */
+function applyVideoDisplayFit(element, hostEl = null) {
   if (!element) return
   const apply = () => {
     const w = element.videoWidth || 0
@@ -94,7 +144,12 @@ function applyVideoDisplayFit(element) {
     element.classList.remove('is-portrait', 'is-landscape')
     if (w > 0 && h > 0) {
       element.classList.add(h > w ? 'is-portrait' : 'is-landscape')
+      if (hostEl?.classList?.contains('local-video-container')) {
+        hostEl.classList.toggle('pip-portrait', h > w)
+      }
     }
+    element.style.setProperty('width', '100%', 'important')
+    element.style.setProperty('height', '100%', 'important')
     element.style.setProperty('object-fit', 'contain', 'important')
     element.style.setProperty('object-position', 'center center', 'important')
   }
@@ -414,6 +469,7 @@ if (isCallRoute) {
           let localTracks = []
           try {
             const captureResolution = preferredVideoCaptureResolution()
+            const portrait = isPortraitCapturePreferred()
             localTracks = await createLocalTracks({
               audio: {
                 echoCancellation: true,
@@ -422,10 +478,16 @@ if (isCallRoute) {
               },
               video: {
                 facingMode: 'user',
-                // Portrait devices publish 720×1280 so B (landscape) can contain by height.
-                resolution: captureResolution
+                // Portrait devices request 720×1280 (+ aspectRatio) so B can letterbox by height.
+                resolution: {
+                  ...captureResolution,
+                  aspectRatio: portrait
+                    ? captureResolution.height / captureResolution.width
+                    : captureResolution.width / captureResolution.height
+                }
               }
             })
+            await enforcePortraitCaptureIfNeeded(localTracks)
           } catch (e) {
             console.warn('Could not start video, falling back to audio only:', e)
             try {
@@ -507,8 +569,8 @@ if (isCallRoute) {
           element.playsInline = true
           element.setAttribute('playsinline', '')
           element.setAttribute('webkit-playsinline', '')
-          applyVideoDisplayFit(element)
           const host = this.$refs.remoteMedia
+          applyVideoDisplayFit(element, host)
           if (host) {
             host.querySelectorAll('video').forEach(n => n.remove())
             host.appendChild(element)
@@ -545,7 +607,7 @@ if (isCallRoute) {
         element.playsInline = true
         element.setAttribute('playsinline', '')
         element.setAttribute('webkit-playsinline', '')
-        applyVideoDisplayFit(element)
+        applyVideoDisplayFit(element, this.$refs.localMedia)
         this.$refs.localMedia.replaceChildren(element)
         element.play().catch(() => {})
       },
