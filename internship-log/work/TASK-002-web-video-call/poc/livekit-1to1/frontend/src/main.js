@@ -1,6 +1,14 @@
 import Vue from 'vue/dist/vue.esm.js'
 import * as signalR from '@microsoft/signalr'
-import { createLocalTracks, Room, RoomEvent, Track, VideoPreset, VideoPresets } from 'livekit-client'
+import {
+  createLocalTracks,
+  LocalVideoTrack,
+  Room,
+  RoomEvent,
+  Track,
+  VideoPreset,
+  VideoPresets
+} from 'livekit-client'
 import './style.css'
 
 const API_URL = typeof import.meta.env.VITE_API_URL === 'string'
@@ -84,55 +92,159 @@ function preferredSimulcastLayers() {
 }
 
 /**
- * Many mobile browsers ignore height>width and still open 1280×720.
- * Push ideal portrait constraints; fall back silently if the device rejects them.
+ * Many phones keep a landscape camera buffer even when the UI is portrait.
+ * Constraints often fail; the reliable fix is re-drawing frames onto a portrait canvas
+ * and publishing that track so the remote peer always receives height > width.
  */
-async function enforcePortraitCaptureIfNeeded(localTracks) {
-  if (!isPortraitCapturePreferred()) return
-  const videoTrack = localTracks.find(t => t.kind === Track.Kind.Video)
-  const mst = videoTrack?.mediaStreamTrack
-  if (!mst || typeof mst.applyConstraints !== 'function') return
+async function waitForVideoFrame(video, timeoutMs = 4000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (video.videoWidth > 0 && video.videoHeight > 0) return
+    await new Promise(r => setTimeout(r, 50))
+  }
+}
 
-  const settings = mst.getSettings?.() || {}
-  const w = settings.width || 0
-  const h = settings.height || 0
-  // Already tall frame — nothing to do
-  if (h > w && w > 0) return
+/**
+ * @param {import('livekit-client').LocalVideoTrack} sourceTrack
+ * @returns {Promise<{ track: import('livekit-client').LocalVideoTrack, cleanup: () => void, normalized: boolean }>}
+ */
+async function normalizeToPortraitVideoTrack(sourceTrack) {
+  const mst = sourceTrack.mediaStreamTrack
+  if (!mst) {
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
 
-  const portraitIdeals = [
-    {
-      width: { ideal: 720 },
-      height: { ideal: 1280 },
-      aspectRatio: { ideal: 9 / 16 },
-      frameRate: { ideal: 30 }
-    },
-    {
-      width: { ideal: 540 },
-      height: { ideal: 960 },
-      aspectRatio: { ideal: 9 / 16 },
-      frameRate: { ideal: 24 }
-    },
-    {
-      aspectRatio: { ideal: 9 / 16 }
-    }
-  ]
+  const video = document.createElement('video')
+  video.playsInline = true
+  video.setAttribute('playsinline', '')
+  video.muted = true
+  video.srcObject = new MediaStream([mst])
+  try {
+    await video.play()
+  } catch (e) {
+    console.warn('[media] portrait normalize: video.play failed', e)
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+  await waitForVideoFrame(video)
 
-  for (const constraints of portraitIdeals) {
+  const vw = video.videoWidth
+  const vh = video.videoHeight
+  // Already portrait frames — publish as-is
+  if (!vw || !vh || vh >= vw) {
+    video.srcObject = null
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+
+  // Landscape buffer while phone is held portrait → rotate into true portrait canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = vh
+  canvas.height = vw
+  const ctx = canvas.getContext('2d', { alpha: false })
+  if (!ctx) {
+    video.srcObject = null
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+
+  let raf = 0
+  let stopped = false
+  const paint = () => {
+    if (stopped) return
+    const angle = Number(screen.orientation?.angle ?? window.orientation ?? 0)
+    // Portrait-primary / upside-down: map landscape sensor to upright portrait
+    const turn = angle === 180 || angle === -180 ? Math.PI / 2 : -Math.PI / 2
+    ctx.save()
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate(turn)
+    ctx.drawImage(video, -vw / 2, -vh / 2, vw, vh)
+    ctx.restore()
+    raf = requestAnimationFrame(paint)
+  }
+  paint()
+
+  const outStream = canvas.captureStream(30)
+  const outMst = outStream.getVideoTracks()[0]
+  if (!outMst) {
+    stopped = true
+    cancelAnimationFrame(raf)
+    video.srcObject = null
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+
+  // userProvidedTrack=true: we own lifecycle of the canvas track
+  const normalizedTrack = new LocalVideoTrack(outMst, undefined, true)
+  normalizedTrack.source = Track.Source.Camera
+
+  console.info(
+    '[media] portrait canvas normalize',
+    `${vw}x${vh}`,
+    '→',
+    `${canvas.width}x${canvas.height}`
+  )
+
+  const cleanup = () => {
+    stopped = true
+    cancelAnimationFrame(raf)
     try {
-      await mst.applyConstraints(constraints)
-      const next = mst.getSettings?.() || {}
-      if ((next.height || 0) > (next.width || 0)) {
-        console.info('[media] portrait capture applied', next.width, 'x', next.height)
-        return
-      }
-    } catch (e) {
-      console.warn('[media] portrait constraint rejected', constraints, e)
+      outMst.stop()
+    } catch {
+      /* ignore */
+    }
+    try {
+      sourceTrack.stop()
+    } catch {
+      /* ignore */
+    }
+    video.srcObject = null
+  }
+
+  return { track: normalizedTrack, cleanup, normalized: true }
+}
+
+/**
+ * If UI is portrait, ensure published camera track is portrait-sized.
+ * Returns { tracks, cleanup }.
+ */
+async function prepareLocalTracksForOrientation(localTracks) {
+  const cleanupFns = []
+  if (!isPortraitCapturePreferred()) {
+    return {
+      tracks: localTracks,
+      cleanup: () => cleanupFns.forEach(fn => fn())
     }
   }
-  console.warn(
-    '[media] device still landscape after portrait attempts',
-    mst.getSettings?.()
-  )
+
+  const next = []
+  for (const track of localTracks) {
+    if (track.kind !== Track.Kind.Video) {
+      next.push(track)
+      continue
+    }
+    // Try soft constraints first (cheap when the device cooperates)
+    try {
+      await track.mediaStreamTrack?.applyConstraints?.({
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
+        aspectRatio: { ideal: 9 / 16 }
+      })
+    } catch {
+      /* ignore */
+    }
+    const settings = track.mediaStreamTrack?.getSettings?.() || {}
+    if ((settings.height || 0) > (settings.width || 0)) {
+      console.info('[media] native portrait track', settings.width, 'x', settings.height)
+      next.push(track)
+      continue
+    }
+    const { track: normalized, cleanup, normalized: used } = await normalizeToPortraitVideoTrack(track)
+    if (used) cleanupFns.push(cleanup)
+    next.push(normalized)
+  }
+  return {
+    tracks: next,
+    cleanup: () => cleanupFns.forEach(fn => fn())
+  }
 }
 
 /** Keep video element fully visible inside its box (no cover/crop). */
@@ -320,6 +432,8 @@ if (isCallRoute) {
       hub: null,
       room: null,
       localTracks: [],
+      /** Stops canvas portrait pipeline (if used) */
+      localMediaCleanup: null,
       connected: false,
       joining: false,
       mediaPermissionState: 'idle',
@@ -487,7 +601,10 @@ if (isCallRoute) {
                 }
               }
             })
-            await enforcePortraitCaptureIfNeeded(localTracks)
+            const prepared = await prepareLocalTracksForOrientation(localTracks)
+            localTracks = prepared.tracks
+            if (typeof this.localMediaCleanup === 'function') this.localMediaCleanup()
+            this.localMediaCleanup = prepared.cleanup
           } catch (e) {
             console.warn('Could not start video, falling back to audio only:', e)
             try {
@@ -503,13 +620,16 @@ if (isCallRoute) {
           })
 
           this.mediaPermissionState = 'connecting'
+          // Portrait phones often need a single canvas layer; multi-layer simulcast
+          // can re-encode oddly and look "landscape cropped" on the far side.
+          const portraitPublish = isPortraitCapturePreferred()
           const room = new Room({
             adaptiveStream: true,
             dynacast: true,
             publishDefaults: {
-              simulcast: true,
+              simulcast: !portraitPublish,
               videoCodec: 'vp8',
-              videoSimulcastLayers: preferredSimulcastLayers()
+              videoSimulcastLayers: portraitPublish ? [] : preferredSimulcastLayers()
             }
           })
           room.on(RoomEvent.TrackSubscribed, track => this.attachRemoteTrack(track))
@@ -550,6 +670,10 @@ if (isCallRoute) {
         } catch (err) {
           if (this.room) await this.room.disconnect()
           this.room = null
+          if (typeof this.localMediaCleanup === 'function') {
+            this.localMediaCleanup()
+            this.localMediaCleanup = null
+          }
           this.localTracks.forEach(t => t.stop())
           this.localTracks = []
           this.mediaPermissionState = 'error'
@@ -826,6 +950,10 @@ if (isCallRoute) {
         this.stopQualityMonitoring()
         if (this.room) this.room.disconnect()
         this.room = null
+        if (typeof this.localMediaCleanup === 'function') {
+          this.localMediaCleanup()
+          this.localMediaCleanup = null
+        }
         this.localTracks.forEach(t => t.stop())
         this.localTracks = []
         this.remoteVideoConnected = false
