@@ -92,10 +92,40 @@ function preferredSimulcastLayers() {
 }
 
 /**
- * Many phones keep a landscape camera buffer even when the UI is portrait.
- * Constraints often fail; the reliable fix is re-drawing frames onto a portrait canvas
- * and publishing that track so the remote peer always receives height > width.
+ * =============================================================================
+ * ROOT CAUSE (camera dọc nhưng remote ngang / hoặc portrait nhưng người nằm ngang)
+ * =============================================================================
+ *
+ * Layer 1 — Sensor vs UI
+ *   Phone UI is portrait, but most mobile camera sensors deliver a *landscape*
+ *   buffer (e.g. 1280×720). "Cầm dọc" ≠ getUserMedia trả về 720×1280.
+ *
+ * Layer 2 — Local preview lies to you
+ *   <video> on the phone often looks upright because the browser applies
+ *   rotation for *display* (CSS / internal compositor / video metadata).
+ *   That does NOT mean the raw samples WebRTC encodes are portrait or upright
+ *   for every peer.
+ *
+ * Layer 3 — WebRTC / SFU drop rotation metadata
+ *   Even when frames carry rotation (VideoFrame.rotation / RTP CVO), many paths
+ *   (canvas, SFU, remote decoder) ignore it and show the buffer axes as-is →
+ *   remote sees landscape or a sideways person.
+ *
+ * Layer 4 — Our previous bug (double rotation)
+ *   We forced ctx.rotate(±90°) from screen.orientation while Chromium often
+ *   already gives *upright pixels* to drawImage(video) even when
+ *   videoWidth > videoHeight. Result: output size was portrait (good) but
+ *   content was rotated an extra 90° (person lying on their side).
+ *
+ * CORRECT APPROACH
+ *   1) Prefer VideoFrame.rotation via MediaStreamTrackProcessor — apply that
+ *      angle ONCE when baking pixels, output rotation=0 portrait frames.
+ *   2) Fallback: drawImage(video) with NO guessed rotation, then center-cover
+ *      into a 9:16 canvas (assumes browser already uprighted samples for 2D).
+ *   3) Never use screen.orientation.angle alone to invent a 90° turn.
+ * =============================================================================
  */
+
 async function waitForVideoFrame(video, timeoutMs = 4000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -104,16 +134,172 @@ async function waitForVideoFrame(video, timeoutMs = 4000) {
   }
 }
 
+/** Center-cover draw source (sw×sh) into dest canvas (no rotation). */
+function coverDraw(ctx, source, sw, sh, outW, outH) {
+  if (!sw || !sh) return
+  const scale = Math.max(outW / sw, outH / sh)
+  const dw = sw * scale
+  const dh = sh * scale
+  const dx = (outW - dw) / 2
+  const dy = (outH - dh) / 2
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, outW, outH)
+  ctx.drawImage(source, dx, dy, dw, dh)
+}
+
+function portraitOutputSize(srcW, srcH) {
+  // Keep ~720p class budget; always height > width for remote layout.
+  const longEdge = Math.max(srcW, srcH, 720)
+  const shortEdge = Math.round((longEdge * 9) / 16)
+  return { outW: shortEdge, outH: longEdge }
+}
+
 /**
- * @param {import('livekit-client').LocalVideoTrack} sourceTrack
- * @returns {Promise<{ track: import('livekit-client').LocalVideoTrack, cleanup: () => void, normalized: boolean }>}
+ * Upright pixel size of a VideoFrame WITHOUT applying rotation ourselves.
+ * Prefer createImageBitmap (UA resolves orientation). Manual rotate is how we
+ * previously got "portrait box + sideways person".
  */
-async function normalizeToPortraitVideoTrack(sourceTrack) {
+async function uprightBitmapFromFrame(frame) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(frame)
+    } catch {
+      /* fall through */
+    }
+  }
+  const w = frame.displayWidth || frame.codedWidth
+  const h = frame.displayHeight || frame.codedHeight
+  const mid = document.createElement('canvas')
+  mid.width = Math.max(2, w)
+  mid.height = Math.max(2, h)
+  const mctx = mid.getContext('2d', { alpha: false })
+  if (!mctx) return null
+  try {
+    // Let the UA draw; do not ctx.rotate(frame.rotation) here.
+    mctx.drawImage(frame, 0, 0, mid.width, mid.height)
+  } catch {
+    return null
+  }
+  return mid
+}
+
+/**
+ * Processor path: read VideoFrame → upright bitmap (UA) → cover into 9:16
+ * portrait pixels with rotation metadata burned in (remote does not need CVO).
+ */
+async function normalizePortraitViaVideoFrames(sourceTrack) {
   const mst = sourceTrack.mediaStreamTrack
-  if (!mst) {
-    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  const processor = new MediaStreamTrackProcessor({ track: mst })
+  const generator = new MediaStreamTrackGenerator({ kind: 'video' })
+  const reader = processor.readable.getReader()
+  const writer = generator.writable.getWriter()
+
+  let stopped = false
+  let canvas = null
+  let ctx = null
+  let logged = false
+
+  const pump = async () => {
+    try {
+      while (!stopped) {
+        const result = await reader.read()
+        if (result.done || !result.value) break
+        const frame = result.value
+        try {
+          const bitmap = await uprightBitmapFromFrame(frame)
+          const bw = bitmap?.width || frame.displayWidth || frame.codedWidth
+          const bh = bitmap?.height || frame.displayHeight || frame.codedHeight
+          if (!canvas) {
+            const { outW, outH } = bh >= bw
+              ? { outW: bw, outH: bh }
+              : portraitOutputSize(bw, bh)
+            canvas = document.createElement('canvas')
+            canvas.width = outW
+            canvas.height = outH
+            ctx = canvas.getContext('2d', { alpha: false })
+            if (!logged) {
+              console.info('[media] VideoFrame portrait bake', {
+                coded: `${frame.codedWidth}x${frame.codedHeight}`,
+                display: `${frame.displayWidth}x${frame.displayHeight}`,
+                rotation: frame.rotation,
+                bitmap: `${bw}x${bh}`,
+                out: `${canvas.width}x${canvas.height}`
+              })
+              logged = true
+            }
+          }
+          const ts = frame.timestamp
+          frame.close()
+          if (!ctx || !canvas || !bitmap) {
+            if (bitmap && typeof bitmap.close === 'function') bitmap.close()
+            continue
+          }
+          coverDraw(ctx, bitmap, bitmap.width, bitmap.height, canvas.width, canvas.height)
+          if (typeof bitmap.close === 'function') bitmap.close()
+          const outFrame = new VideoFrame(canvas, {
+            timestamp: ts,
+            alpha: 'discard'
+          })
+          await writer.write(outFrame)
+          outFrame.close()
+        } catch (e) {
+          try {
+            frame.close()
+          } catch {
+            /* ignore */
+          }
+          console.warn('[media] VideoFrame bake frame error', e)
+        }
+      }
+    } catch (e) {
+      if (!stopped) console.warn('[media] VideoFrame pump ended', e)
+    } finally {
+      try {
+        await writer.close()
+      } catch {
+        /* ignore */
+      }
+      try {
+        reader.releaseLock()
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
+  pump()
+
+  const normalizedTrack = new LocalVideoTrack(generator, undefined, true)
+  normalizedTrack.source = Track.Source.Camera
+
+  const cleanup = () => {
+    stopped = true
+    try {
+      reader.cancel()
+    } catch {
+      /* ignore */
+    }
+    try {
+      generator.stop()
+    } catch {
+      /* ignore */
+    }
+    try {
+      sourceTrack.stop()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return { track: normalizedTrack, cleanup, normalized: true }
+}
+
+/**
+ * Fallback: NO manual ±90 from screen orientation.
+ * drawImage(video) then center-cover into 9:16 — fixes double-rotation sideways bug.
+ */
+async function normalizePortraitViaCanvasCover(sourceTrack) {
+  const mst = sourceTrack.mediaStreamTrack
   const video = document.createElement('video')
   video.playsInline = true
   video.setAttribute('playsinline', '')
@@ -122,23 +308,27 @@ async function normalizeToPortraitVideoTrack(sourceTrack) {
   try {
     await video.play()
   } catch (e) {
-    console.warn('[media] portrait normalize: video.play failed', e)
+    console.warn('[media] canvas cover: video.play failed', e)
     return { track: sourceTrack, cleanup: () => {}, normalized: false }
   }
   await waitForVideoFrame(video)
 
   const vw = video.videoWidth
   const vh = video.videoHeight
-  // Already portrait frames — publish as-is
-  if (!vw || !vh || vh >= vw) {
+  if (!vw || !vh) {
+    video.srcObject = null
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+  // Already portrait samples — publish camera track as-is
+  if (vh >= vw) {
     video.srcObject = null
     return { track: sourceTrack, cleanup: () => {}, normalized: false }
   }
 
-  // Landscape buffer while phone is held portrait → rotate into true portrait canvas
+  const { outW, outH } = portraitOutputSize(vw, vh)
   const canvas = document.createElement('canvas')
-  canvas.width = vh
-  canvas.height = vw
+  canvas.width = outW
+  canvas.height = outH
   const ctx = canvas.getContext('2d', { alpha: false })
   if (!ctx) {
     video.srcObject = null
@@ -149,16 +339,9 @@ async function normalizeToPortraitVideoTrack(sourceTrack) {
   let stopped = false
   const paint = () => {
     if (stopped) return
-    const angle = Number(screen.orientation?.angle ?? window.orientation ?? 0)
-    // Portrait-primary / upside-down: map landscape sensor to upright portrait
-    const turn = angle === 180 || angle === -180 ? Math.PI / 2 : -Math.PI / 2
-    ctx.save()
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.translate(canvas.width / 2, canvas.height / 2)
-    ctx.rotate(turn)
-    ctx.drawImage(video, -vw / 2, -vh / 2, vw, vh)
-    ctx.restore()
+    // Critical: do NOT ctx.rotate based on screen.orientation — that double-rotates
+    // on Chromium when drawImage already yields upright samples.
+    coverDraw(ctx, video, video.videoWidth, video.videoHeight, outW, outH)
     raf = requestAnimationFrame(paint)
   }
   paint()
@@ -172,16 +355,10 @@ async function normalizeToPortraitVideoTrack(sourceTrack) {
     return { track: sourceTrack, cleanup: () => {}, normalized: false }
   }
 
-  // userProvidedTrack=true: we own lifecycle of the canvas track
   const normalizedTrack = new LocalVideoTrack(outMst, undefined, true)
   normalizedTrack.source = Track.Source.Camera
 
-  console.info(
-    '[media] portrait canvas normalize',
-    `${vw}x${vh}`,
-    '→',
-    `${canvas.width}x${canvas.height}`
-  )
+  console.info('[media] canvas cover portrait (no manual rotate)', `${vw}x${vh}`, '→', `${outW}x${outH}`)
 
   const cleanup = () => {
     stopped = true
@@ -203,7 +380,31 @@ async function normalizeToPortraitVideoTrack(sourceTrack) {
 }
 
 /**
- * If UI is portrait, ensure published camera track is portrait-sized.
+ * @param {import('livekit-client').LocalVideoTrack} sourceTrack
+ */
+async function normalizeToPortraitVideoTrack(sourceTrack) {
+  const mst = sourceTrack.mediaStreamTrack
+  if (!mst) {
+    return { track: sourceTrack, cleanup: () => {}, normalized: false }
+  }
+
+  const canUseFrames =
+    typeof MediaStreamTrackProcessor === 'function'
+    && typeof MediaStreamTrackGenerator === 'function'
+    && typeof VideoFrame === 'function'
+
+  if (canUseFrames) {
+    try {
+      return await normalizePortraitViaVideoFrames(sourceTrack)
+    } catch (e) {
+      console.warn('[media] VideoFrame path failed, canvas cover fallback', e)
+    }
+  }
+  return normalizePortraitViaCanvasCover(sourceTrack)
+}
+
+/**
+ * If UI is portrait, ensure published camera track is portrait-sized + upright.
  * Returns { tracks, cleanup }.
  */
 async function prepareLocalTracksForOrientation(localTracks) {
@@ -221,7 +422,6 @@ async function prepareLocalTracksForOrientation(localTracks) {
       next.push(track)
       continue
     }
-    // Try soft constraints first (cheap when the device cooperates)
     try {
       await track.mediaStreamTrack?.applyConstraints?.({
         width: { ideal: 720 },
@@ -232,6 +432,7 @@ async function prepareLocalTracksForOrientation(localTracks) {
       /* ignore */
     }
     const settings = track.mediaStreamTrack?.getSettings?.() || {}
+    // Native portrait buffer: still run cover only if we later need; publish raw.
     if ((settings.height || 0) > (settings.width || 0)) {
       console.info('[media] native portrait track', settings.width, 'x', settings.height)
       next.push(track)
