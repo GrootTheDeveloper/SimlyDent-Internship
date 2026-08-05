@@ -1,0 +1,26 @@
+# LiveKit config for public VPS (different networks).
+# start-vps.sh / start-vps.ps1 rewrites TURN_DOMAIN_PLACEHOLDER before start.
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+redis:
+  address: redis:6379
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50050
+  # Put the VPS public IP into ICE candidates (--node-ip also set in compose).
+  use_external_ip: true
+  stun_servers:
+    - stun:stun.l.google.com:19302
+    - stun:stun1.l.google.com:19302
+# Embedded TURN for clients behind strict NAT (different home/office networks).
+turn:
+  enabled: true
+  domain: TURN_DOMAIN_PLACEHOLDER
+  udp_port: 3478
+room:
+  empty_timeout: 300
+  departure_timeout: 20
+logging:
+  level: info

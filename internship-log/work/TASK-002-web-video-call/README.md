@@ -15,6 +15,7 @@ Canonical workspace cho nghiên cứu giải pháp open-source, self-hostable đ
 9. [Test identities](docs/test-identities.md)
 10. [Workload/TCO inputs](docs/workload-scenarios.md)
 11. [LiveKit 1:1 PoC](poc/livekit-1to1/README.md)
+12. [Deploy VPS / khác mạng](poc/livekit-1to1/docs/vps-deploy.md)
 
 ## Current decision path
 
@@ -35,7 +36,8 @@ Canonical workspace cho nghiên cứu giải pháp open-source, self-hostable đ
 - Video dọc được giữ đúng tỷ lệ và co theo chiều cao vùng gọi, không crop.
 - Video đặt mục tiêu 720p/30fps, phía nhận yêu cầu lớp HD và có bảng WebRTC stats trực tiếp trên màn hình gọi; nghiệm thu lại trên hai thiết bị thật chưa hoàn tất.
 - Redis và LiveKit Egress đã chạy; ghi, dừng, lưu và tải MP4 720p đã vượt kiểm thử end-to-end bằng video mẫu.
-- Khác mạng, TURN bắt buộc và reconnect: chưa chạy.
+- Khác mạng: đã có stack VPS (`docker-compose.vps.yml` + TURN); nghiệm thu 2 mạng thật sau khi deploy.
+- Reconnect / forced-relay evidence: chưa chạy trên production host.
 - Production winner: chưa chọn.
 - Recording: đã có PoC; production cần chính sách đồng ý, lưu giữ, mã hóa và audit.
 

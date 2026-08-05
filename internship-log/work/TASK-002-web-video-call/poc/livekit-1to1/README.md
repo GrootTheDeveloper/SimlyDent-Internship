@@ -30,7 +30,29 @@ Không dùng LiveKit Cloud, token service bên thứ ba, managed TURN hoặc SDK
 - Nhãn `HD`, `SD` hoặc `LOW` trên màn hình gọi mở bảng số liệu gồm độ phân giải, fps, bitrate, tỷ lệ mất gói, độ trễ và nguyên nhân giới hạn chất lượng.
 - Nút chấm đỏ bắt đầu/dừng ghi hình. Trạng thái **Đang ghi** được hiển thị cho cả hai bên; file MP4 được lưu trong thư mục `recordings` và có thể tải sau khi dừng ghi.
 
-## Chạy PoC
+## Deploy lên VPS (máy khác mạng)
+
+Để client ở **mạng khác nhau** gọi được (không chỉ cùng Wi‑Fi), dùng stack VPS:
+
+- Hướng dẫn đầy đủ: [docs/vps-deploy.md](docs/vps-deploy.md)
+- Compose: `docker-compose.vps.yml`
+- Script Linux: `scripts/start-vps.sh`
+
+Tóm tắt trên VPS Ubuntu:
+
+```bash
+git clone https://github.com/GrootTheDeveloper/SimlyDent-Internship.git
+cd SimlyDent-Internship/internship-log/work/TASK-002-web-video-call/poc/livekit-1to1
+cp .env.vps.example .env
+# Sửa DOMAIN, PUBLIC_IP, LIVEKIT_API_SECRET
+chmod +x scripts/start-vps.sh
+./scripts/start-vps.sh
+```
+
+Cần domain trỏ A-record tới VPS và mở port `80,443,7881,3478,50000-50050/udp`.  
+Hai máy mở `https://DOMAIN/?user=A1` và `https://DOMAIN/?user=A2`.
+
+## Chạy PoC (local / cùng LAN)
 
 Yêu cầu: Docker Desktop với Linux containers.
 

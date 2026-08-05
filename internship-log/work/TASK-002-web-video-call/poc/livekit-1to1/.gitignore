@@ -7,3 +7,4 @@ evidence/*.json
 evidence/*.log
 certs/
 recordings/*.mp4
+infra/livekit.vps.runtime.yaml

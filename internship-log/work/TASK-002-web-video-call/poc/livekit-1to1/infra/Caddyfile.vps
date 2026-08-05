@@ -1,0 +1,31 @@
+# Public HTTPS gateway for VPS.
+# Requires DOMAIN in environment (e.g. call.example.com).
+# Caddy obtains Let's Encrypt certificates automatically on ports 80/443.
+
+{
+  email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+  encode gzip
+
+  @api path /api/*
+  handle @api {
+    reverse_proxy backend:8080
+  }
+
+  @hubs path /hubs/*
+  handle @hubs {
+    reverse_proxy backend:8080
+  }
+
+  # LiveKit signaling WebSocket (ws/wss://DOMAIN/rtc)
+  @livekit path /rtc*
+  handle @livekit {
+    reverse_proxy livekit:7880
+  }
+
+  handle {
+    reverse_proxy frontend:80
+  }
+}
