@@ -33,20 +33,58 @@ jobs:
         run: |
           set -euo pipefail
           KEY="${{ runner.temp }}/simlydent_vps_deploy"
-          if [ -n "${VPS_SSH_KEY_B64:-}" ]; then
-            echo "Using VPS_SSH_KEY_B64"
-            echo "$VPS_SSH_KEY_B64" | base64 -d > "$KEY"
-          elif [ -n "${VPS_SSH_KEY:-}" ]; then
-            echo "Using VPS_SSH_KEY (raw)"
-            # Support secrets pasted with literal \n sequences
-            printf '%s\n' "$VPS_SSH_KEY" | sed 's/\r$//' | sed 's/\\n/\n/g' > "$KEY"
+          B64="$(printf '%s' "${VPS_SSH_KEY_B64:-}" | tr -d '[:space:]')"
+          RAW="${VPS_SSH_KEY:-}"
+
+          write_raw_key() {
+            # Normalize Windows CRLF and literal \n from botched pastes
+            printf '%s\n' "$1" | sed 's/\r$//' | sed 's/\\n/\n/g' > "$KEY"
+          }
+
+          if [ -n "$B64" ]; then
+            echo "Using VPS_SSH_KEY_B64 (len=${#B64})"
+            # Reject accidental paste of private key PEM into the B64 secret
+            if printf '%s' "$B64" | grep -q 'BEGIN'; then
+              echo "ERROR: VPS_SSH_KEY_B64 looks like PEM text, not base64. Use base64 only."
+              exit 1
+            fi
+            printf '%s' "$B64" | base64 -d > "$KEY"
+          elif [ -n "$RAW" ]; then
+            # Auto-detect: user often pastes base64 into VPS_SSH_KEY by mistake
+            TRIMMED="$(printf '%s' "$RAW" | tr -d '[:space:]')"
+            if printf '%s' "$RAW" | grep -q 'BEGIN .*PRIVATE KEY'; then
+              echo "Using VPS_SSH_KEY as PEM/OpenSSH private key"
+              write_raw_key "$RAW"
+            elif printf '%s' "$TRIMMED" | grep -Eq '^[A-Za-z0-9+/]+=*$' && [ "${#TRIMMED}" -gt 80 ]; then
+              echo "Using VPS_SSH_KEY as base64 (auto-detect)"
+              printf '%s' "$TRIMMED" | base64 -d > "$KEY"
+            elif printf '%s' "$RAW" | grep -q 'BEGIN'; then
+              echo "Using VPS_SSH_KEY as PEM-like text"
+              write_raw_key "$RAW"
+            else
+              echo "ERROR: VPS_SSH_KEY is set but not a valid private key or base64."
+              echo "Create secret VPS_SSH_KEY_B64 = one-line base64 of the private key file."
+              echo "PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes(\"$env:USERPROFILE\\.ssh\\simlydent_vps_deploy\"))"
+              exit 1
+            fi
           else
-            echo "Missing secrets: set VPS_SSH_KEY_B64 (preferred) or VPS_SSH_KEY"
+            echo "ERROR: Missing secrets."
+            echo "Set VPS_SSH_KEY_B64 (preferred) OR VPS_SSH_KEY."
+            echo "Also need VPS_HOST and VPS_USER."
             exit 1
           fi
+
           chmod 600 "$KEY"
-          # Fail fast if secret is truncated / public key / wrong paste
-          ssh-keygen -y -f "$KEY" >/dev/null
+          BYTES=$(wc -c < "$KEY" | tr -d ' ')
+          echo "Key file bytes=$BYTES"
+          # Head marker only (safe) — never print key body
+          head -n1 "$KEY" || true
+          if ! ssh-keygen -y -f "$KEY" >/dev/null 2>keyerr.txt; then
+            echo "ERROR: ssh-keygen cannot load key (libcrypto / corrupt secret)."
+            echo "Typical causes: truncated paste, public key (.pub) pasted, wrong secret name."
+            cat keyerr.txt || true
+            exit 1
+          fi
           echo "SSH private key OK → $KEY"
           echo "KEY_PATH=$KEY" >> "$GITHUB_ENV"
 
