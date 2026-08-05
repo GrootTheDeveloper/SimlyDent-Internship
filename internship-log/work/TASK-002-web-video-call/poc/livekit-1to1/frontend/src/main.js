@@ -54,19 +54,11 @@ function isPortraitCapturePreferred() {
 }
 
 /**
- * Capture resolution aligned with UI orientation.
- * Landscape: 1280×720. Portrait: 720×1280 so receiver can letterbox (fit by height)
- * instead of a zoomed center crop of a forced landscape frame.
+ * Capture at sensor-friendly 1280×720. Do NOT request 720×1280 / aspectRatio 9:16
+ * on portrait phones — browsers crop the sensor FOV to match, which feels "zoomed".
+ * Portrait layout is handled later by contain-letterbox (publish + remote display).
  */
 function preferredVideoCaptureResolution() {
-  if (isPortraitCapturePreferred()) {
-    return new VideoPreset(
-      VideoPresets.h720.height,
-      VideoPresets.h720.width,
-      VideoPresets.h720.encoding.maxBitrate,
-      VideoPresets.h720.encoding.maxFramerate
-    ).resolution
-  }
   return VideoPresets.h720.resolution
 }
 
@@ -134,10 +126,13 @@ async function waitForVideoFrame(video, timeoutMs = 4000) {
   }
 }
 
-/** Center-cover draw source (sw×sh) into dest canvas (no rotation). */
-function coverDraw(ctx, source, sw, sh, outW, outH) {
+/**
+ * Center-CONTAIN draw (full FOV). scale = min(...) so nothing is cropped.
+ * Opposite of cover (max) which zoomed into the center and felt "phóng to".
+ */
+function containDraw(ctx, source, sw, sh, outW, outH) {
   if (!sw || !sh) return
-  const scale = Math.max(outW / sw, outH / sh)
+  const scale = Math.min(outW / sw, outH / sh)
   const dw = sw * scale
   const dh = sh * scale
   const dx = (outW - dw) / 2
@@ -147,11 +142,20 @@ function coverDraw(ctx, source, sw, sh, outW, outH) {
   ctx.drawImage(source, dx, dy, dw, dh)
 }
 
+/**
+ * Portrait publish box that can hold the full source without cropping.
+ * For landscape source w×h: outH = h, outW = round(h * 9/16) so source fits by
+ * height (contain) with side padding inside the portrait frame — no digital zoom.
+ */
 function portraitOutputSize(srcW, srcH) {
-  // Keep ~720p class budget; always height > width for remote layout.
-  const longEdge = Math.max(srcW, srcH, 720)
-  const shortEdge = Math.round((longEdge * 9) / 16)
-  return { outW: shortEdge, outH: longEdge }
+  if (srcH >= srcW && srcW > 0) {
+    // Already portrait: keep native pixels (no rescale crop)
+    return { outW: srcW, outH: srcH }
+  }
+  // Landscape sensor: portrait frame tall enough for full source height
+  const outH = Math.max(srcH, 720)
+  const outW = Math.max(2, Math.round((outH * 9) / 16))
+  return { outW, outH }
 }
 
 /**
@@ -184,8 +188,8 @@ async function uprightBitmapFromFrame(frame) {
 }
 
 /**
- * Processor path: read VideoFrame → upright bitmap (UA) → cover into 9:16
- * portrait pixels with rotation metadata burned in (remote does not need CVO).
+ * Processor path: read VideoFrame → upright bitmap (UA) → contain into 9:16
+ * (full FOV, letterbox inside portrait; never cover-crop / digital zoom).
  */
 async function normalizePortraitViaVideoFrames(sourceTrack) {
   const mst = sourceTrack.mediaStreamTrack
@@ -234,7 +238,7 @@ async function normalizePortraitViaVideoFrames(sourceTrack) {
             if (bitmap && typeof bitmap.close === 'function') bitmap.close()
             continue
           }
-          coverDraw(ctx, bitmap, bitmap.width, bitmap.height, canvas.width, canvas.height)
+          containDraw(ctx, bitmap, bitmap.width, bitmap.height, canvas.width, canvas.height)
           if (typeof bitmap.close === 'function') bitmap.close()
           const outFrame = new VideoFrame(canvas, {
             timestamp: ts,
@@ -296,7 +300,7 @@ async function normalizePortraitViaVideoFrames(sourceTrack) {
 
 /**
  * Fallback: NO manual ±90 from screen orientation.
- * drawImage(video) then center-cover into 9:16 — fixes double-rotation sideways bug.
+ * drawImage(video) then center-CONTAIN into 9:16 — full FOV, no cover zoom.
  */
 async function normalizePortraitViaCanvasCover(sourceTrack) {
   const mst = sourceTrack.mediaStreamTrack
@@ -341,7 +345,8 @@ async function normalizePortraitViaCanvasCover(sourceTrack) {
     if (stopped) return
     // Critical: do NOT ctx.rotate based on screen.orientation — that double-rotates
     // on Chromium when drawImage already yields upright samples.
-    coverDraw(ctx, video, video.videoWidth, video.videoHeight, outW, outH)
+    // contain (not cover): keep full camera FOV; black bars inside portrait if needed.
+    containDraw(ctx, video, video.videoWidth, video.videoHeight, outW, outH)
     raf = requestAnimationFrame(paint)
   }
   paint()
@@ -358,7 +363,7 @@ async function normalizePortraitViaCanvasCover(sourceTrack) {
   const normalizedTrack = new LocalVideoTrack(outMst, undefined, true)
   normalizedTrack.source = Track.Source.Camera
 
-  console.info('[media] canvas cover portrait (no manual rotate)', `${vw}x${vh}`, '→', `${outW}x${outH}`)
+  console.info('[media] canvas contain portrait (full FOV, no zoom crop)', `${vw}x${vh}`, '→', `${outW}x${outH}`)
 
   const cleanup = () => {
     stopped = true
@@ -422,17 +427,8 @@ async function prepareLocalTracksForOrientation(localTracks) {
       next.push(track)
       continue
     }
-    try {
-      await track.mediaStreamTrack?.applyConstraints?.({
-        width: { ideal: 720 },
-        height: { ideal: 1280 },
-        aspectRatio: { ideal: 9 / 16 }
-      })
-    } catch {
-      /* ignore */
-    }
+    // Do not applyConstraints({ aspectRatio: 9/16 }) — that crops FOV (zoom).
     const settings = track.mediaStreamTrack?.getSettings?.() || {}
-    // Native portrait buffer: still run cover only if we later need; publish raw.
     if ((settings.height || 0) > (settings.width || 0)) {
       console.info('[media] native portrait track', settings.width, 'x', settings.height)
       next.push(track)
@@ -836,7 +832,6 @@ if (isCallRoute) {
           let localTracks = []
           try {
             const captureResolution = preferredVideoCaptureResolution()
-            const portrait = isPortraitCapturePreferred()
             localTracks = await createLocalTracks({
               audio: {
                 echoCancellation: true,
@@ -845,13 +840,8 @@ if (isCallRoute) {
               },
               video: {
                 facingMode: 'user',
-                // Portrait devices request 720×1280 (+ aspectRatio) so B can letterbox by height.
-                resolution: {
-                  ...captureResolution,
-                  aspectRatio: portrait
-                    ? captureResolution.height / captureResolution.width
-                    : captureResolution.width / captureResolution.height
-                }
+                // Native-ish 1280×720 FOV only — no forced 9:16 (that zooms/crops).
+                resolution: captureResolution
               }
             })
             const prepared = await prepareLocalTracksForOrientation(localTracks)
