@@ -1,8 +1,9 @@
 namespace LiveKitPoc.Api;
 
 /// <summary>
-/// Server-owned staff/visitor identity. ClinicId is authoritative for multi-clinic isolation.
+/// Server-owned staff/visitor/manager identity. ClinicId is authoritative for multi-clinic isolation.
 /// Demo staff: A1/A2/A3 → clinic-a; B1 → clinic-b.
+/// Demo managers: A-MGR → clinic-a; B-MGR → clinic-b (not auto-dispatched).
 /// Demo visitors (Phase 1 queue): VA → clinic-a; VB → clinic-b.
 /// </summary>
 public sealed record TestIdentity(
@@ -15,6 +16,7 @@ public static class IdentityRoles
 {
     public const string Staff = "Staff";
     public const string Visitor = "Visitor";
+    public const string Manager = "Manager";
 }
 
 public enum CallStatus
@@ -71,9 +73,23 @@ public sealed class CallSession
     public string? AcceptedBy { get; set; }
     /// <summary>Staff already tried for this queue call (avoid immediate re-ring same agent).</summary>
     public HashSet<string> TriedStaffIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // ---- Recording snapshot (independent of live clinic policy after set) ----
+    public RecordingMode RecordingMode { get; set; } = RecordingMode.None;
+    public ConsentStatus ConsentStatus { get; set; } = ConsentStatus.Pending;
+    public DateTimeOffset? ConsentGrantedAt { get; set; }
+    public string? ConsentActorId { get; set; }
+    public string? ConsentPolicyVersion { get; set; }
+    /// <summary>Idle | Starting | Recording | Stopping | Complete | Failed | Deleted</summary>
     public string RecordingStatus { get; set; } = "Idle";
+    /// <summary>Internal — never on public CallView.</summary>
     public string? RecordingEgressId { get; set; }
+    /// <summary>Internal storage key (clinic-scoped). Not absolute client path.</summary>
+    public string? RecordingStorageKey { get; set; }
+    /// <summary>Legacy egress local basename while finalizing; not exposed on CallView.</summary>
     public string? RecordingFileName { get; set; }
+    public string? RecordingId { get; set; }
+
     public object SyncRoot { get; } = new();
 
     public bool Contains(string userId)
@@ -92,10 +108,16 @@ public sealed class CallSession
     public bool BelongsToClinic(string clinicId) =>
         string.Equals(ClinicId, clinicId, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Public call DTO — business recording fields only (no egress id / storage path).
+    /// </summary>
     public CallView ToView() => new(
         Id, ClinicId, CallerId, CalleeId, RoomName, Status.ToString(),
-        CreatedAt, UpdatedAt, AcceptedBy, RecordingStatus, RecordingEgressId,
-        RecordingFileName, RecordingStatus == "Complete" && RecordingFileName is not null,
+        CreatedAt, UpdatedAt, AcceptedBy,
+        RecordingMode.ToString(),
+        RecordingStatus,
+        ConsentStatus.ToString(),
+        RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(RecordingStorageKey),
         Origin.ToString(), AssignedStaffId);
 
     /// <summary>
@@ -117,6 +139,7 @@ public sealed class CallSession
 
 /// <summary>
 /// API view of a call. ClinicId is canonical; TenantId is a compatibility alias (same value).
+/// Recording internals (egress id, file path) are never included.
 /// </summary>
 public sealed record CallView(
     Guid Id,
@@ -128,9 +151,9 @@ public sealed record CallView(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     string? AcceptedBy,
+    string RecordingMode,
     string RecordingStatus,
-    string? RecordingEgressId,
-    string? RecordingFileName,
+    string ConsentStatus,
     bool RecordingAvailable,
     string Origin = "Direct",
     string? AssignedStaffId = null)
@@ -144,7 +167,7 @@ public sealed record TokenResponse(string Url, string Token, DateTimeOffset Expi
 
 /// <summary>
 /// Public embed poll DTO — intentionally smaller than <see cref="CallView"/>.
-/// No roomName, recording, egress, or staff assignment fields.
+/// No roomName, recording internals, egress, or staff assignment fields.
 /// Room is only present inside the short-lived LiveKit JWT after Accept.
 /// </summary>
 public sealed record EmbedCallView(
@@ -152,7 +175,10 @@ public sealed record EmbedCallView(
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    int WaitingSeconds)
+    int WaitingSeconds,
+    string RecordingMode = "None",
+    string RecordingStatus = "Idle",
+    string ConsentStatus = "Pending")
 {
     public static EmbedCallView From(CallSession call)
     {
@@ -162,7 +188,10 @@ public sealed record EmbedCallView(
             call.Status.ToString(),
             call.CreatedAt,
             call.UpdatedAt,
-            waiting);
+            waiting,
+            call.RecordingMode.ToString(),
+            call.RecordingStatus,
+            call.ConsentStatus.ToString());
     }
 }
 
@@ -174,6 +203,9 @@ public sealed record CallActor(string Id, string ClinicId, string Role, string D
 {
     public bool IsStaff =>
         string.Equals(Role, IdentityRoles.Staff, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsManager =>
+        string.Equals(Role, IdentityRoles.Manager, StringComparison.OrdinalIgnoreCase);
 
     public bool IsVisitor =>
         string.Equals(Role, IdentityRoles.Visitor, StringComparison.OrdinalIgnoreCase);

@@ -41,7 +41,8 @@ public sealed class CallDispatcher(
     AgentRegistry agents,
     IdentityRegistry identities,
     IHubContext<CallHub> hub,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    RecordingPolicyRegistry recordingPolicies)
 {
     private readonly ConcurrentDictionary<string, object> _clinicLocks =
         new(StringComparer.OrdinalIgnoreCase);
@@ -112,7 +113,8 @@ public sealed class CallDispatcher(
                 Origin = CallOrigin.Queue,
                 RoomName = CallSession.BuildRoomName(visitor.ClinicId, closedId),
                 Status = CallStatus.Closed,
-                VisitorLastSeenAt = DateTimeOffset.UtcNow
+                VisitorLastSeenAt = DateTimeOffset.UtcNow,
+                RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode
             };
             calls[closedId] = closed;
             await NotifyCallAsync(closed);
@@ -148,7 +150,8 @@ public sealed class CallDispatcher(
                     Origin = CallOrigin.Queue,
                     RoomName = CallSession.BuildRoomName(visitor.ClinicId, id),
                     Status = CallStatus.Queued,
-                    VisitorLastSeenAt = DateTimeOffset.UtcNow
+                    VisitorLastSeenAt = DateTimeOffset.UtcNow,
+                    RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode
                 };
                 calls[id] = call;
                 created = true;

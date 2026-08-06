@@ -38,26 +38,28 @@ function Invoke-SuiteStep {
     }
 }
 
-Invoke-SuiteStep -Name "1/6 smoke-test" -ScriptPath "$PSScriptRoot\smoke-test.ps1" -Params @{ ApiUrl = $ApiUrl }
+Invoke-SuiteStep -Name "1/7 smoke-test" -ScriptPath "$PSScriptRoot\smoke-test.ps1" -Params @{ ApiUrl = $ApiUrl }
 
 if (-not $SkipIsolation) {
     $isoParams = @{ ApiUrl = $ApiUrl }
     if ($SkipSignalR) { $isoParams.SkipSignalR = $true }
-    Invoke-SuiteStep -Name "2/6 clinic-isolation-test" -ScriptPath "$PSScriptRoot\clinic-isolation-test.ps1" -Params $isoParams
+    Invoke-SuiteStep -Name "2/7 clinic-isolation-test" -ScriptPath "$PSScriptRoot\clinic-isolation-test.ps1" -Params $isoParams
 }
 
 $routingParams = @{ ApiUrl = $ApiUrl }
 if ($SkipSlow) { $routingParams.SkipSlow = $true }
-Invoke-SuiteStep -Name "3/6 routing-test" -ScriptPath "$PSScriptRoot\routing-test.ps1" -Params $routingParams
+Invoke-SuiteStep -Name "3/7 routing-test" -ScriptPath "$PSScriptRoot\routing-test.ps1" -Params $routingParams
 
 if (-not $SkipEmbed) {
-    Invoke-SuiteStep -Name "4/6 embed-session-test" -ScriptPath "$PSScriptRoot\embed-session-test.ps1" -Params @{ ApiUrl = $ApiUrl }
-    Invoke-SuiteStep -Name "5/6 embed-isolation-test" -ScriptPath "$PSScriptRoot\embed-isolation-test.ps1" -Params @{ ApiUrl = $ApiUrl }
+    Invoke-SuiteStep -Name "4/7 embed-session-test" -ScriptPath "$PSScriptRoot\embed-session-test.ps1" -Params @{ ApiUrl = $ApiUrl }
+    Invoke-SuiteStep -Name "5/7 embed-isolation-test" -ScriptPath "$PSScriptRoot\embed-isolation-test.ps1" -Params @{ ApiUrl = $ApiUrl }
 
     $lifeParams = @{ ApiUrl = $ApiUrl }
     if ($SkipSlow) { $lifeParams.SkipSlow = $true }
-    Invoke-SuiteStep -Name "6/6 embed-lifecycle-test" -ScriptPath "$PSScriptRoot\embed-lifecycle-test.ps1" -Params $lifeParams
+    Invoke-SuiteStep -Name "6/7 embed-lifecycle-test" -ScriptPath "$PSScriptRoot\embed-lifecycle-test.ps1" -Params $lifeParams
 }
+
+Invoke-SuiteStep -Name "7/7 recording-policy-test" -ScriptPath "$PSScriptRoot\recording-policy-test.ps1" -Params @{ ApiUrl = $ApiUrl }
 
 Write-Host ""
 Write-Host "All suites passed against $ApiUrl" -ForegroundColor Green

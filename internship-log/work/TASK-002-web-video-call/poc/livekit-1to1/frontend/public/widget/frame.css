@@ -38,6 +38,19 @@ body { overflow: hidden; }
   font-size: 15px;
   font-weight: 650;
 }
+
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: left;
+}
+.consent-row input { margin-top: 3px; flex-shrink: 0; }
+.consent-row.hidden, .hidden { display: none !important; }
 .subtitle {
   margin-top: 2px;
   font-size: 12px;

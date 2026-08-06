@@ -83,8 +83,12 @@ public static class ClinicAuthorization
         user is not null
         && string.Equals(user.Role, IdentityRoles.Staff, StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsManager(TestIdentity? user) =>
+        RecordingAuthorization.IsManager(user);
+
     /// <summary>
-    /// Clinic overview endpoints (queue/agents/presence/directory) are staff-only.
+    /// Clinic overview endpoints (queue/agents/presence/directory) are staff-only for dispatch ops.
+    /// Staff role only — do not broaden to Manager (use RequireStaffOrManager).
     /// Returns null when OK; otherwise an IResult to return immediately.
     /// </summary>
     public static IResult? RequireStaff(TestIdentity? user)
@@ -94,6 +98,10 @@ public static class ClinicAuthorization
             return Results.Json(new { error = "Staff role required." }, statusCode: 403);
         return null;
     }
+
+    /// <summary>Staff or Manager may view clinic directory / queue / presence.</summary>
+    public static IResult? RequireStaffOrManager(TestIdentity? user) =>
+        RecordingAuthorization.RequireStaffOrManager(user);
 
     /// <summary>
     /// Embed call ownership: same clinic + CallerId equals embed visitor id.

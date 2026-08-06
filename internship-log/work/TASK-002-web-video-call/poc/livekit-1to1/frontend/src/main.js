@@ -158,6 +158,12 @@ function roleDisplayName(role) {
   return role
 }
 
+function recordingModeLabel(mode) {
+  if (mode === 'AudioOnly') return 'Chỉ ghi âm'
+  if (mode === 'Video') return 'Ghi hình'
+  return 'Không ghi'
+}
+
 function formatWaitSeconds(seconds) {
   const n = Number(seconds)
   if (!Number.isFinite(n) || n < 0) return '—'
@@ -881,8 +887,10 @@ if (isCallRoute) {
     data: {
       callId,
       userId,
+      currentUser: cached || null,
       identities: [],
       call: null,
+      recordingCaps: { canStart: false, canStop: false, canDownload: false, canDelete: false },
       hub: null,
       room: null,
       localTracks: [],
@@ -961,7 +969,23 @@ if (isCallRoute) {
         return ['Starting', 'Stopping'].includes(this.call?.recordingStatus)
       },
       recordingAvailable() {
-        return this.call?.recordingAvailable === true
+        // Download is Manager-only; never offer staff default download.
+        return this.isManagerRole && (this.recordingCaps?.canDownload || this.call?.recordingAvailable === true)
+      },
+      isManagerRole() {
+        return String(this.currentUser?.role || this.userRole || '').toLowerCase() === 'manager'
+      },
+      recordingStatusLabel() {
+        const s = this.call?.recordingStatus
+        if (s === 'Recording') {
+          return this.call?.recordingMode === 'AudioOnly' ? 'Đang ghi âm' : 'Đang ghi hình'
+        }
+        if (s === 'Starting') return 'Đang bắt đầu ghi…'
+        if (s === 'Stopping') return 'Đang dừng ghi…'
+        if (s === 'Complete') return 'Đã có bản ghi'
+        if (s === 'Failed') return 'Ghi không thành công'
+        if (s === 'Deleted') return 'Đã xóa bản ghi'
+        return ''
       }
     },
     async mounted() {
@@ -1414,20 +1438,62 @@ if (isCallRoute) {
           window.prompt('Copy Call ID:', text)
         }
       },
+      applyRecordingView(body) {
+        if (!body || !this.call) return
+        // Recording endpoints return actor-aware RecordingView, not full CallView.
+        if (body.recordingStatus != null || body.recordingMode != null) {
+          this.call = {
+            ...this.call,
+            recordingMode: body.recordingMode ?? this.call.recordingMode,
+            recordingStatus: body.recordingStatus ?? this.call.recordingStatus,
+            consentStatus: body.consentStatus ?? this.call.consentStatus,
+            recordingAvailable: body.canDownload === true
+          }
+          this.recordingCaps = {
+            canStart: !!body.canStart,
+            canStop: !!body.canStop,
+            canDownload: !!body.canDownload,
+            canDelete: !!body.canDelete
+          }
+          return
+        }
+        if (body.id) this.call = body
+      },
       async toggleRecording() {
         if (this.recordingBusy || this.recordingInProgress) return
-        if (!this.isRecording && !window.confirm('Bắt đầu ghi hình cuộc gọi? Cả hai bên sẽ thấy trạng thái Đang ghi.')) return
+        const start = !this.isRecording
+        if (start && !window.confirm('Bắt đầu ghi cuộc gọi? Khách/đồng nghiệp sẽ thấy trạng thái đang ghi. Cần đồng ý ghi trước khi bắt đầu.')) return
         this.recordingBusy = true
         this.error = ''
         try {
-          const action = this.isRecording ? 'stop' : 'start'
+          if (start) {
+            // Snapshot mode Video (default policy is None) + staff consent evidence.
+            let res = await apiFetch(`/api/calls/${this.callId}/recording/mode`, {
+              method: 'POST',
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ mode: 'Video' })
+            })
+            let body = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(body.error || 'Không đặt được chế độ ghi.')
+            this.applyRecordingView(body)
+            res = await apiFetch(`/api/calls/${this.callId}/recording/consent`, {
+              method: 'POST',
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ status: 'Granted' })
+            })
+            body = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(body.error || 'Không ghi nhận đồng ý ghi.')
+            this.applyRecordingView(body)
+          }
+          const action = start ? 'start' : 'stop'
           const res = await apiFetch(`/api/calls/${this.callId}/recording/${action}`, {
             method: 'POST',
             headers: authHeaders()
           })
           const body = await res.json().catch(() => ({}))
-          if (!res.ok) throw new Error(body.error || 'Không thể thay đổi trạng thái ghi hình.')
-          this.call = body
+          if (!res.ok) throw new Error(body.error || 'Không thể thay đổi trạng thái ghi.')
+          this.applyRecordingView(body)
+          if (body.call) this.call = { ...this.call, ...body.call }
         } catch (err) {
           this.error = err.message
         } finally {
@@ -1436,18 +1502,19 @@ if (isCallRoute) {
       },
       async downloadRecording() {
         try {
+          // Manager-only on server; staff will get 404.
           const res = await apiFetch(`/api/calls/${this.callId}/recording/file`, {
             headers: authHeaders()
           })
           if (!res.ok) {
             const body = await res.json().catch(() => ({}))
-            throw new Error(body.error || 'File ghi hình chưa sẵn sàng.')
+            throw new Error(body.error || 'Không tải được bản ghi (cần quyền quản lý).')
           }
           const blob = await res.blob()
           const url = URL.createObjectURL(blob)
           const link = document.createElement('a')
           link.href = url
-          link.download = this.call.recordingFileName || `call-${this.callId}.mp4`
+          link.download = `recording-${this.callId}.mp4`
           link.click()
           URL.revokeObjectURL(url)
         } catch (err) {
@@ -1558,7 +1625,7 @@ if (isCallRoute) {
             </div>
           </div>
           <div class="call-header-actions">
-            <span v-if="isRecording" class="recording-indicator"><span></span> Đang ghi hình</span>
+            <span v-if="isRecording || recordingStatusLabel" class="recording-indicator"><span></span> {{ recordingStatusLabel || 'Đang ghi' }}</span>
             <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng hình ảnh">{{ qualityBadge }}</button>
             <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật tiếng</button>
           </div>
@@ -1626,10 +1693,10 @@ if (isCallRoute) {
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !cameraEnabled && 'off']" @click="toggleCamera" :title="cameraEnabled ? 'Tắt camera' : 'Bật camera'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi hình' : 'Bắt đầu ghi hình'">
+              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi' : 'Bắt đầu ghi (cần đồng ý)'">
                 <span class="record-dot"></span>
               </button>
-              <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi hình">
+              <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi (quản lý)">
                 <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
               </button>
               <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="joinRoom">
@@ -2074,6 +2141,9 @@ if (isCallRoute) {
       },
       roleLabel(role) {
         return roleDisplayName(role)
+      },
+      isManagerAccount(user) {
+        return String(user?.role || '').toLowerCase() === 'manager'
       },
       async startCall(targetId) {
         if (this.isVisitor) {

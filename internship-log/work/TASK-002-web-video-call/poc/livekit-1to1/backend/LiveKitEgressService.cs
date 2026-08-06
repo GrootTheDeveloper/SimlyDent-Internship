@@ -13,22 +13,41 @@ public sealed class LiveKitEgressService(
     private readonly Uri _baseUri = new(configuration["LIVEKIT_HTTP_URL"] ?? "http://livekit:7880");
     private readonly string _recordingsPath = configuration["RECORDINGS_PATH"] ?? "/recordings";
 
+    /// <summary>
+    /// Start room composite egress. Video uses H264 preset; AudioOnly sets audio_only=true
+    /// (LiveKit RoomCompositeOptions.audioOnly).
+    /// </summary>
     public async Task<EgressResult> StartRoomRecordingAsync(
         string roomName,
         string fileName,
+        RecordingMode mode,
         CancellationToken cancellationToken)
     {
+        if (mode is not (RecordingMode.Video or RecordingMode.AudioOnly))
+            throw new InvalidOperationException("Egress is only started for Video or AudioOnly modes.");
+
         await EnsureRoomAsync(roomName, cancellationToken);
-        var request = new
+
+        var audioOnly = mode == RecordingMode.AudioOnly;
+        // Audio-only composite still uses a media container; OGG/MP4 depending on egress version.
+        // Prefer MP4 for both so local file checks stay consistent; audio_only drops video tracks.
+        var request = new Dictionary<string, object?>
         {
-            room_name = roomName,
-            layout = "grid",
-            preset = "H264_720P_30",
-            file_outputs = new[]
+            ["room_name"] = roomName,
+            ["layout"] = "grid",
+            ["audio_only"] = audioOnly,
+            ["file_outputs"] = new[]
             {
-                new { file_type = "MP4", filepath = $"/out/{fileName}" }
+                new Dictionary<string, object?>
+                {
+                    ["file_type"] = "MP4",
+                    ["filepath"] = $"/out/{fileName}"
+                }
             }
         };
+        if (!audioOnly)
+            request["preset"] = "H264_720P_30";
+
         return await PostAsync("StartRoomCompositeEgress", request, cancellationToken);
     }
 
@@ -70,6 +89,9 @@ public sealed class LiveKitEgressService(
         }
         throw new TimeoutException("Timed out while waiting for Egress to finalize the recording.");
     }
+
+    public string GetLocalEgressPath(string fileName) =>
+        Path.Combine(_recordingsPath, Path.GetFileName(fileName));
 
     private async Task<EgressResult> GetEgressAsync(string egressId, CancellationToken cancellationToken)
     {

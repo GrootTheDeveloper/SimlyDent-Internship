@@ -24,11 +24,15 @@ public sealed class IdentityRegistry
             _users[id] = new StoredIdentity(identity, auth.HashPassword(identity, DemoPassword));
         }
 
-        // Staff — TASK-003 Phase 0/1.
+        // Staff — TASK-003 Phase 0/1 (auto-dispatch).
         Add("A1", ClinicA, "Nguyễn Minh Anh");
         Add("A2", ClinicA, "Trần Thu Hà");
         Add("A3", ClinicA, "Lê Quốc Bảo");
         Add("B1", ClinicB, "Phạm Ngọc Lan");
+
+        // Managers — Phase 3 recording ACL (never auto-dispatched).
+        Add("A-MGR", ClinicA, "Quản lý phòng khám A", IdentityRoles.Manager);
+        Add("B-MGR", ClinicB, "Quản lý phòng khám B", IdentityRoles.Manager);
 
         // Visitors — Phase 1 queue path (not listed in staff directory).
         Add("VA", ClinicA, "Visitor Clinic A", IdentityRoles.Visitor);
@@ -59,7 +63,8 @@ public sealed class IdentityRegistry
             .ToArray();
 
     /// <summary>
-    /// Staff directory for messenger UI (excludes visitors and load users by default).
+    /// Staff + Manager directory for messenger UI (excludes visitors and load users by default).
+    /// Dispatch still filters Role==Staff only.
     /// </summary>
     public IReadOnlyCollection<TestIdentity> DirectoryForClinic(
         string clinicId,
@@ -67,7 +72,11 @@ public sealed class IdentityRegistry
         bool includeVisitors = false) =>
         Directory(includeLoadUsers)
             .Where(u => string.Equals(u.ClinicId, clinicId, StringComparison.OrdinalIgnoreCase))
-            .Where(u => includeVisitors || u.Role == IdentityRoles.Staff)
+            .Where(u =>
+            {
+                if (includeVisitors) return true;
+                return u.Role is IdentityRoles.Staff or IdentityRoles.Manager;
+            })
             .ToArray();
 
     public static bool IsLoadTestUser(string? id) =>

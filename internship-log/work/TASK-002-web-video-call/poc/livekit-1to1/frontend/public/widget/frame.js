@@ -70,7 +70,10 @@
     btnRetry: $('btnRetry'),
     btnClose: $('btnClose'),
     btnMic: $('btnMic'),
-    btnCam: $('btnCam')
+    btnCam: $('btnCam'),
+    consentRow: $('consentRow'),
+    chkConsent: $('chkConsent'),
+    btnConsent: $('btnConsent')
   };
 
   function storageKey(part) {
@@ -268,11 +271,47 @@
       : 'Vui lòng giữ cửa sổ này mở';
   }
 
-  function showReady() {
+  function showReady(call) {
     showPane('ready');
     setStatus('Sẵn sàng tham gia');
     els.readyMeta.textContent = 'Nhân viên đã nhận — bấm Tham gia khi bạn sẵn sàng.';
+    var mode = (call && call.recordingMode) || 'None';
+    var consent = (call && call.consentStatus) || 'Pending';
+    var needConsent = mode && mode !== 'None' && consent !== 'Granted';
+    if (els.consentRow) els.consentRow.classList.toggle('hidden', !needConsent);
+    if (els.btnConsent) els.btnConsent.classList.toggle('hidden', !needConsent);
+    if (needConsent && els.readyMeta) {
+      els.readyMeta.textContent = consent === 'Declined'
+        ? 'Bạn đã từ chối ghi. Vẫn có thể tham gia (không ghi).'
+        : 'Phòng khám có thể ghi cuộc gọi — vui lòng đồng ý bên dưới nếu bạn đồng ý.';
+    }
     postParent({ type: 'state', state: 'Accepted' });
+  }
+
+  async function submitConsent() {
+    if (!callId || !accessToken) return;
+    if (els.chkConsent && !els.chkConsent.checked) {
+      els.readyMeta.textContent = 'Vui lòng tick ô đồng ý trước khi gửi.';
+      return;
+    }
+    els.btnConsent.disabled = true;
+    try {
+      var res = await api('/embed/calls/' + callId + '/recording/consent', {
+        method: 'POST',
+        body: JSON.stringify({ status: 'Granted' })
+      });
+      if (!res.ok) {
+        els.readyMeta.textContent = (res.body && res.body.error) || 'Không gửi được đồng ý.';
+        return;
+      }
+      els.readyMeta.textContent = 'Đã ghi nhận đồng ý ghi. Bạn có thể tham gia cuộc gọi.';
+      if (els.consentRow) els.consentRow.classList.add('hidden');
+      if (els.btnConsent) els.btnConsent.classList.add('hidden');
+    } catch (err) {
+      els.readyMeta.textContent = err.message || String(err);
+    } finally {
+      els.btnConsent.disabled = false;
+    }
   }
 
   async function refreshCall() {
@@ -311,7 +350,7 @@
         return;
       }
       if (uiState === 'perm') return;
-      if (uiState !== 'ready' && uiState !== 'media') showReady();
+      if (uiState !== 'ready' && uiState !== 'media') showReady(res.body);
       return;
     }
 
@@ -733,6 +772,7 @@
 
   els.btnCall.addEventListener('click', startCall);
   els.btnCancel.addEventListener('click', cancelCall);
+  if (els.btnConsent) els.btnConsent.addEventListener('click', submitConsent);
   els.btnJoin.addEventListener('click', joinMedia);
   els.btnRetryMedia.addEventListener('click', joinMedia);
   if (els.btnRetryDevices) els.btnRetryDevices.addEventListener('click', retryDevices);

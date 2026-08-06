@@ -51,10 +51,16 @@ builder.Services.AddSingleton<AgentRegistry>();
 builder.Services.AddSingleton<LiveKitTokenService>();
 builder.Services.AddSingleton<CallQualityStore>();
 builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
+builder.Services.AddSingleton<RecordingPolicyRegistry>();
+builder.Services.AddSingleton<RecordingAuditService>();
+builder.Services.AddSingleton<IRecordingStorage>(RecordingStorageFactory.Create);
 builder.Services.AddSingleton<CallDispatcher>();
 builder.Services.AddSingleton<CallEndService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
+builder.Services.AddSingleton<RecordingRetentionService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingRetentionService>());
 builder.Services.AddHttpClient<LiveKitEgressService>();
+builder.Services.AddHttpClient(nameof(S3RecordingStorage));
 builder.Services.AddSignalR();
 
 var authTokens = new AuthTokenService(builder.Configuration);
@@ -294,7 +300,7 @@ app.MapGet("/api/auth/me", (ClaimsPrincipal principal, IdentityRegistry identiti
 app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry registry) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, registry);
-    var denied = ClinicAuthorization.RequireStaff(current);
+    var denied = ClinicAuthorization.RequireStaffOrManager(current);
     if (denied is not null) return denied;
     var peers = registry.DirectoryForClinic(current!.ClinicId, includeLoadUsers: false)
         .Select(ToUserDto);
@@ -307,7 +313,7 @@ app.MapGet("/api/presence", (
     AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    var denied = ClinicAuthorization.RequireStaff(current);
+    var denied = ClinicAuthorization.RequireStaffOrManager(current);
     if (denied is not null) return denied;
     return Results.Ok(agents.SnapshotForClinic(identities, current!.ClinicId));
 }).RequireAuthorization();
@@ -318,7 +324,7 @@ app.MapGet("/api/agents", (
     AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    var denied = ClinicAuthorization.RequireStaff(current);
+    var denied = ClinicAuthorization.RequireStaffOrManager(current);
     if (denied is not null) return denied;
     return Results.Ok(agents.SnapshotForClinic(identities, current!.ClinicId));
 }).RequireAuthorization();
@@ -329,9 +335,44 @@ app.MapGet("/api/queue", (
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    var denied = ClinicAuthorization.RequireStaff(current);
+    var denied = ClinicAuthorization.RequireStaffOrManager(current);
     if (denied is not null) return denied;
     return Results.Ok(dispatcher.QueueSnapshot(current!.ClinicId));
+}).RequireAuthorization();
+
+// ---- Recording policy (Phase 3) ----
+app.MapGet("/api/clinics/me/recording-policy", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    RecordingPolicyRegistry policies) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    var denied = ClinicAuthorization.RequireStaffOrManager(current);
+    if (denied is not null) return denied;
+    return Results.Ok(policies.Get(current!.ClinicId).ToView());
+}).RequireAuthorization();
+
+app.MapGet("/api/recording/audit", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    RecordingAuditService audit) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
+    return Results.Ok(audit.Snapshot(current!.ClinicId));
+}).RequireAuthorization();
+
+app.MapPost("/api/admin/recording/retention-run", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    RecordingRetentionService retention) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
+    var n = retention.RunOnce();
+    return Results.Ok(new { deleted = n });
 }).RequireAuthorization();
 
 app.MapPost("/api/agents/heartbeat", (
@@ -383,12 +424,16 @@ app.MapPost("/api/calls", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     CallDispatcher dispatcher,
-    AgentRegistry agents) =>
+    AgentRegistry agents,
+    RecordingPolicyRegistry recordingPolicies) =>
 {
     var caller = ClinicAuthorization.CurrentUser(principal, identities);
     if (caller is null) return Results.Unauthorized();
     if (caller.Role == IdentityRoles.Visitor)
         return Results.Json(new { error = "Visitors must use POST /api/queue/calls." }, statusCode: 403);
+    // Managers may observe; only Staff place direct calls (or Staff callee).
+    if (caller.Role == IdentityRoles.Manager)
+        return Results.Json(new { error = "Managers do not place direct media calls in this PoC." }, statusCode: 403);
 
     var callee = identities.Find(body.CalleeId);
     if (callee is null) return Results.BadRequest(new { error = "Unknown callee." });
@@ -425,6 +470,7 @@ app.MapPost("/api/calls", async (
         return Results.Conflict(new { error = "Callee is busy." });
 
     var id = Guid.NewGuid();
+    var policy = recordingPolicies.Get(caller.ClinicId);
     var session = new CallSession
     {
         Id = id,
@@ -432,7 +478,8 @@ app.MapPost("/api/calls", async (
         CallerId = caller.Id,
         CalleeId = callee.Id,
         Origin = CallOrigin.Direct,
-        RoomName = CallSession.BuildRoomName(caller.ClinicId, id)
+        RoomName = CallSession.BuildRoomName(caller.ClinicId, id),
+        RecordingMode = policy.DefaultMode
     };
     if (!dispatcher.TryAssignDirect(session, callee.Id))
         return Results.Conflict(new { error = "Callee is not available (busy)." });
@@ -575,45 +622,141 @@ app.MapPost("/api/calls/{id:guid}/token", (
     return Results.Ok(new TokenResponse(LiveKitWebSocketUrl(request), token, expiresAt));
 }).RequireAuthorization();
 
+// ---- Recording control (Phase 3) — RecordingAuthorization ≠ call participant alone ----
+app.MapGet("/api/calls/{id:guid}/recording", (
+    Guid id,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    if (!calls.TryGetValue(id, out var call) || !call.BelongsToClinic(current.ClinicId))
+        return Results.NotFound();
+    if (!RecordingAuthorization.CanViewBusinessState(current, call)
+        && ClinicAuthorization.GetAuthorizedCall(calls, id, current) is null
+        && RecordingAuthorization.GetClinicCallForManager(calls, id, current) is null)
+        return Results.NotFound();
+    var policy = policies.Get(call.ClinicId);
+    return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
+}).RequireAuthorization();
+
+app.MapPost("/api/calls/{id:guid}/recording/mode", (
+    Guid id,
+    SetRecordingModeRequest body,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
+    if (!RecordingAuthorization.CanStartStop(current, call))
+        return Results.Json(new { error = "Only call staff may set recording mode." }, statusCode: 403);
+    if (!Enum.TryParse<RecordingMode>(body.Mode, ignoreCase: true, out var mode))
+        return Results.BadRequest(new { error = "Invalid mode. Use None, AudioOnly, or Video." });
+    var policy = policies.Get(call.ClinicId);
+    if (!policy.IsModeAllowed(mode))
+        return Results.Json(new { error = "Mode not allowed by clinic policy." }, statusCode: 403);
+    lock (call.SyncRoot)
+    {
+        if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
+            return Results.Conflict(new { error = "Cannot change mode while recording is active." });
+        call.RecordingMode = mode;
+        call.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+    _ = dispatcher.NotifyCallAsync(call);
+    return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
+}).RequireAuthorization();
+
+app.MapPost("/api/calls/{id:guid}/recording/consent", (
+    Guid id,
+    SetConsentRequest body,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies,
+    RecordingAuditService audit,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
+    if (!Enum.TryParse<ConsentStatus>(body.Status, ignoreCase: true, out var consent)
+        || consent == ConsentStatus.Pending)
+        return Results.BadRequest(new { error = "Status must be Granted or Declined." });
+    var policy = policies.Get(call.ClinicId);
+    lock (call.SyncRoot)
+    {
+        call.ConsentStatus = consent;
+        call.ConsentActorId = current.Id;
+        call.ConsentPolicyVersion = policy.Version;
+        call.ConsentGrantedAt = consent == ConsentStatus.Granted ? DateTimeOffset.UtcNow : null;
+        call.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+    audit.Append(call.ClinicId, call.Id, call.RecordingId, current.Id, current.Role,
+        consent == ConsentStatus.Granted ? "ConsentGranted" : "ConsentDeclined", "Ok");
+    _ = dispatcher.NotifyCallAsync(call);
+    return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
+}).RequireAuthorization();
+
 app.MapPost("/api/calls/{id:guid}/recording/start", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies,
     LiveKitEgressService egress,
     CallDispatcher dispatcher,
+    RecordingAuditService audit,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
     var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
     if (call is null) return Results.NotFound();
+    if (!RecordingAuthorization.CanStartStop(current, call))
+        return Results.Json(new { error = "Only call staff may start recording." }, statusCode: 403);
 
-    var fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.mp4";
+    var policy = policies.Get(call.ClinicId);
+    RecordingMode mode;
+    string fileName;
+    string recId;
     lock (call.SyncRoot)
     {
-        if (call.Status != CallStatus.Accepted)
-            return Results.Conflict(new { error = "Recording is available only during an accepted call." });
-        if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
-            return Results.Conflict(new { error = "This call is already being recorded." });
+        var gate = RecordingAuthorization.ValidateStart(call, policy);
+        if (gate is not null)
+            return Results.Conflict(new { error = gate });
+        mode = call.RecordingMode;
+        recId = Guid.NewGuid().ToString("N");
+        fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{recId}.mp4";
         call.RecordingStatus = "Starting";
         call.RecordingFileName = fileName;
+        call.RecordingId = recId;
         call.RecordingEgressId = null;
+        call.RecordingStorageKey = null;
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
     await dispatcher.NotifyCallAsync(call);
 
     try
     {
-        var result = await egress.StartRoomRecordingAsync(call.RoomName, fileName, cancellationToken);
+        var result = await egress.StartRoomRecordingAsync(call.RoomName, fileName, mode, cancellationToken);
         lock (call.SyncRoot)
         {
             call.RecordingEgressId = result.EgressId;
             call.RecordingStatus = "Recording";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingStarted", "Ok", mode.ToString());
         await dispatcher.NotifyCallAsync(call);
-        return Results.Ok(call.ToView());
+        return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
     }
     catch (Exception ex)
     {
@@ -622,8 +765,11 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingStartFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
-        return Results.Json(new { error = $"Không thể bắt đầu ghi hình: {ex.Message}" }, statusCode: 503);
+        // Call remains Accepted — recording failure ≠ call failure.
+        return Results.Json(new { error = $"Không thể bắt đầu ghi: {ex.Message}", call = call.ToView() }, statusCode: 503);
     }
 }).RequireAuthorization();
 
@@ -632,21 +778,31 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies,
     LiveKitEgressService egress,
+    IRecordingStorage storage,
     CallDispatcher dispatcher,
+    RecordingAuditService audit,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
     var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
     if (call is null) return Results.NotFound();
+    if (!RecordingAuthorization.CanStartStop(current, call))
+        return Results.Json(new { error = "Only call staff may stop recording." }, statusCode: 403);
 
+    var policy = policies.Get(call.ClinicId);
     string egressId;
+    string fileName;
+    string recId;
     lock (call.SyncRoot)
     {
         if (call.RecordingStatus != "Recording" || string.IsNullOrWhiteSpace(call.RecordingEgressId))
             return Results.Conflict(new { error = "This call is not being recorded." });
         egressId = call.RecordingEgressId;
+        fileName = call.RecordingFileName!;
+        recId = call.RecordingId ?? Guid.NewGuid().ToString("N");
         call.RecordingStatus = "Stopping";
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
@@ -654,14 +810,22 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
 
     try
     {
-        await egress.StopRecordingAsync(egressId, call.RecordingFileName!, cancellationToken);
+        await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
+        var localPath = egress.GetLocalEgressPath(fileName);
+        var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
+        if (File.Exists(localPath))
+            await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
         lock (call.SyncRoot)
         {
+            call.RecordingId = recId;
+            call.RecordingStorageKey = key;
             call.RecordingStatus = "Complete";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingStopped", "Ok");
         await dispatcher.NotifyCallAsync(call);
-        return Results.Ok(call.ToView());
+        return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
     }
     catch (Exception ex)
     {
@@ -670,31 +834,136 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingFinalizeFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
-        return Results.Json(new { error = $"Không thể dừng ghi hình: {ex.Message}" }, statusCode: 503);
+        return Results.Json(new { error = $"Không thể dừng ghi: {ex.Message}", call = call.ToView() }, statusCode: 503);
     }
 }).RequireAuthorization();
 
-app.MapGet("/api/calls/{id:guid}/recording/file", (
+app.MapGet("/api/calls/{id:guid}/recording/file", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
-    IConfiguration configuration) =>
+    IRecordingStorage storage,
+    RecordingAuditService audit,
+    CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    // Manager same clinic only — not participant GetAuthorizedCall.
+    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
     if (call is null) return Results.NotFound();
-    if (call.RecordingStatus != "Complete" || string.IsNullOrWhiteSpace(call.RecordingFileName))
-        return Results.Conflict(new { error = "Recording is not ready." });
 
-    var root = configuration["RECORDINGS_PATH"] ?? "/recordings";
-    var path = Path.Combine(root, Path.GetFileName(call.RecordingFileName));
-    return File.Exists(path)
-        ? Results.File(path, "video/mp4", call.RecordingFileName, enableRangeProcessing: true)
-        : Results.NotFound(new { error = "Recording file was not found." });
+    string? key;
+    string? recId;
+    lock (call.SyncRoot)
+    {
+        if (call.RecordingStatus != "Complete" || string.IsNullOrWhiteSpace(call.RecordingStorageKey))
+            return Results.Conflict(new { error = "Recording is not ready." });
+        key = call.RecordingStorageKey;
+        recId = call.RecordingId;
+    }
+
+    var stream = await storage.OpenReadAsync(key!, cancellationToken);
+    if (stream is null)
+    {
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingDownloaded", "Failed", "missing object");
+        return Results.NotFound(new { error = "Recording file was not found." });
+    }
+
+    audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+        "RecordingDownloaded", "Ok");
+    var downloadName = $"recording-{call.Id:N}.mp4";
+    return Results.File(stream, "video/mp4", downloadName, enableRangeProcessing: true);
 }).RequireAuthorization();
+
+app.MapDelete("/api/calls/{id:guid}/recording", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    IRecordingStorage storage,
+    RecordingAuditService audit,
+    CallDispatcher dispatcher,
+    CancellationToken cancellationToken) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
+    if (call is null) return Results.NotFound();
+
+    string? key;
+    string? recId;
+    lock (call.SyncRoot)
+    {
+        if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
+            return Results.Conflict(new { error = "Cannot delete an active recording." });
+        key = call.RecordingStorageKey;
+        recId = call.RecordingId;
+        if (call.RecordingStatus == "Deleted" && string.IsNullOrWhiteSpace(key))
+            return Results.Ok(new { status = "Deleted" });
+    }
+
+    if (!string.IsNullOrWhiteSpace(key))
+    {
+        try
+        {
+            await storage.DeleteAsync(key, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+                "RecordingDeleted", "Failed", ex.Message);
+            return Results.Json(new { error = ex.Message }, statusCode: 503);
+        }
+    }
+
+    lock (call.SyncRoot)
+    {
+        call.RecordingStatus = "Deleted";
+        call.RecordingStorageKey = null;
+        call.RecordingFileName = null;
+        call.RecordingEgressId = null;
+        call.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+    audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+        "RecordingDeleted", "Ok");
+    await dispatcher.NotifyCallAsync(call);
+    return Results.Ok(new { status = "Deleted" });
+}).RequireAuthorization();
+
+// Embed visitor consent (session ownership)
+app.MapPost("/embed/calls/{id:guid}/recording/consent", (
+    Guid id,
+    SetConsentRequest body,
+    ClaimsPrincipal principal,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies,
+    RecordingAuditService audit) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+    var call = ClinicAuthorization.GetEmbedOwnedCall(calls, id, session);
+    if (call is null) return Results.NotFound();
+    if (!Enum.TryParse<ConsentStatus>(body.Status, ignoreCase: true, out var consent)
+        || consent == ConsentStatus.Pending)
+        return Results.BadRequest(new { error = "Status must be Granted or Declined." });
+    var policy = policies.Get(call.ClinicId);
+    lock (call.SyncRoot)
+    {
+        call.ConsentStatus = consent;
+        call.ConsentActorId = session.VisitorId;
+        call.ConsentPolicyVersion = policy.Version;
+        call.ConsentGrantedAt = consent == ConsentStatus.Granted ? DateTimeOffset.UtcNow : null;
+        call.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+    audit.Append(call.ClinicId, call.Id, call.RecordingId, session.VisitorId, IdentityRoles.Visitor,
+        consent == ConsentStatus.Granted ? "ConsentGranted" : "ConsentDeclined", "Ok");
+    return Results.Ok(EmbedCallView.From(call));
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
 
 app.MapPost("/api/calls/{id:guid}/quality/samples", async (
     Guid id,
