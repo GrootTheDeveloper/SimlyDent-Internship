@@ -115,15 +115,32 @@ Snippet nhúng trên website phòng khám (Origin phải nằm trong allowlist e
   async></script>
 ```
 
-- Demo UI: `https://YOUR_DOMAIN/widget/demo-a.html` · `…/demo-b.html`  
+- Same-host demo UI (smoke only, **không** phải multi-origin):  
+  `https://YOUR_DOMAIN/widget/demo-a.html` · `…/demo-b.html`  
   (cần `EMBED_PUBLIC_ORIGIN=https://YOUR_DOMAIN` nếu demo cùng host với API)
-- Session: parent page gọi `POST /embed/session` (Origin = domain clinic)
+- **Multi-origin harness (PR-E)** — hai website PK giả trên port khác nhau; widget/API load **từ** YOUR_DOMAIN:
+
+```powershell
+.\scripts\serve-embed-demo-origins.ps1 -ApiBase "https://YOUR_DOMAIN" -ProbeAndServe
+# Clinic A: http://127.0.0.1:5174/   Clinic B: http://127.0.0.1:5175/
+# 4-way origin only:
+.\scripts\serve-embed-demo-origins.ps1 -ApiBase "https://YOUR_DOMAIN" -ProbeOnly
+```
+
+  Origin = scheme + host + port. Path khác trên cùng host **không** tạo origin khác.
+- Session: parent page (origin clinic) gọi `POST /embed/session`
 - Iframe: `allow="camera; microphone"`; camera chỉ sau Accept
 - Stale visitor: waiting **30s** / in-call **90s** (poll heartbeat)
-- Tests API: `.\scripts\embed-session-test.ps1` · `.\scripts\embed-isolation-test.ps1`
-- Browser E2E multi-origin + evidence file: **PR-E**
+- Full suite (đóng Phase 2 — **không** `-SkipSlow`):  
+  `.\scripts\run-test-suite.ps1 -ApiUrl "https://YOUR_DOMAIN"`  
+  (`-SkipSignalR` nếu máy không có `dotnet` cho probe SignalR)
+- Protocol browser: [docs/phase2-browser-e2e-protocol.md](docs/phase2-browser-e2e-protocol.md)  
+- Evidence VPS: [evidence/2026-08-06-phase2-embed-vps.md](evidence/2026-08-06-phase2-embed-vps.md)
 
-**Phase 2 plan:** [docs/PHASE-2-plan.md](docs/PHASE-2-plan.md).
+**Security:** widget **không** lộ LiveKit API key / API secret / signing secret.  
+Token join participant ngắn hạn **sau Accept** là hành vi đúng.
+
+**Phase 2 plan:** [docs/PHASE-2-plan.md](docs/PHASE-2-plan.md) (PR-0…PR-E done).
 
 ### Embed session (Phase 2 PR-A)
 

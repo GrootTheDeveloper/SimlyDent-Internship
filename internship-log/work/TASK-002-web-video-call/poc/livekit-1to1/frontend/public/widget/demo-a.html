@@ -42,8 +42,11 @@
         Staff mở portal, login <code>A1</code>/<code>A2</code>, Accept cuộc gọi.
       </p>
       <p class="note">
-        Isolation thật sự cần <strong>origin khác</strong> cho clinic B (port/subdomain),
-        không phải hai path trên cùng host — xem PR-E.
+        Trang này cùng origin với portal nếu mở trên host SimlyDent — chỉ demo UI.
+        Multi-origin thật: chạy
+        <code>.\scripts\serve-embed-demo-origins.ps1 -ApiBase https://YOUR_DOMAIN -ProbeAndServe</code>
+        (port 5174/5175 = website PK giả; widget load từ YOUR_DOMAIN). Xem
+        <code>docs/phase2-browser-e2e-protocol.md</code>.
       </p>
     </div>
   </main>

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Run PoC automated suites: smoke → clinic isolation → routing → embed session → embed isolation.
+  Run PoC automated suites: smoke → clinic isolation → routing → embed session → embed isolation → embed lifecycle.
 
 .EXAMPLE
   .\scripts\run-test-suite.ps1 -ApiUrl "https://103.28.32.118.sslip.io"
@@ -18,46 +18,47 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-Write-Host "=== 1/6 smoke-test ===" -ForegroundColor Cyan
-& "$PSScriptRoot\smoke-test.ps1" -ApiUrl $ApiUrl
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+function Invoke-SuiteStep {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath,
+        [hashtable]$Params = @{}
+    )
+    Write-Host ""
+    Write-Host "=== $Name ===" -ForegroundColor Cyan
+    # Child scripts often omit `exit 0` on success; leftover $LASTEXITCODE must not abort the suite.
+    $global:LASTEXITCODE = 0
+    & $ScriptPath @Params
+    $code = $global:LASTEXITCODE
+    if ($null -ne $code -and $code -ne 0) {
+        Write-Host "Suite step failed: $Name (exit $code)" -ForegroundColor Red
+        exit $code
+    }
+}
+
+Invoke-SuiteStep -Name "1/6 smoke-test" -ScriptPath "$PSScriptRoot\smoke-test.ps1" -Params @{ ApiUrl = $ApiUrl }
 
 if (-not $SkipIsolation) {
-    Write-Host ""
-    Write-Host "=== 2/6 clinic-isolation-test ===" -ForegroundColor Cyan
-    & "$PSScriptRoot\clinic-isolation-test.ps1" -ApiUrl $ApiUrl -SkipSignalR:$SkipSignalR
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $isoParams = @{ ApiUrl = $ApiUrl }
+    if ($SkipSignalR) { $isoParams.SkipSignalR = $true }
+    Invoke-SuiteStep -Name "2/6 clinic-isolation-test" -ScriptPath "$PSScriptRoot\clinic-isolation-test.ps1" -Params $isoParams
 }
 
-Write-Host ""
-Write-Host "=== 3/6 routing-test ===" -ForegroundColor Cyan
-if ($SkipSlow) {
-    & "$PSScriptRoot\routing-test.ps1" -ApiUrl $ApiUrl -SkipSlow
-} else {
-    & "$PSScriptRoot\routing-test.ps1" -ApiUrl $ApiUrl
-}
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$routingParams = @{ ApiUrl = $ApiUrl }
+if ($SkipSlow) { $routingParams.SkipSlow = $true }
+Invoke-SuiteStep -Name "3/6 routing-test" -ScriptPath "$PSScriptRoot\routing-test.ps1" -Params $routingParams
 
 if (-not $SkipEmbed) {
-    Write-Host ""
-    Write-Host "=== 4/6 embed-session-test ===" -ForegroundColor Cyan
-    & "$PSScriptRoot\embed-session-test.ps1" -ApiUrl $ApiUrl
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Invoke-SuiteStep -Name "4/6 embed-session-test" -ScriptPath "$PSScriptRoot\embed-session-test.ps1" -Params @{ ApiUrl = $ApiUrl }
+    Invoke-SuiteStep -Name "5/6 embed-isolation-test" -ScriptPath "$PSScriptRoot\embed-isolation-test.ps1" -Params @{ ApiUrl = $ApiUrl }
 
-    Write-Host ""
-    Write-Host "=== 5/6 embed-isolation-test ===" -ForegroundColor Cyan
-    & "$PSScriptRoot\embed-isolation-test.ps1" -ApiUrl $ApiUrl
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-    Write-Host ""
-    Write-Host "=== 6/6 embed-lifecycle-test ===" -ForegroundColor Cyan
-    if ($SkipSlow) {
-        & "$PSScriptRoot\embed-lifecycle-test.ps1" -ApiUrl $ApiUrl -SkipSlow
-    } else {
-        & "$PSScriptRoot\embed-lifecycle-test.ps1" -ApiUrl $ApiUrl
-    }
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $lifeParams = @{ ApiUrl = $ApiUrl }
+    if ($SkipSlow) { $lifeParams.SkipSlow = $true }
+    Invoke-SuiteStep -Name "6/6 embed-lifecycle-test" -ScriptPath "$PSScriptRoot\embed-lifecycle-test.ps1" -Params $lifeParams
 }
 
 Write-Host ""
 Write-Host "All suites passed against $ApiUrl" -ForegroundColor Green
+exit 0

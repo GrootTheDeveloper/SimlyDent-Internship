@@ -1,9 +1,10 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** **PR-0 … PR-D implemented**; PR-E pending.  
-**Depends on:** Phase 0–1 ✅ · PR-A/B/C ✅ · PR-D staff polish + camera-optional ✅  
+**Status:** **PR-0 … PR-E done** (Phase 2 PoC closed).  
+**Depends on:** Phase 0–1 ✅ · PR-A…D ✅ · **PR-E** evidence + multi-origin harness ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
-**Full order:** PR-0 → PR-0b → PR-A → PR-B → PR-C → **PR-D** → PR-E  
+**Full order:** PR-0 → PR-0b → PR-A → PR-B → PR-C → PR-D → **PR-E** ✅  
+**Evidence:** [evidence/2026-08-06-phase2-embed-vps.md](../evidence/2026-08-06-phase2-embed-vps.md) · protocol [phase2-browser-e2e-protocol.md](./phase2-browser-e2e-protocol.md)  
 
 ### Five MVP invariants
 
@@ -154,14 +155,16 @@ Never trust browser-supplied `clinicId`.
 | Camera optional | Progressive AV → audio-only → receive-only; guest avatar; `retryDevices()` without rejoin |
 | Staff remote placeholder | Embed → guest-avatar; staff-staff → initials; TrackMuted/Unmuted |
 
-### PR-E — Tests + docs + deploy
+### PR-E — Tests + multi-origin evidence + docs ✅
 
 | Item | Detail |
 |------|--------|
-| `scripts/embed-isolation-test.ps1` | site_key A vs B, origin check, token rules |
-| Extend smoke | One embed happy path if local secret-less harness allows |
-| Docs | Snippet, env vars, Phase 2 DoD |
-| VPS | Deploy widget static + backend |
+| Full suite on VPS | `run-test-suite.ps1` **without** `-SkipSlow` (SkipSignalR OK if no local `dotnet` probe) |
+| 4-way origin | A+A / B+B → 200; B+A / A+B → 403 |
+| Harness | `serve-embed-demo-origins.ps1` — fake clinic hosts :5174/:5175 load **remote** VPS `embed.js` (not local widget root) |
+| Origin rule | scheme+host+port only; **path** differences are not multi-origin |
+| Security wording | No LiveKit API key / API secret / signing secret; short-lived **participant join token** after Accept is expected |
+| Evidence | `evidence/2026-08-06-phase2-embed-vps.md` |
 
 ---
 
@@ -192,14 +195,14 @@ Staff continues on existing `/api/*` JWT routes.
 
 ## 6. Security checklist (Phase 2)
 
-- [ ] `clinicId` only from site_key map / visitor session claims  
-- [ ] Origin allowlist enforced on session create  
-- [ ] Rate limit embed endpoints  
-- [ ] Visitor session cannot list staff directory of other clinics  
-- [ ] No LiveKit API secret in widget  
-- [ ] Media token only after Accept + ownership  
-- [ ] Cross-site_key isolation automated  
-- [ ] Recording still staff/clinic authorized (no visitor download)
+- [x] `clinicId` only from site_key map / visitor session claims  
+- [x] Origin allowlist enforced on session create (**4-way** binding)  
+- [x] Rate limit embed endpoints  
+- [x] Visitor session cannot list staff directory of other clinics  
+- [x] No LiveKit **API key / API secret / signing secret** in widget (participant join token after Accept is expected)  
+- [x] Media token only after Accept + ownership  
+- [x] Cross-site_key isolation automated  
+- [x] Recording still staff/clinic authorized (no visitor download)
 
 ---
 
@@ -256,12 +259,12 @@ PoC may hardcode demo map in `ClinicSiteRegistry` first (like `IdentityRegistry`
 
 ## 11. Definition of Done (Phase 2)
 
-- [ ] Demo clinic-a website/widget creates queue call without staff password  
-- [ ] Staff clinic-a receives assign + Accept; media works  
-- [ ] clinic-b site_key/staff cannot access clinic-a embed call  
-- [ ] Widget never receives LiveKit secret  
-- [ ] `run-test-suite.ps1` + embed isolation PASS on VPS  
-- [ ] README snippet for clinic integration  
+- [x] Demo clinic-a website/widget creates queue call without staff password  
+- [x] Staff clinic-a receives assign + Accept; media path token works (browser media optional operator checklist)  
+- [x] clinic-b site_key/staff cannot access clinic-a embed call  
+- [x] Widget never receives LiveKit API/signing secret (join token after Accept only)  
+- [x] `run-test-suite.ps1` + embed isolation PASS on VPS (full, no SkipSlow)  
+- [x] README snippet for clinic integration + multi-origin harness docs  
 
 ---
 

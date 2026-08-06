@@ -99,9 +99,14 @@ Add-Result "unknown site key 404" ($unk.Status -eq 404) "status=$($unk.Status)"
 $badOrigin = Invoke-EmbedSession -SiteKey "pk_clinic_a" -Origin "https://evil.example"
 Add-Result "wrong origin 403" ($badOrigin.Status -eq 403) "status=$($badOrigin.Status)"
 
-# Origin B + site_key A
-$cross = Invoke-EmbedSession -SiteKey "pk_clinic_a" -Origin $OriginB
-Add-Result "origin B + site_key A 403" ($cross.Status -eq 403) "status=$($cross.Status)"
+# Origin binding 4-way (site_key ↔ allowed origin, symmetric)
+# 1) A+A and 2) B+B covered by happy paths above / below
+# 3) Origin B + site_key A
+$crossBA = Invoke-EmbedSession -SiteKey "pk_clinic_a" -Origin $OriginB
+Add-Result "origin B + site_key A 403" ($crossBA.Status -eq 403) "status=$($crossBA.Status)"
+# 4) Origin A + site_key B
+$crossAB = Invoke-EmbedSession -SiteKey "pk_clinic_b" -Origin $OriginA
+Add-Result "origin A + site_key B 403" ($crossAB.Status -eq 403) "status=$($crossAB.Status)"
 
 # Wrong scheme (if OriginA is http, try https same host/port)
 try {

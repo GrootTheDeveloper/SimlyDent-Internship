@@ -1,6 +1,7 @@
 # TASK-003 — Multi-clinic call platform (backlog siết)
 
-**Trạng thái:** Phase 0 **done** · Phase 1 (agent state + queue + auto-dispatch) **implemented in PoC** — Phase 2+ theo thứ tự mục 7  
+**Trạng thái:** Phase 0 **done** · Phase 1 **done** · Phase 2 (embed API + widget + PR-E evidence) **done in PoC** — Phase recording/storage theo mục 7  
+**Phase 2 evidence:** [../evidence/2026-08-06-phase2-embed-vps.md](../evidence/2026-08-06-phase2-embed-vps.md)  
 
 **Baseline:** TASK-002 LiveKit 1:1 PoC (`poc/livekit-1to1/`)  
 **Repo:** SimlyDent-Internship · `main`  
