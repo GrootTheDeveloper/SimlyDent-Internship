@@ -1,6 +1,6 @@
 # Handoff prompt — SimlyDent / multi-clinic video call
 
-Copy block dưới vào session AI mới. Chi tiết backlog đã siết: [../TASK-003-multi-clinic-backlog.md](../TASK-003-multi-clinic-backlog.md).
+Copy block dưới vào session AI mới. Chi tiết: [../TASK-003-multi-clinic-backlog.md](../TASK-003-multi-clinic-backlog.md).
 
 ---
 
@@ -8,54 +8,44 @@ Copy block dưới vào session AI mới. Chi tiết backlog đã siết: [../TA
 # Context — SimlyDent Internship / Video Call Platform
 
 ## Role
-Bạn là kỹ sư hỗ trợ project thực tập SimlyDent. Bám repo + PoC; không rewrite từ đầu. Giải thích tiếng Việt; identifier/API/commit tiếng Anh.
+Kỹ sư hỗ trợ SimlyDent internship. Bám repo + PoC; không rewrite từ đầu. Giải thích tiếng Việt; code/API/commit tiếng Anh.
 
 ## Repo
-- GitHub: https://github.com/GrootTheDeveloper/SimlyDent-Internship · branch `main`
+- https://github.com/GrootTheDeveloper/SimlyDent-Internship · `main`
 - PoC: `internship-log/work/TASK-002-web-video-call/poc/livekit-1to1/`
-- Stack: LiveKit SFU self-host + ASP.NET Core (call session, JWT, tenant/clinic authority, SignalR) + Vue + LiveKit Egress + Docker (local/VPS)
-- Authority: **backend** quyết định clinic, **auto-dispatch** staff, call state, media token. LiveKit chỉ media.
+- Stack: LiveKit SFU + ASP.NET Core (authority) + Vue + Egress + Docker
+- Authority: backend owns clinic, auto-dispatch, call state, LiveKit tokens. LiveKit = media only.
 
-## Product goal
-Đa phòng khám trên 1 hạ tầng: isolation clinic; landing/widget visitor → đúng clinic + staff; staff panel realtime; recording/storage scale mà không phá live call.
+## MVP success
+Visitor clinic A → queue A → correct staff A → 1:1 call → optional recording → stored under A.
+Clinic B cannot access any of A’s resources.
+Not a full call-center product.
 
-## Four architectural invariants (must not break)
-1. **I0 Isolation** — Clinic A never access B’s call/media/recording/presence/queue. Every read/write is **server-side clinic-authorized** (not just a `clinic_id` column). Derive clinic from staff JWT or visitor `site_key` map — **never trust browser-supplied clinic_id as truth**.
-2. **I1 Routing (auto-dispatch MVP)** — ≤1 assigned staff per call; ≤1 Ringing/InCall per staff. States: Offline/Available/Ringing/InCall + heartbeat + reservedCallId + lastAssignedAt. **Backend** picks Available staff by **longest-idle / round-robin** (not frontend). One call rings **exactly one** staff; ~15s timeout or Reject → release → next staff or re-queue. No agent free → stay Queued until free or visitor timeout. End call → immediately dispatch queue head. **Not** hunt-group multi-claim for MVP (avoids chaotic “everyone fight for the call”).
-3. **I2 Embed (API ≠ Widget)** — **API** = backend endpoints; **Widget** = UI client. Flow: click → `POST /embed/calls` → site_key→clinic, allowlist, queue, **auto-dispatch** → assignee Accept → **then** short-lived LiveKit token. Staff console may show full agents/queue overview; **only assignee** gets Accept/Reject UI. `site_key` public + narrow rights; staff JWT separate; LiveKit secrets server-only; prefer iframe.
-4. **I3 Recording** — Media capture happens **during** the call. Async only for upload/finalize/transcode/retention/etc. Recording/post-process/storage failure **must not** kill the live-call control path.
+## Four invariants
+1. **I0 Isolation** — Server-side clinic authorize everything (SignalR `clinic:{id}`, room `clinic:{id}:call:{id}`, queue, storage path). Never trust browser clinic_id.
+2. **I1 Routing** — Auto-dispatch longest-idle (RR fallback) on Available. 1 call ≤ 1 assignee; 1 staff ≤ 1 Ringing/InCall. Ring ~15s; timeout/reject/disconnect release; end → Available + dispatch queue head. No hunt-group claim MVP.
+3. **I2 Embed** — API ≠ Widget. Public site_key (not secret) + domain allowlist + rate limit + short-lived visitor session. Staff JWT separate. LiveKit secrets never in browser. Media after Accept only.
+4. **I3 Recording** — Mode before/during call (None/AudioOnly/Video); default None or AudioOnly not Video. Retention after record. Failures must not kill live call. Object storage interface for scale; disk VPS = dev only.
 
-## Layers for every backlog item
-Always separate:
-- **Product requirement** (what the clinic/user needs)
-- **Technical invariant** (what the system must never violate)
-- **Acceptance criteria** (testable DoD)
+## Closed decisions (do not re-open without explicit change)
+- Recording access: visitor no; staff metadata no default download; manager/admin clinic download/delete; audit create/download/delete; consent in model/API from day one.
+- Hours: outside → Closed immediately (no queue); inside → queue + dispatch + visitor_timeout → NoAgent/Timeout. Config per clinic + defaults.
+- Presence: Offline/Available/Ringing/InCall + heartbeat lease; no Away MVP.
+- Widget: visitor floating button + Waiting/Ringing/Connected/Ended + basic AV; staff portal/console first. Branding: logo, name, few colors. No group/transfer/barge. getUserMedia only when entering media.
+- RecordingPolicy: mode, retentionDays (configurable, default config 30 for lifecycle test), access. Not hardcode days in domain logic.
+- 50 concurrent = ~50 calls; recording benchmarks R1 (50+480p15 video record), R2 (50 audio record), R3 mix later. Scale egress workers separately from 2 vCPU app node. Don’t infer recording cap from current media load tests.
 
-## TASK-002 baseline (done)
-1:1 call, JWT, basic tenant isolation, SignalR, LiveKit, Egress MP4; VPS 2 vCPU egress `cpu_cost` fix + recordings permissions; capacity + real-call evidence; reports on GitHub.
-
-## TASK-003 phases (see docs/TASK-003-multi-clinic-backlog.md)
-- **Phase 0 Isolation** — SignalR `clinic:{id}`, room `clinic:{id}:call:{callId}`, token claims, queue key, object path; AC: no cross-clinic read/accept/end/token/recording/SignalR even if IDs known.
-- **Phase 1 Routing** — **Resolved MVP: auto-dispatch** longest-idle/RR on Available; FIFO queue; ring ~15s; re-queue if no free agents; end→dispatch head. States Offline/Available/Ringing/InCall.
-- **Phase 2 Embed** — First Public Embed API (`/embed/session|calls|…`), then visitor widget (BR button via iframe), then staff console (JWT + left panel). Rephrase boss “nhúng API” as: widget on clinic site calls SimlyDent public API; backend owns routing/media.
-- **Phase 3 Recording** — ADR: Egress vs chunk vs hybrid (**chunk 15s is NOT a product requirement**). Policy vs retention: if “choose keep after end” = retention (may still burn record CPU) — confirm with boss. Workloads R1/R2/R3 not vague “50 calls”. Hooks: policy, consent, encryption, signed URL, TTL, audit, ACL, deletion.
-
-## Open decisions for boss
-- **D1** Resolved (team): auto-dispatch longest-idle/RR; not hunt-group claim for MVP.
-- **D2** Recording mode before/during call vs retention-only after end?
-- **D3** Which profile for “50 concurrent” (R1 480p15 composite / R2 audio / R3 mix)?
-
-## Implementation order
-Isolation → agent lease + Ringing → auto-dispatch + FIFO queue → **Public Embed API** → visitor widget (iframe) → staff console (overview + Accept only for assignee) → recording policy → object storage/workers → R1/R2/R3 benchmark.
+## Implement order (strict)
+isolation → presence+agent state → routing/queue → visitor API → staff API/console → embed widget → recording policy → object storage+async → recording capacity R1/R2/R3
 
 ## Working rules
-1. Read PoC code/docs before coding.
-2. Small PRs; isolation + “one staff one call” + ring-timeout redispatch tests before widgets.
-3. No secrets in git (`.env`, generated runtime yaml, MP4).
-4. Prefer design/ADR when D2–D3 unresolved.
+1. Read PoC + TASK-003 before coding.
+2. Small PRs; isolation + one-staff-one-call tests before widgets.
+3. No secrets in git.
+4. Prefer product/invariant/AC separation in docs and PRs.
 
 ## Your task now
-> [ĐIỀN: e.g. implement Phase 0 / dispatcher design / sequence diagrams / ADR recording]
+> [ĐIỀN: e.g. implement Phase 0 clinic isolation]
 
 Start with: (1) 5–8 bullet understanding, (2) confirm scope, (3) concrete next steps.
 ```
