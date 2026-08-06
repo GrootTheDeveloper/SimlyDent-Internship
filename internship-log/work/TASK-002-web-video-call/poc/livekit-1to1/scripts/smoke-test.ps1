@@ -254,6 +254,61 @@ Invoke-PocRequest POST "/api/calls/$($busyCall.id)/accept" "A3" $null 200 | Out-
 Invoke-PocRequest POST "/api/calls" "A1" @{ calleeId = "A2" } 409 | Out-Null
 Invoke-PocRequest POST "/api/calls/$($busyCall.id)/end" "A2" $null 200 | Out-Null
 
+# ---- Phase 1 smoke: agent ready + short queue path (no ring-timeout wait) ----
+$ready = Invoke-PocRequest POST "/api/agents/ready" "A1" $null 200
+if ($ready.state -ne "Available") {
+    throw "A1 ready expected Available, got $($ready.state)"
+}
+$results.Add([PSCustomObject]@{ Test = "POST /api/agents/ready A1"; Expected = "Available"; Actual = $ready.state; Result = "PASS" })
+
+Invoke-PocRequest POST "/api/agents/ready" "A2" $null 200 | Out-Null
+
+$queueCall = Invoke-PocRequest POST "/api/queue/calls" "VA" $null 201
+if ($queueCall.origin -ne "Queue") {
+    throw "Queue call origin expected Queue, got $($queueCall.origin)"
+}
+if ($queueCall.status -ne "Ringing") {
+    throw "Queue call with ready staff expected Ringing, got $($queueCall.status)"
+}
+$queueRoomOk = $queueCall.roomName -like "clinic:clinic-a:call:*"
+if (-not $queueRoomOk) {
+    throw "Queue room not clinic-scoped: $($queueCall.roomName)"
+}
+$results.Add([PSCustomObject]@{
+    Test = "POST /api/queue/calls VA → Ringing"
+    Expected = "Queue+Ringing+clinic room"
+    Actual = "$($queueCall.status)/$($queueCall.roomName)"
+    Result = "PASS"
+})
+
+$assigned = $queueCall.assignedStaffId
+if ([string]::IsNullOrWhiteSpace($assigned)) { $assigned = $queueCall.calleeId }
+if ($assigned -notin @("A1", "A2", "A3")) {
+    throw "Unexpected assigned staff: $assigned"
+}
+
+# Non-assigned staff must not accept
+$otherStaff = @("A1", "A2", "A3") | Where-Object { $_ -ne $assigned } | Select-Object -First 1
+Invoke-PocRequest POST "/api/calls/$($queueCall.id)/accept" $otherStaff $null 403 | Out-Null
+Invoke-PocRequest POST "/api/calls/$($queueCall.id)/accept" $assigned $null 200 | Out-Null
+Invoke-PocRequest POST "/api/calls/$($queueCall.id)/token" "VA" $null 200 | Out-Null
+Invoke-PocRequest POST "/api/calls/$($queueCall.id)/end" $assigned $null 200 | Out-Null
+$results.Add([PSCustomObject]@{
+    Test = "Queue path accept/token/end"
+    Expected = "403 other + 200 assigned"
+    Actual = "ok"
+    Result = "PASS"
+})
+
+# Visitor cannot use direct staff call API
+Invoke-PocRequest POST "/api/calls" "VA" @{ calleeId = "A1" } 403 | Out-Null
+$results.Add([PSCustomObject]@{
+    Test = "Visitor blocked from POST /api/calls"
+    Expected = 403
+    Actual = 403
+    Result = "PASS"
+})
+
 $results | Format-Table -AutoSize
 if ($results.Result -contains "FAIL") { exit 1 }
-Write-Host "Smoke test passed: $($results.Count) checks (JWT Bearer auth + clinic isolation basics)."
+Write-Host "Smoke test passed: $($results.Count) checks (JWT + clinic isolation + Phase 1 queue smoke)."

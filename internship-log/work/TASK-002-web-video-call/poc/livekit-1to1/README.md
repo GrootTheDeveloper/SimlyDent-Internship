@@ -79,16 +79,26 @@ Các identity A1/A2/A3 thuộc **`clinic-a`**; B1 thuộc **`clinic-b`**. Clinic
 **LiveKit room (backend-generated):** `clinic:{clinicId}:call:{callId}`  
 **SignalR groups:** `clinic:{clinicId}` và `clinic:{clinicId}:user:{userId}`
 
-### Kiểm thử isolation (Phase 0)
+### Kiểm thử isolation (Phase 0) + routing (Phase 1)
 
 Backend phải đang chạy (`http://localhost:5080` hoặc URL VPS):
 
 ```powershell
-.\scripts\smoke-test.ps1
-.\scripts\clinic-isolation-test.ps1
-# VPS example:
-.\scripts\clinic-isolation-test.ps1 -ApiUrl "https://YOUR_DOMAIN"
+# Full suite (smoke + isolation + routing; routing includes ~18s ring-timeout)
+.\scripts\run-test-suite.ps1 -ApiUrl "https://YOUR_DOMAIN"
+
+# Or individually:
+.\scripts\smoke-test.ps1 -ApiUrl "https://YOUR_DOMAIN"
+.\scripts\clinic-isolation-test.ps1 -ApiUrl "https://YOUR_DOMAIN" -SkipSignalR
+.\scripts\routing-test.ps1 -ApiUrl "https://YOUR_DOMAIN"
+# Fast routing (skip ring-timeout wait ~18s):
+.\scripts\routing-test.ps1 -ApiUrl "https://YOUR_DOMAIN" -SkipSlow
 ```
+
+**Phase 1 demo:** login staff **A1/A2** (Available qua SignalR). Login visitor **VA** → **Bắt đầu gọi (queue)** → backend gán longest-idle staff → Accept.  
+Env: `RING_TIMEOUT_SECONDS` (15), `VISITOR_TIMEOUT_SECONDS` (120), `AGENT_HEARTBEAT_STALE_SECONDS` (45).
+
+**Phase 2 plan:** [docs/PHASE-2-plan.md](docs/PHASE-2-plan.md).
 
 Nếu browser không hiện prompt, mở biểu tượng quyền site cạnh thanh địa chỉ, đặt Camera và Microphone thành **Allow**, sau đó reload cả hai tab. UI hiển thị **Đang xin quyền camera và microphone…** trong khi chờ browser trả kết quả và có nút **Thử lại** khi quyền bị từ chối.
 

@@ -1513,14 +1513,21 @@ if (isCallRoute) {
       broadcastChannel: null,
       /** userId -> online bool (same clinic only) */
       onlineMap: {},
+      /** userId -> agent state string (Available/Ringing/InCall/Offline) */
+      agentStateMap: {},
+      queueItems: [],
+      heartbeatTimer: null,
       showOtherClinics: false
     },
     computed: {
       identityId() {
         return this.currentUser?.id || ''
       },
+      isVisitor() {
+        return (this.currentUser?.role || 'Staff') === 'Visitor'
+      },
       isCallActive() {
-        return !!(this.call && ['Ringing', 'Accepted'].includes(this.call.status))
+        return !!(this.call && ['Queued', 'Ringing', 'Accepted'].includes(this.call.status))
       },
       selectedIdentity() {
         return this.identities.find(i => i.id === this.targetId)
@@ -1649,6 +1656,10 @@ if (isCallRoute) {
         await this.connectRealtime()
       },
       async logout() {
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer)
+          this.heartbeatTimer = null
+        }
         if (this.hub) await this.hub.stop()
         clearAuthSession()
         this.currentUser = null
@@ -1656,21 +1667,38 @@ if (isCallRoute) {
         this.call = null
         this.popupState = 'none'
         this.onlineMap = {}
+        this.agentStateMap = {}
+        this.queueItems = []
         this.identities = []
         history.replaceState(null, '', location.pathname)
       },
       isUserOnline(userId) {
         return !!this.onlineMap[userId]
       },
+      isCallForMe(call) {
+        if (!call) return false
+        const me = this.identityId
+        return call.callerId === me
+          || call.calleeId === me
+          || call.assignedStaffId === me
+      },
       applyPresenceSnapshot(snapshot) {
         if (!snapshot?.users) return
-        const next = { ...this.onlineMap }
+        const nextOnline = { ...this.onlineMap }
+        const nextState = { ...this.agentStateMap }
         for (const u of snapshot.users) {
-          next[u.userId] = !!u.online
+          nextOnline[u.userId] = !!u.online
+          nextState[u.userId] = u.state || (u.online ? 'Available' : 'Offline')
         }
         // Self is online while this page is connected
-        if (this.identityId) next[this.identityId] = true
-        this.onlineMap = next
+        if (this.identityId) {
+          nextOnline[this.identityId] = true
+          if (!nextState[this.identityId] || nextState[this.identityId] === 'Offline') {
+            nextState[this.identityId] = 'Available'
+          }
+        }
+        this.onlineMap = nextOnline
+        this.agentStateMap = nextState
       },
       clearCallUiState({ showEndedToast = false } = {}) {
         this.call = null
@@ -1679,6 +1707,10 @@ if (isCallRoute) {
       },
       async connectRealtime() {
         if (this.hub) await this.hub.stop()
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer)
+          this.heartbeatTimer = null
+        }
         this.hub = new signalR.HubConnectionBuilder()
           .withUrl(`${API_URL}/hubs/calls`, {
             accessTokenFactory: () => getAccessToken()
@@ -1687,21 +1719,21 @@ if (isCallRoute) {
           .build()
 
         this.hub.on('CallUpdated', call => {
-          // Ignore events for other users' calls (shouldn't happen, but be safe)
-          if (call.callerId !== this.identityId && call.calleeId !== this.identityId) return
+          if (!this.isCallForMe(call)) return
 
           this.call = call
 
-          if (call.status === 'Ringing') {
-            this.popupState = call.calleeId === this.identityId ? 'incoming' : 'ringing'
+          if (call.status === 'Queued') {
+            this.popupState = call.callerId === this.identityId ? 'ringing' : 'none'
+          } else if (call.status === 'Ringing') {
+            const assigned = call.assignedStaffId || call.calleeId
+            this.popupState = assigned === this.identityId ? 'incoming' : 'ringing'
           } else if (call.status === 'Accepted') {
             this.popupState = 'active_window'
           } else if (call.status === 'Rejected') {
             this.popupState = 'rejected'
-          } else if (call.status === 'Cancelled' || call.status === 'Ended') {
-            // Keep toast briefly, but allow selecting users again immediately
+          } else if (['Cancelled', 'Ended', 'Timeout', 'NoAgent', 'Closed'].includes(call.status)) {
             this.popupState = 'ended'
-            // selectUser uses isCallActive (terminal statuses are not active)
             if (this._endedToastTimer) clearTimeout(this._endedToastTimer)
             this._endedToastTimer = setTimeout(() => {
               if (this.popupState === 'ended' && !this.isCallActive) {
@@ -1715,12 +1747,31 @@ if (isCallRoute) {
           this.applyPresenceSnapshot(snapshot)
         })
 
+        this.hub.on('QueueUpdated', snapshot => {
+          this.queueItems = snapshot?.items || []
+        })
+
         this.hub.onreconnected(async () => {
           await this.refreshPresence()
+          if (!this.isVisitor) {
+            try { await this.hub.invoke('Heartbeat') } catch { /* ignore */ }
+          }
         })
 
         await this.hub.start()
         await this.refreshPresence()
+
+        if (!this.isVisitor) {
+          // REST ready + periodic hub heartbeat for agent lease freshness.
+          try {
+            await apiFetch('/api/agents/ready', { method: 'POST', headers: authHeaders() })
+          } catch { /* ignore */ }
+          this.heartbeatTimer = setInterval(() => {
+            if (this.hub?.state === 'Connected') {
+              this.hub.invoke('Heartbeat').catch(() => {})
+            }
+          }, 15000)
+        }
 
         // Check if there is an active call already
         try {
@@ -1733,7 +1784,10 @@ if (isCallRoute) {
             if (activeCall.status === 'Accepted') {
               this.popupState = 'active_window'
             } else if (activeCall.status === 'Ringing') {
-              this.popupState = activeCall.callerId === this.identityId ? 'ringing' : 'incoming'
+              const assigned = activeCall.assignedStaffId || activeCall.calleeId
+              this.popupState = assigned === this.identityId ? 'incoming' : 'ringing'
+            } else if (activeCall.status === 'Queued') {
+              this.popupState = 'ringing'
             }
           }
         } catch (e) {
@@ -1750,6 +1804,27 @@ if (isCallRoute) {
           }
         } catch (e) {
           console.warn('presence fetch failed', e)
+        }
+      },
+      async startQueueCall() {
+        if (this.isCallActive) return
+        try {
+          const res = await apiFetch('/api/queue/calls', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: '{}'
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            this.popupErrorMessage = body.error || 'Không vào được hàng đợi.'
+            this.popupState = 'error'
+            return
+          }
+          this.call = body
+          this.popupState = body.status === 'Ringing' ? 'ringing' : 'ringing'
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
         }
       },
       selectUser(userId) {
@@ -1770,9 +1845,15 @@ if (isCallRoute) {
       },
       contactStatusLabel(item) {
         if (!this.sameClinic(item)) return 'Phòng khám / clinic khác'
-        return this.isUserOnline(item.id) ? 'Đang online' : 'Offline'
+        const state = this.agentStateMap[item.id]
+        if (state && state !== 'Offline') return state
+        return this.isUserOnline(item.id) ? 'Available' : 'Offline'
       },
       async startCall(targetId) {
+        if (this.isVisitor) {
+          await this.startQueueCall()
+          return
+        }
         if (this.isCallActive) return
         const peer = this.identities.find(i => i.id === targetId)
         if (!peer) return
@@ -1952,7 +2033,7 @@ if (isCallRoute) {
                 <div class="account-avatar">{{ user.id }}</div>
                 <div class="account-info">
                   <span class="account-name">{{ user.displayName }}</span>
-                  <span class="account-id">ID: {{ user.id }} · Clinic: {{ user.clinicId || user.tenantId }}</span>
+                  <span class="account-id">ID: {{ user.id }} · Clinic: {{ user.clinicId || user.tenantId }} · {{ user.role || 'Staff' }}</span>
                 </div>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
               </button>
@@ -2069,18 +2150,35 @@ if (isCallRoute) {
                 <button @click="reopenCallWindow">Mở lại cửa sổ</button>
               </div>
 
-              <!-- Idle Placeholder -->
-              <div v-if="selectedIdentity" class="idle-placeholder">
+              <!-- Visitor queue entry (Phase 1) -->
+              <div v-if="isVisitor" class="idle-placeholder">
+                <div class="hero-avatar-large">VA</div>
+                <h2 style="margin: 0; font-size: 22px;">Gọi phòng khám</h2>
+                <p style="margin: 0; color: #65676b; font-size: 14px;">
+                  Vào hàng đợi clinic — backend tự gán staff Available (longest-idle)
+                </p>
+                <p v-if="queueItems.length" style="margin: 8px 0 0; color: #65676b; font-size: 13px;">
+                  Queue: {{ queueItems.length }} call(s)
+                </p>
+                <button class="start-call-btn" :disabled="isCallActive" @click="startQueueCall">
+                  <span>{{ isCallActive ? ('Đang ' + (call && call.status)) : 'Bắt đầu gọi (queue)' }}</span>
+                </button>
+              </div>
+
+              <!-- Idle Placeholder (staff direct call) -->
+              <div v-else-if="selectedIdentity" class="idle-placeholder">
                 <div class="hero-avatar-large">{{ selectedIdentity.id }}</div>
                 <h2 style="margin: 0; font-size: 22px;">{{ selectedIdentity.displayName }}</h2>
-                <p style="margin: 0; color: #65676b; font-size: 14px;">Thực hiện cuộc gọi video 1:1 trong cửa sổ riêng</p>
+                <p style="margin: 0; color: #65676b; font-size: 14px;">
+                  Gọi trực tiếp 1:1 · Agent: {{ contactStatusLabel(selectedIdentity) }}
+                </p>
                 <button
                   class="start-call-btn"
-                  :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
+                  :disabled="isCallActive || !sameTenant(selectedIdentity)"
                   @click="startCall(selectedIdentity.id)"
                 >
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-                  <span>{{ isUserOnline(selectedIdentity.id) ? 'Bắt đầu cuộc gọi video' : 'User offline — không gọi được' }}</span>
+                  <span>Bắt đầu cuộc gọi video</span>
                 </button>
               </div>
             </div>

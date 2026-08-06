@@ -14,10 +14,12 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
 
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddSingleton<IdentityRegistry>();
-builder.Services.AddSingleton<PresenceRegistry>();
+builder.Services.AddSingleton<AgentRegistry>();
 builder.Services.AddSingleton<LiveKitTokenService>();
 builder.Services.AddSingleton<CallQualityStore>();
 builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
+builder.Services.AddSingleton<CallDispatcher>();
+builder.Services.AddHostedService<RoutingBackgroundService>();
 builder.Services.AddHttpClient<LiveKitEgressService>();
 builder.Services.AddSignalR();
 
@@ -26,12 +28,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = authTokens.ValidationParameters();
-        // SignalR cannot set Authorization header easily from browser — token via query.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
-                // SignalR + sendBeacon cannot always set Authorization header.
                 var accessToken = context.Request.Query["access_token"].FirstOrDefault();
                 if (!string.IsNullOrEmpty(accessToken))
                     context.Token = accessToken;
@@ -48,10 +48,8 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// ---- Auth (real-world shape: password verify → JWT access token) ----
-// Clinic membership is never accepted from the client; it is bound at login.
+// ---- Auth ----
 app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>
-    // Login picker: real demo clinics only (not synthetic Lxx load users).
     Results.Ok(registry.Directory(includeLoadUsers: false).Select(ToUserDto)));
 
 app.MapPost("/api/auth/login", (
@@ -78,8 +76,7 @@ app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry regis
 {
     var current = ClinicAuthorization.CurrentUser(principal, registry);
     if (current is null) return Results.Unauthorized();
-    // Directory is always scoped to the authenticated principal's clinic.
-    // Client cannot pass clinicId to broaden the list.
+    // Staff directory only (visitors never listed as callees).
     var peers = registry.DirectoryForClinic(current.ClinicId, includeLoadUsers: false)
         .Select(ToUserDto);
     return Results.Ok(peers);
@@ -88,27 +85,96 @@ app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry regis
 app.MapGet("/api/presence", (
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    PresenceRegistry presence) =>
+    AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    // Clinic comes from principal only — ignore any query clinicId if present.
-    return Results.Ok(presence.SnapshotForClinic(identities, current.ClinicId));
+    return Results.Ok(agents.SnapshotForClinic(identities, current.ClinicId));
 }).RequireAuthorization();
 
+app.MapGet("/api/agents", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    AgentRegistry agents) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    return Results.Ok(agents.SnapshotForClinic(identities, current.ClinicId));
+}).RequireAuthorization();
+
+app.MapGet("/api/queue", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    return Results.Ok(dispatcher.QueueSnapshot(current.ClinicId));
+}).RequireAuthorization();
+
+app.MapPost("/api/agents/heartbeat", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    AgentRegistry agents) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    if (current.Role != IdentityRoles.Staff)
+        return Results.Json(new { error = "Only staff have agent leases." }, statusCode: 403);
+    return Results.Ok(agents.Heartbeat(current.ClinicId, current.Id));
+}).RequireAuthorization();
+
+/// <summary>Staff ready for auto-dispatch (SignalR connect also does this).</summary>
+app.MapPost("/api/agents/ready", async (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    AgentRegistry agents,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    if (current.Role != IdentityRoles.Staff)
+        return Results.Json(new { error = "Only staff can become Available." }, statusCode: 403);
+    var view = agents.MarkReady(current.ClinicId, current.Id);
+    await dispatcher.BroadcastAgentsAsync(current.ClinicId);
+    await dispatcher.TryDispatchClinicAsync(current.ClinicId);
+    return Results.Ok(view);
+}).RequireAuthorization();
+
+// ---- Queue path (visitor auto-dispatch) ----
+app.MapPost("/api/queue/calls", async (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    CallDispatcher dispatcher) =>
+{
+    var visitor = ClinicAuthorization.CurrentUser(principal, identities);
+    if (visitor is null) return Results.Unauthorized();
+    // Phase 1: demo visitors VA/VB. Staff may also enqueue for manual testing.
+    var call = await dispatcher.EnqueueAsync(visitor);
+    if (call.Status == CallStatus.Closed)
+        return Results.Json(new { error = "Clinic is closed.", call = call.ToView() }, statusCode: 403);
+    return Results.Created($"/api/calls/{call.Id}", call.ToView());
+}).RequireAuthorization();
+
+// ---- Direct staff→staff call (TASK-002 path, still supported) ----
 app.MapPost("/api/calls", async (
     ClaimsPrincipal principal,
     CreateCallRequest body,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
-    IHubContext<CallHub> hub) =>
+    CallDispatcher dispatcher,
+    AgentRegistry agents) =>
 {
     var caller = ClinicAuthorization.CurrentUser(principal, identities);
     if (caller is null) return Results.Unauthorized();
+    if (caller.Role == IdentityRoles.Visitor)
+        return Results.Json(new { error = "Visitors must use POST /api/queue/calls." }, statusCode: 403);
+
     var callee = identities.Find(body.CalleeId);
     if (callee is null) return Results.BadRequest(new { error = "Unknown callee." });
+    if (callee.Role != IdentityRoles.Staff)
+        return Results.BadRequest(new { error = "Direct calls require a staff callee." });
     if (caller.Id == callee.Id) return Results.BadRequest(new { error = "Self-call is not allowed." });
-    // Cross-clinic create is forbidden. Clinic is server-owned on both identities.
     if (!ClinicAuthorization.SameClinic(caller, callee))
         return Results.Json(new { error = "Không thể gọi user phòng khám / clinic khác." }, statusCode: 403);
 
@@ -116,9 +182,8 @@ app.MapPost("/api/calls", async (
     var busy = calls.Values.Any(call =>
     {
         if (!call.IsActive) return false;
-        // Only auto-expire abandoned ringing invites. Accepted media calls stay busy
-        // until hangup (long clinical calls must not be killed by a 2-minute UpdatedAt scan).
-        if (call.Status == CallStatus.Ringing && now - call.UpdatedAt > TimeSpan.FromSeconds(45))
+        if (call.Status == CallStatus.Ringing && call.Origin == CallOrigin.Direct
+            && now - call.UpdatedAt > TimeSpan.FromSeconds(45))
         {
             lock (call.SyncRoot)
             {
@@ -128,24 +193,34 @@ app.MapPost("/api/calls", async (
                     call.UpdatedAt = now;
                 }
             }
+            agents.TryRelease(call.ClinicId, call.CalleeId, call.Id, force: true);
+            agents.TryRelease(call.ClinicId, call.CallerId, call.Id, force: true);
             return false;
         }
         return call.Contains(caller.Id) || call.Contains(callee.Id);
     });
     if (busy) return Results.Conflict(new { error = "Caller or callee is busy." });
 
+    if (agents.IsBusy(callee.ClinicId, callee.Id))
+        return Results.Conflict(new { error = "Callee is busy." });
+
     var id = Guid.NewGuid();
-    var call = new CallSession
+    var session = new CallSession
     {
         Id = id,
         ClinicId = caller.ClinicId,
         CallerId = caller.Id,
         CalleeId = callee.Id,
+        Origin = CallOrigin.Direct,
         RoomName = CallSession.BuildRoomName(caller.ClinicId, id)
     };
-    calls[id] = call;
-    await hub.Clients.Group(CallHub.Group(call.ClinicId, callee.Id)).SendAsync("CallUpdated", call.ToView());
-    return Results.Created($"/api/calls/{id}", call.ToView());
+    if (!dispatcher.TryAssignDirect(session, callee.Id))
+        return Results.Conflict(new { error = "Callee is not available (busy)." });
+
+    calls[id] = session;
+    await dispatcher.NotifyCallAsync(session);
+    await dispatcher.BroadcastAgentsAsync(session.ClinicId);
+    return Results.Created($"/api/calls/{id}", session.ToView());
 }).RequireAuthorization();
 
 app.MapGet("/api/calls/active", (
@@ -170,7 +245,6 @@ app.MapGet("/api/calls/{id:guid}", (
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    // Cross-clinic or non-participant → 404 (hide existence).
     var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
     return call is null ? Results.NotFound() : Results.Ok(call.ToView());
 }).RequireAuthorization();
@@ -180,35 +254,90 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
-    IHubContext<CallHub> hub) =>
+    CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.GetAuthorizedCallAs(calls, id, current, requireCallee: true);
+    if (current.Role != IdentityRoles.Staff)
+        return Results.StatusCode(403);
+
+    // Only the currently assigned staff may accept (not every clinic staff).
+    var call = ClinicAuthorization.TryGetClinicCall(calls, id, current);
     if (call is null) return Results.NotFound();
+    if (!string.Equals(call.AssignedStaffId ?? call.CalleeId, current.Id, StringComparison.OrdinalIgnoreCase))
+        return Results.StatusCode(403);
+
     lock (call.SyncRoot)
     {
         if (call.Status != CallStatus.Ringing)
             return Results.Conflict(new { error = "Call is no longer ringing.", status = call.Status.ToString() });
-        call.Status = CallStatus.Accepted;
-        call.AcceptedBy = current.Id;
-        call.UpdatedAt = DateTimeOffset.UtcNow;
     }
-    await NotifyParticipants(hub, call);
+
+    try
+    {
+        await dispatcher.OnAcceptAsync(call, current);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
     return Results.Ok(call.ToView());
 }).RequireAuthorization();
 
-app.MapPost("/api/calls/{id:guid}/reject", Transition(CallStatus.Rejected, callerOnly: false, calleeOnly: true))
-    .RequireAuthorization();
-app.MapPost("/api/calls/{id:guid}/cancel", Transition(CallStatus.Cancelled, callerOnly: true, calleeOnly: false))
-    .RequireAuthorization();
+app.MapPost("/api/calls/{id:guid}/reject", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = ClinicAuthorization.TryGetClinicCall(calls, id, current);
+    if (call is null) return Results.NotFound();
+    if (!string.Equals(call.AssignedStaffId ?? call.CalleeId, current.Id, StringComparison.OrdinalIgnoreCase))
+        return Results.StatusCode(403);
+
+    lock (call.SyncRoot)
+    {
+        if (call.Status != CallStatus.Ringing)
+            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
+    }
+
+    await dispatcher.OnRingingReleasedAsync(call, CallStatus.Rejected);
+    return Results.Ok(call.ToView());
+}).RequireAuthorization();
+
+app.MapPost("/api/calls/{id:guid}/cancel", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    CallDispatcher dispatcher) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
+    if (call.CallerId != current.Id)
+        return Results.StatusCode(403);
+
+    lock (call.SyncRoot)
+    {
+        if (call.Status is not (CallStatus.Ringing or CallStatus.Queued))
+            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
+    }
+
+    await dispatcher.OnCancelAsync(call);
+    return Results.Ok(call.ToView());
+}).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/end", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
-    IHubContext<CallHub> hub,
+    CallDispatcher dispatcher,
     LiveKitEgressService egress,
     CancellationToken cancellationToken) =>
 {
@@ -228,7 +357,8 @@ app.MapPost("/api/calls/{id:guid}/end", async (
         if (egressId is not null) call.RecordingStatus = "Stopping";
     }
 
-    await NotifyParticipants(hub, call);
+    await dispatcher.OnEndAsync(call, cancellationToken);
+
     if (egressId is not null)
     {
         try
@@ -241,7 +371,7 @@ app.MapPost("/api/calls/{id:guid}/end", async (
             lock (call.SyncRoot) call.RecordingStatus = "Failed";
         }
         call.UpdatedAt = DateTimeOffset.UtcNow;
-        await NotifyParticipants(hub, call);
+        await dispatcher.NotifyCallAsync(call);
     }
     return Results.Ok(call.ToView());
 }).RequireAuthorization();
@@ -262,9 +392,7 @@ app.MapPost("/api/calls/{id:guid}/token", (
     {
         if (call.Status != CallStatus.Accepted)
             return Results.Conflict(new { error = "Media token is available only after accept." });
-        // Room name is backend-owned; clients never choose the room.
     }
-    // Long enough for 15–30 min clinical demos; previously 5 min cut media mid-call.
     var mediaTtlMinutes = int.TryParse(
         Environment.GetEnvironmentVariable("LIVEKIT_JOIN_TOKEN_MINUTES"), out var ttl)
         ? Math.Clamp(ttl, 5, 180)
@@ -279,7 +407,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitEgressService egress,
-    IHubContext<CallHub> hub,
+    CallDispatcher dispatcher,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
@@ -287,8 +415,6 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
     if (call is null) return Results.NotFound();
 
-    // Logical clinic namespace in the filename; physical path stays under RECORDINGS_PATH
-    // with server-side resolution only (no client path input). Nested dirs remain debt.
     var fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.mp4";
     lock (call.SyncRoot)
     {
@@ -301,7 +427,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
         call.RecordingEgressId = null;
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
-    await NotifyParticipants(hub, call);
+    await dispatcher.NotifyCallAsync(call);
 
     try
     {
@@ -312,7 +438,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Recording";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await NotifyParticipants(hub, call);
+        await dispatcher.NotifyCallAsync(call);
         return Results.Ok(call.ToView());
     }
     catch (Exception ex)
@@ -322,7 +448,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await NotifyParticipants(hub, call);
+        await dispatcher.NotifyCallAsync(call);
         return Results.Json(new { error = $"Không thể bắt đầu ghi hình: {ex.Message}" }, statusCode: 503);
     }
 }).RequireAuthorization();
@@ -333,7 +459,7 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitEgressService egress,
-    IHubContext<CallHub> hub,
+    CallDispatcher dispatcher,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
@@ -350,7 +476,7 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
         call.RecordingStatus = "Stopping";
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
-    await NotifyParticipants(hub, call);
+    await dispatcher.NotifyCallAsync(call);
 
     try
     {
@@ -360,7 +486,7 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             call.RecordingStatus = "Complete";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await NotifyParticipants(hub, call);
+        await dispatcher.NotifyCallAsync(call);
         return Results.Ok(call.ToView());
     }
     catch (Exception ex)
@@ -370,7 +496,7 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await NotifyParticipants(hub, call);
+        await dispatcher.NotifyCallAsync(call);
         return Results.Json(new { error = $"Không thể dừng ghi hình: {ex.Message}" }, statusCode: 503);
     }
 }).RequireAuthorization();
@@ -389,8 +515,6 @@ app.MapGet("/api/calls/{id:guid}/recording/file", (
     if (call.RecordingStatus != "Complete" || string.IsNullOrWhiteSpace(call.RecordingFileName))
         return Results.Conflict(new { error = "Recording is not ready." });
 
-    // Path is resolved server-side from authorized metadata only.
-    // Clients never supply a filesystem path. GetFileName prevents path traversal.
     var root = configuration["RECORDINGS_PATH"] ?? "/recordings";
     var path = Path.Combine(root, Path.GetFileName(call.RecordingFileName));
     return File.Exists(path)
@@ -481,39 +605,7 @@ app.MapHub<CallHub>("/hubs/calls").RequireAuthorization();
 app.Run();
 
 static AuthUserDto ToUserDto(TestIdentity user) =>
-    new(user.Id, user.ClinicId, user.DisplayName);
-
-static Func<Guid, ClaimsPrincipal, IdentityRegistry, ConcurrentDictionary<Guid, CallSession>, IHubContext<CallHub>, Task<IResult>> Transition(
-    CallStatus target,
-    bool callerOnly,
-    bool calleeOnly) => async (id, principal, identities, calls, hub) =>
-{
-    var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
-    if (call is null) return Results.NotFound();
-    if (callerOnly && call.CallerId != current.Id || calleeOnly && call.CalleeId != current.Id)
-        return Results.StatusCode(403);
-    lock (call.SyncRoot)
-    {
-        var valid = target switch
-        {
-            CallStatus.Rejected or CallStatus.Cancelled => call.Status == CallStatus.Ringing,
-            CallStatus.Ended => call.Status == CallStatus.Accepted,
-            _ => false
-        };
-        if (!valid)
-            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
-        call.Status = target;
-        call.UpdatedAt = DateTimeOffset.UtcNow;
-    }
-    await NotifyParticipants(hub, call);
-    return Results.Ok(call.ToView());
-};
-
-static Task NotifyParticipants(IHubContext<CallHub> hub, CallSession call) => Task.WhenAll(
-    hub.Clients.Group(CallHub.Group(call.ClinicId, call.CallerId)).SendAsync("CallUpdated", call.ToView()),
-    hub.Clients.Group(CallHub.Group(call.ClinicId, call.CalleeId)).SendAsync("CallUpdated", call.ToView()));
+    new(user.Id, user.ClinicId, user.DisplayName, user.Role);
 
 static string LiveKitWebSocketUrl(HttpRequest request)
 {
@@ -526,9 +618,8 @@ static string LiveKitWebSocketUrl(HttpRequest request)
     return $"{scheme}://{host}";
 }
 
-// DTOs — ClinicId is canonical; TenantId is a JSON compatibility alias for older SPA builds.
 file sealed record LoginRequest(string UserId, string Password);
-file sealed record AuthUserDto(string Id, string ClinicId, string DisplayName)
+file sealed record AuthUserDto(string Id, string ClinicId, string DisplayName, string Role = IdentityRoles.Staff)
 {
     public string TenantId => ClinicId;
 }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -5,14 +6,15 @@ using Microsoft.AspNetCore.SignalR;
 namespace LiveKitPoc.Api;
 
 /// <summary>
-/// SignalR hub for call invitations and presence.
+/// SignalR hub for call invitations, agent presence, and queue overview.
 /// Group membership is derived solely from JWT → IdentityRegistry (server-owned ClinicId).
-/// There is no JoinClinic(clinicId) client method — browsers cannot switch clinics.
 /// </summary>
 [Authorize]
 public sealed class CallHub(
     IdentityRegistry identities,
-    PresenceRegistry presence,
+    AgentRegistry agents,
+    CallDispatcher dispatcher,
+    ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hubContext) : Hub
 {
     public const string PresenceEvent = "PresenceUpdated";
@@ -30,44 +32,82 @@ public sealed class CallHub(
 
         Context.Items["userId"] = identity.Id;
         Context.Items["clinicId"] = identity.ClinicId;
+        Context.Items["role"] = identity.Role;
 
-        // Personal group is namespaced by clinic so user ids cannot collide across clinics.
         await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(identity.ClinicId, identity.Id));
         await Groups.AddToGroupAsync(Context.ConnectionId, ClinicGroup(identity.ClinicId));
 
-        presence.Connect(identity.ClinicId, identity.Id);
-        await BroadcastPresenceAsync(identity.ClinicId);
+        if (identity.Role == IdentityRoles.Staff)
+        {
+            // Resume InCall if staff still on an Accepted call (refresh mid-call).
+            Guid? activeInCall = null;
+            foreach (var call in calls.Values)
+            {
+                if (!call.BelongsToClinic(identity.ClinicId) || !call.Contains(identity.Id)) continue;
+                if (call.Status == CallStatus.Accepted)
+                {
+                    activeInCall = call.Id;
+                    break;
+                }
+            }
+
+            agents.Connect(identity.ClinicId, identity.Id, activeInCall);
+            await dispatcher.BroadcastAgentsAsync(identity.ClinicId);
+            if (activeInCall is null)
+                await dispatcher.TryDispatchClinicAsync(identity.ClinicId);
+        }
+        else
+        {
+            // Clients.Caller is on Hub (this), not IHubContext.
+            await Clients.Caller.SendAsync(
+                PresenceEvent,
+                agents.SnapshotForClinic(identities, identity.ClinicId));
+        }
+
+        await Clients.Caller.SendAsync("QueueUpdated", dispatcher.QueueSnapshot(identity.ClinicId));
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (Context.Items.TryGetValue("userId", out var uidObj) && uidObj is string userId
-            && Context.Items.TryGetValue("clinicId", out var cidObj) && cidObj is string clinicId)
+            && Context.Items.TryGetValue("clinicId", out var cidObj) && cidObj is string clinicId
+            && Context.Items.TryGetValue("role", out var roleObj) && roleObj is string role
+            && role == IdentityRoles.Staff)
         {
-            presence.Disconnect(clinicId, userId);
-            await BroadcastPresenceAsync(clinicId);
+            var (_, releasedCallId, wasRinging) = agents.Disconnect(clinicId, userId);
+            if (releasedCallId is Guid callId && wasRinging && calls.TryGetValue(callId, out var call))
+            {
+                await dispatcher.OnRingingReleasedAsync(call, CallStatus.Cancelled);
+            }
+            else
+            {
+                await dispatcher.BroadcastAgentsAsync(clinicId);
+                await dispatcher.TryDispatchClinicAsync(clinicId);
+            }
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    private Task BroadcastPresenceAsync(string clinicId)
+    /// <summary>Staff client heartbeat (also refreshes lease freshness).</summary>
+    public Task Heartbeat()
     {
-        var snapshot = presence.SnapshotForClinic(identities, clinicId);
-        // Only members of this clinic group receive presence — never cross-clinic.
-        return hubContext.Clients.Group(ClinicGroup(clinicId))
-            .SendAsync(PresenceEvent, snapshot);
+        if (Context.Items.TryGetValue("userId", out var uidObj) && uidObj is string userId
+            && Context.Items.TryGetValue("clinicId", out var cidObj) && cidObj is string clinicId
+            && Context.Items.TryGetValue("role", out var roleObj) && roleObj is string role
+            && role == IdentityRoles.Staff)
+        {
+            agents.Heartbeat(clinicId, userId);
+        }
+        return Task.CompletedTask;
     }
 
-    /// <summary>clinic:{clinicId}</summary>
     public static string ClinicGroup(string clinicId) =>
         $"clinic:{clinicId.Trim().ToLowerInvariant()}";
 
-    /// <summary>clinic:{clinicId}:user:{userId}</summary>
     public static string UserGroup(string clinicId, string userId) =>
         $"clinic:{clinicId.Trim().ToLowerInvariant()}:user:{userId.Trim().ToUpperInvariant()}";
 
-    /// <summary>Notify a specific user inside a clinic (call invites / state).</summary>
     public static string Group(string clinicId, string userId) => UserGroup(clinicId, userId);
 }

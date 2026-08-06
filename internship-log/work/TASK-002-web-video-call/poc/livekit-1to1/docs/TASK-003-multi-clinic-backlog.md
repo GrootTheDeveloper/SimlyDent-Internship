@@ -1,6 +1,7 @@
 # TASK-003 — Multi-clinic call platform (backlog siết)
 
-**Trạng thái:** Phase 0 (clinic isolation) **implemented in PoC** — decisions mục 2 vẫn chốt; Phase 1+ theo thứ tự mục 7  
+**Trạng thái:** Phase 0 **done** · Phase 1 (agent state + queue + auto-dispatch) **implemented in PoC** — Phase 2+ theo thứ tự mục 7  
+
 **Baseline:** TASK-002 LiveKit 1:1 PoC (`poc/livekit-1to1/`)  
 **Repo:** SimlyDent-Internship · `main`  
 **Cách đọc doc này:** mỗi hạng mục tách **Product requirement** · **Technical invariant** · **Acceptance criteria (AC)**. Không trộn ba lớp trong cùng một câu DoD mơ hồ.
@@ -244,17 +245,31 @@ A timeout V1, lúc đó không ai rảnh → V1 trở lại Queue (không mất)
 Call / queue states: `Closed` · `Queued` · `Ringing` · `Accepted`/`InCall` · `NoAgent` · `Timeout` · `Ended` · `Cancelled`.
 
 ### Acceptance criteria
-- [ ] Tại mọi thời điểm: 1 call ≤ 1 assigned staff; 1 staff ≤ 1 Ringing/InCall  
-- [ ] Chỉ staff được assign nhận event Accept UI; staff khác **không** Accept được call đó (403)  
-- [ ] Staff Ringing không bị gán call thứ hai  
-- [ ] Timeout/Reject 15s → staff free (nếu online) + call chuyển staff khác hoặc Queued  
-- [ ] N Available staff + N+k visitor → tối đa N call Ringing/InCall; phần dư Queued  
-- [ ] End call → queue head được dispatch trong SLA ngắn (vd. ≤ 2s path server)  
-- [ ] Heartbeat stale → Offline, nhả reservation, call redispatch/re-queue  
-- [ ] Longest-idle (ưu tiên) / RR fallback do **backend** (`lastAssignedAt`); không phụ thuộc client  
-- [ ] Visitor cancel / visitor_timeout không để staff kẹt Ringing  
-- [ ] Ngoài giờ → `Closed`, **không** có row queue  
-- [ ] Hết visitor_timeout trong giờ → `NoAgent`/`Timeout`, không chờ vô hạn  
+- [x] Tại mọi thời điểm: 1 call ≤ 1 assigned staff; 1 staff ≤ 1 Ringing/InCall  
+- [x] Chỉ staff được assign nhận event Accept UI; staff khác **không** Accept được call đó (403)  
+- [x] Staff Ringing không bị gán call thứ hai  
+- [x] Timeout/Reject 15s → staff free (nếu online) + call chuyển staff khác hoặc Queued  
+- [x] N Available staff + queue → dispatch longest-idle; không staff → Queued  
+- [x] End call → queue head được dispatch ngay (server path)  
+- [x] Heartbeat stale → Offline, nhả reservation, call redispatch/re-queue  
+- [x] Longest-idle do **backend** (`lastAssignedAt`); không phụ thuộc client  
+- [x] Visitor cancel không để staff kẹt Ringing  
+- [ ] Ngoài giờ → `Closed` (stub: `CLINIC_FORCE_CLOSED=1`; full working-hours config = debt)  
+- [x] Hết visitor_timeout → `Timeout` (default 120s, `VISITOR_TIMEOUT_SECONDS`)  
+
+### Phase 1 implementation notes (PoC)
+
+| Topic | Implementation |
+|-------|----------------|
+| Agent states | `Offline` / `Available` / `Ringing` / `InCall` in `AgentRegistry` |
+| Ready | SignalR connect or `POST /api/agents/ready` + hub `Heartbeat` |
+| Queue | `POST /api/queue/calls` (demo visitor **VA** / **VB**); FIFO per clinic |
+| Dispatch | `CallDispatcher` longest-idle on Available; ring timeout default **15s** |
+| Direct call | `POST /api/calls` staff→staff still works (`Origin=Direct`) |
+| Background | `RoutingBackgroundService` sweep 1s (ring/visitor/stale) |
+| Tests | `scripts/routing-test.ps1` + existing smoke/isolation |
+
+**Still Phase 2+:** public `site_key`, embed widget, working-hours calendar UI, object storage.
 
 ---
 

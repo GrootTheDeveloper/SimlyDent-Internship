@@ -18,20 +18,23 @@ public sealed class IdentityRegistry
 
     public IdentityRegistry(AuthTokenService auth)
     {
-        void Add(string id, string clinicId, string displayName)
+        void Add(string id, string clinicId, string displayName, string role = IdentityRoles.Staff)
         {
-            var identity = new TestIdentity(id, clinicId, displayName);
+            var identity = new TestIdentity(id, clinicId, displayName, role);
             _users[id] = new StoredIdentity(identity, auth.HashPassword(identity, DemoPassword));
         }
 
-        // Canonical demo mapping for TASK-003 Phase 0.
+        // Staff — TASK-003 Phase 0/1.
         Add("A1", ClinicA, "Nguyễn Minh Anh");
         Add("A2", ClinicA, "Trần Thu Hà");
         Add("A3", ClinicA, "Lê Quốc Bảo");
         Add("B1", ClinicB, "Phạm Ngọc Lan");
 
+        // Visitors — Phase 1 queue path (not listed in staff directory).
+        Add("VA", ClinicA, "Visitor Clinic A", IdentityRoles.Visitor);
+        Add("VB", ClinicB, "Visitor Clinic B", IdentityRoles.Visitor);
+
         // Synthetic identities for concurrent API/capacity tests (hidden from default directory).
-        // L01..L40 → up to 20 simultaneous 1:1 pairs in clinic-a.
         var loadCount = 40;
         if (int.TryParse(Environment.GetEnvironmentVariable("LOAD_TEST_USER_COUNT"), out var configured)
             && configured >= 0)
@@ -48,17 +51,23 @@ public sealed class IdentityRegistry
     public IReadOnlyCollection<TestIdentity> All =>
         _users.Values.Select(u => u.Identity).ToArray();
 
-    /// <summary>Clinic directory for UI. Excludes synthetic load-test users (Lxx) by default.</summary>
+    /// <summary>Login picker: staff + visitors (excludes load-test users).</summary>
     public IReadOnlyCollection<TestIdentity> Directory(bool includeLoadUsers = false) =>
         _users.Values
             .Select(u => u.Identity)
             .Where(u => includeLoadUsers || !IsLoadTestUser(u.Id))
             .ToArray();
 
-    /// <summary>Staff belonging to a single clinic (server-side filter only).</summary>
-    public IReadOnlyCollection<TestIdentity> DirectoryForClinic(string clinicId, bool includeLoadUsers = false) =>
+    /// <summary>
+    /// Staff directory for messenger UI (excludes visitors and load users by default).
+    /// </summary>
+    public IReadOnlyCollection<TestIdentity> DirectoryForClinic(
+        string clinicId,
+        bool includeLoadUsers = false,
+        bool includeVisitors = false) =>
         Directory(includeLoadUsers)
             .Where(u => string.Equals(u.ClinicId, clinicId, StringComparison.OrdinalIgnoreCase))
+            .Where(u => includeVisitors || u.Role == IdentityRoles.Staff)
             .ToArray();
 
     public static bool IsLoadTestUser(string? id) =>
@@ -77,7 +86,6 @@ public sealed class IdentityRegistry
             return false;
         if (!_users.TryGetValue(userId, out var row))
             return false;
-        // PasswordHasher needs the same user object shape; verify with stored identity.
         var auth = new PasswordProbe();
         if (!auth.Verify(row.Identity, row.PasswordHash, password))
             return false;
@@ -87,7 +95,6 @@ public sealed class IdentityRegistry
 
     private sealed record StoredIdentity(TestIdentity Identity, string PasswordHash);
 
-    /// <summary>Thin wrapper so IdentityRegistry does not re-enter AuthTokenService circular ctor.</summary>
     private sealed class PasswordProbe
     {
         private readonly Microsoft.AspNetCore.Identity.PasswordHasher<TestIdentity> _hasher = new();
