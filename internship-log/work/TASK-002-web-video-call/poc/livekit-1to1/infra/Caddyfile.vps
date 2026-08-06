@@ -14,6 +14,12 @@
     reverse_proxy backend:8080
   }
 
+  # Phase 2 public embed API (must not fall through to frontend SPA)
+  @embed path /embed/*
+  handle @embed {
+    reverse_proxy backend:8080
+  }
+
   @hubs path /hubs/*
   handle @hubs {
     reverse_proxy backend:8080

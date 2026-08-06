@@ -1,10 +1,9 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** Plan approved; **PR-0 + PR-0b implemented** (staff guardrails + atomic transitions). PR-A+ pending.  
-**Depends on:** Phase 0 isolation ✅ · Phase 1 agent/queue/dispatch ✅ · PR-0/0b ✅  
+**Status:** **PR-0 + PR-0b + PR-A implemented**; PR-B+ pending.  
+**Depends on:** Phase 0 ✅ · Phase 1 ✅ · PR-0/0b ✅ · PR-A embed session ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
-**Backlog source:** [TASK-003-multi-clinic-backlog.md](./TASK-003-multi-clinic-backlog.md) §5  
-**Full execution order:** PR-0 → PR-0b → PR-A → PR-B → PR-C → PR-D → PR-E  
+**Full order:** PR-0 → PR-0b → **PR-A** → PR-B → PR-C → PR-D → PR-E  
 
 ### Five MVP invariants
 
@@ -22,6 +21,17 @@
 | SignalR | Staff join `clinic:{id}`; visitors only personal group |
 | Atomic accept/reject/cancel/end | Clinic + call locks; timeout no-ops if already Accepted |
 | End/cancel | Idempotent second call → 200 with terminal status |
+
+### PR-A (done)
+
+| Item | Behavior |
+|------|----------|
+| `POST /embed/session` | site_key + **exact** Origin → Embed JWT (`aud=simlydent-embed`, `token_use=embed`, TTL **120m**) |
+| ClinicSite | `pk_clinic_a` / `pk_clinic_b`; origins from env or local multi-port defaults |
+| Rate limit | Per IP + site_key on session create |
+| Caddy | `/embed/*` → backend (`Caddyfile`, `Caddyfile.vps`) |
+| VPS secrets | `JWT_SECRET` + `EMBED_JWT_SECRET` required; `REQUIRE_STRICT_SECRETS=1` |
+| Tests | `scripts/embed-session-test.ps1` |
 
 ---
 

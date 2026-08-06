@@ -47,6 +47,12 @@ services:
       RECORDINGS_PATH: /recordings
       QUALITY_LOGS_PATH: /telemetry
       JWT_SECRET: ${JWT_SECRET:-simlydent-poc-dev-jwt-secret-change-me-32chars!!}
+      EMBED_JWT_SECRET: ${EMBED_JWT_SECRET:-simlydent-poc-dev-embed-jwt-secret-change-me!!}
+      EMBED_JWT_LIFETIME_MINUTES: ${EMBED_JWT_LIFETIME_MINUTES:-120}
+      EMBED_RATE_LIMIT_PER_MINUTE: ${EMBED_RATE_LIMIT_PER_MINUTE:-30}
+      EMBED_ORIGINS_CLINIC_A: ${EMBED_ORIGINS_CLINIC_A:-}
+      EMBED_ORIGINS_CLINIC_B: ${EMBED_ORIGINS_CLINIC_B:-}
+      REQUIRE_STRICT_SECRETS: ${REQUIRE_STRICT_SECRETS:-0}
       JWT_LIFETIME_MINUTES: ${JWT_LIFETIME_MINUTES:-480}
     volumes:
       - ./recordings:/recordings:ro

@@ -6,11 +6,32 @@ using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .SetIsOriginAllowed(_ => true)
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()));
+// Register embed site registry early so CORS can use allowed origins union.
+builder.Services.AddSingleton<ClinicSiteRegistry>();
+builder.Services.AddSingleton<EmbedAuthTokenService>();
+builder.Services.AddSingleton<EmbedRateLimiter>();
+
+var siteRegistryForCors = new ClinicSiteRegistry(builder.Configuration);
+var embedOrigins = siteRegistryForCors.AllAllowedOrigins
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+builder.Services.AddCors(options =>
+{
+    // Staff SPA / tunnel: keep permissive for PoC (documented debt).
+    options.AddDefaultPolicy(policy => policy
+        .SetIsOriginAllowed(_ => true)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+
+    // Embed preflight: union of registered clinic website origins only.
+    options.AddPolicy("EmbedCors", policy => policy
+        .SetIsOriginAllowed(origin =>
+            !string.IsNullOrEmpty(origin) && embedOrigins.Contains(origin))
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+});
 
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddSingleton<IdentityRegistry>();
@@ -24,9 +45,14 @@ builder.Services.AddHttpClient<LiveKitEgressService>();
 builder.Services.AddSignalR();
 
 var authTokens = new AuthTokenService(builder.Configuration);
+var embedTokens = new EmbedAuthTokenService(
+    builder.Configuration,
+    LoggerFactory.Create(b => b.AddConsole()).CreateLogger<EmbedAuthTokenService>());
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
+        // Staff JWT (existing SPA / SignalR / smoke tests) — scheme unchanged.
         options.TokenValidationParameters = authTokens.ValidationParameters();
         options.Events = new JwtBearerEvents
         {
@@ -38,6 +64,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
             }
         };
+    })
+    .AddJwtBearer(EmbedAuthTokenService.AuthenticationScheme, options =>
+    {
+        options.TokenValidationParameters = embedTokens.ValidationParameters();
+        options.MapInboundClaims = false;
     });
 builder.Services.AddAuthorization();
 
@@ -47,6 +78,49 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+// ---- Embed bootstrap (anonymous) — Phase 2 PR-A ----
+app.MapPost("/embed/session", (
+    HttpContext http,
+    EmbedSessionRequest body,
+    ClinicSiteRegistry sites,
+    EmbedAuthTokenService embedAuth,
+    EmbedRateLimiter rateLimiter) =>
+{
+    var origin = http.Request.Headers.Origin.FirstOrDefault()
+                 ?? http.Request.Headers["Origin"].FirstOrDefault();
+
+    if (string.IsNullOrWhiteSpace(body.SiteKey))
+        return Results.BadRequest(new { error = "siteKey is required." });
+
+    var site = sites.FindBySiteKey(body.SiteKey);
+    if (site is null)
+        return Results.NotFound(new { error = "Unknown site key." });
+    if (!site.Enabled)
+        return Results.Json(new { error = "Site is disabled." }, statusCode: 403);
+
+    // Exact Origin allowlist for THIS site_key (not union-only).
+    if (!OriginMatcher.IsAllowed(origin, site.AllowedOrigins))
+        return Results.Json(new { error = "Origin is not allowed for this site key." }, statusCode: 403);
+
+    var clientIp = EmbedRateLimiter.GetClientIp(http);
+    var rateKey = $"session:{site.SiteKey}:{clientIp}";
+    if (!rateLimiter.TryAcquire(rateKey))
+        return Results.Json(new { error = "Rate limit exceeded." }, statusCode: 429);
+
+    var (token, expiresAt, sessionId) = embedAuth.CreateSessionToken(site);
+    return Results.Ok(new EmbedSessionResponse(
+        token,
+        expiresAt,
+        sessionId,
+        site.ClinicId,
+        site.SiteId,
+        site.SiteKey));
+}).RequireCors("EmbedCors");
+
+// Probe: embed JWT must not authenticate as staff default scheme on staff routes.
+// Staff JWT on /embed/calls will be rejected by EmbedBearer scheme (PR-B).
+
 
 // ---- Auth ----
 app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>
@@ -617,3 +691,12 @@ file sealed record AuthUserDto(string Id, string ClinicId, string DisplayName, s
     public string TenantId => ClinicId;
 }
 file sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt, AuthUserDto User);
+
+file sealed record EmbedSessionRequest(string SiteKey);
+file sealed record EmbedSessionResponse(
+    string AccessToken,
+    DateTimeOffset ExpiresAt,
+    string SessionId,
+    string ClinicId,
+    string SiteId,
+    string SiteKey);

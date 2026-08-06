@@ -11,6 +11,9 @@ https://:8443 {
   @api path /api/*
   reverse_proxy @api backend:8080
 
+  @embed path /embed/*
+  reverse_proxy @embed backend:8080
+
   @hubs path /hubs/*
   reverse_proxy @hubs backend:8080
 

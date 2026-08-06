@@ -23,9 +23,23 @@ public sealed class AuthTokenService
 
     public AuthTokenService(IConfiguration configuration)
     {
-        _signingKey = configuration["JWT_SECRET"]
-            ?? configuration["AUTH_JWT_SECRET"]
-            ?? "simlydent-poc-dev-jwt-secret-change-me-32chars!!";
+        var requireStrict = string.Equals(
+            configuration["REQUIRE_STRICT_SECRETS"], "1", StringComparison.OrdinalIgnoreCase);
+        var configured = configuration["JWT_SECRET"] ?? configuration["AUTH_JWT_SECRET"];
+        if (requireStrict)
+        {
+            if (string.IsNullOrWhiteSpace(configured)
+                || configured.Contains("change-me", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "REQUIRE_STRICT_SECRETS=1: set a strong JWT_SECRET (no dev default).");
+            }
+            _signingKey = configured;
+        }
+        else
+        {
+            _signingKey = configured ?? "simlydent-poc-dev-jwt-secret-change-me-32chars!!";
+        }
         _issuer = configuration["JWT_ISSUER"] ?? "simlydent-livekit-poc";
         _audience = configuration["JWT_AUDIENCE"] ?? "simlydent-livekit-poc-web";
         var minutes = int.TryParse(configuration["JWT_LIFETIME_MINUTES"], out var m) ? m : 480;

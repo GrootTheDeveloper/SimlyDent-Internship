@@ -100,6 +100,16 @@ Env: `RING_TIMEOUT_SECONDS` (15), `VISITOR_TIMEOUT_SECONDS` (120), `AGENT_HEARTB
 
 **Phase 2 plan:** [docs/PHASE-2-plan.md](docs/PHASE-2-plan.md).
 
+### Embed session (Phase 2 PR-A)
+
+```powershell
+.\scripts\embed-session-test.ps1 -ApiUrl "https://YOUR_DOMAIN"
+```
+
+- `POST /embed/session` with `Origin` + public `siteKey` (`pk_clinic_a` / `pk_clinic_b`)
+- Exact origin allowlist (scheme+host+port); Caddy routes `/embed/*` → backend
+- Embed JWT: audience `simlydent-embed`, TTL 120 minutes; separate `EMBED_JWT_SECRET` on VPS
+
 Nếu browser không hiện prompt, mở biểu tượng quyền site cạnh thanh địa chỉ, đặt Camera và Microphone thành **Allow**, sau đó reload cả hai tab. UI hiển thị **Đang xin quyền camera và microphone…** trong khi chờ browser trả kết quả và có nút **Thử lại** khi quyền bị từ chối.
 
 Chi tiết backlog TASK-003: [docs/TASK-003-multi-clinic-backlog.md](docs/TASK-003-multi-clinic-backlog.md).
