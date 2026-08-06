@@ -1,6 +1,6 @@
 # LiveKit 1:1 PoC
 
-PoC triển khai luồng video call 1:1 tự host theo quyết định của TASK-002. Backend ứng dụng là authority cho tenant, invitation, call state và quyền cấp media token; LiveKit chỉ xử lý media room.
+PoC triển khai luồng video call 1:1 tự host theo quyết định của TASK-002, với **TASK-003 Phase 0** hard multi-clinic isolation. Backend ứng dụng là authority cho **clinic**, invitation, call state và quyền cấp media token; LiveKit chỉ xử lý media room.
 
 ## Thành phần
 
@@ -9,7 +9,7 @@ PoC triển khai luồng video call 1:1 tự host theo quyết định của TAS
 | LiveKit Server | 1.13.1 | SFU, signaling media, WebRTC transport |
 | LiveKit Egress | 1.12.0 | Ghi room thành file MP4 |
 | Redis | 7.4 | Kênh điều phối giữa LiveKit Server và Egress |
-| ASP.NET Core | .NET 10 | `CallSession`, tenant authorization, SignalR, LiveKit JWT |
+| ASP.NET Core | .NET 10 | `CallSession`, clinic authorization, SignalR, LiveKit JWT |
 | Vue | 2.7.16 | Caller/callee UI và điều khiển media |
 | livekit-client | 2.21.0 | Kết nối room, publish/subscribe track |
 | SignalR client | 10.0.11 | Invitation và authoritative state event |
@@ -74,9 +74,25 @@ Mở hai tab: `http://localhost:5173/`
 2. Cả hai phải hiện **online** (SignalR hub sau login).
 3. Chọn A2 tại tab A1 và bấm **Bắt đầu gọi**. Tab A2 nhận invitation, bấm **Chấp nhận**, cấp quyền camera/microphone, sau đó hai phía join cùng LiveKit room.
 
-Các identity A1/A2/A3 thuộc `tenant-a`; B1 thuộc `tenant-b` để kiểm tra isolation. Không còn giả danh bằng header `X-User-Id`.
+Các identity A1/A2/A3 thuộc **`clinic-a`**; B1 thuộc **`clinic-b`**. ClinicId gắn trong JWT lúc login (server-owned); client không được override bằng body/query/header. Không còn giả danh bằng header `X-User-Id`.
+
+**LiveKit room (backend-generated):** `clinic:{clinicId}:call:{callId}`  
+**SignalR groups:** `clinic:{clinicId}` và `clinic:{clinicId}:user:{userId}`
+
+### Kiểm thử isolation (Phase 0)
+
+Backend phải đang chạy (`http://localhost:5080` hoặc URL VPS):
+
+```powershell
+.\scripts\smoke-test.ps1
+.\scripts\clinic-isolation-test.ps1
+# VPS example:
+.\scripts\clinic-isolation-test.ps1 -ApiUrl "https://YOUR_DOMAIN"
+```
 
 Nếu browser không hiện prompt, mở biểu tượng quyền site cạnh thanh địa chỉ, đặt Camera và Microphone thành **Allow**, sau đó reload cả hai tab. UI hiển thị **Đang xin quyền camera và microphone…** trong khi chờ browser trả kết quả và có nút **Thử lại** khi quyền bị từ chối.
+
+Chi tiết backlog TASK-003: [docs/TASK-003-multi-clinic-backlog.md](docs/TASK-003-multi-clinic-backlog.md).
 
 Các endpoint cục bộ:
 

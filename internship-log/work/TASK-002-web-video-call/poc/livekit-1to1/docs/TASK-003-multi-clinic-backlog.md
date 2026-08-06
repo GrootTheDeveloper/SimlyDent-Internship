@@ -1,6 +1,6 @@
 # TASK-003 — Multi-clinic call platform (backlog siết)
 
-**Trạng thái:** Decisions **chốt** (mục 2) — sẵn sàng implement theo thứ tự mục 7  
+**Trạng thái:** Phase 0 (clinic isolation) **implemented in PoC** — decisions mục 2 vẫn chốt; Phase 1+ theo thứ tự mục 7  
 **Baseline:** TASK-002 LiveKit 1:1 PoC (`poc/livekit-1to1/`)  
 **Repo:** SimlyDent-Internship · `main`  
 **Cách đọc doc này:** mỗi hạng mục tách **Product requirement** · **Technical invariant** · **Acceptance criteria (AC)**. Không trộn ba lớp trong cùng một câu DoD mơ hồ.
@@ -90,13 +90,28 @@ Không tin `clinic_id` (hay callId “guess”) từ browser làm nguồn truth.
 | API query | clinic từ principal / site key, **không** từ body tùy ý |
 
 ### Acceptance criteria
-- [ ] Clinic B **không** đọc metadata call clinic A  
-- [ ] Clinic B **không** accept / end call A  
-- [ ] Clinic B **không** lấy LiveKit token của call A  
-- [ ] Clinic B **không** tải recording A  
-- [ ] Clinic B **không** subscribe / nhận SignalR event của clinic A  
-- [ ] Visitor/staff **không** cross-clinic dù biết `callId` / `userId`  
-- [ ] Suite test isolation tự động (mở rộng pattern tenant A1–B1 của PoC)
+- [x] Clinic B **không** đọc metadata call clinic A  
+- [x] Clinic B **không** accept / end call A  
+- [x] Clinic B **không** lấy LiveKit token của call A  
+- [x] Clinic B **không** tải recording A (authorize path; full Egress E2E remains optional heavy suite)  
+- [x] Clinic B **không** subscribe / nhận SignalR event của clinic A  
+- [x] Staff **không** cross-clinic dù biết `callId` / `userId` (visitor/site_key = Phase 1+)  
+- [x] Suite test isolation tự động (`scripts/clinic-isolation-test.ps1` + smoke)
+
+### Phase 0 implementation notes (PoC)
+
+| Topic | Implementation |
+|-------|----------------|
+| Clinic authority | `IdentityRegistry` → JWT `clinic_id` (+ legacy `tenant_id` alias). Never from body/query/header. |
+| Demo map | A1/A2/A3 → `clinic-a`; B1 → `clinic-b` |
+| CallSession | `ClinicId`, backend room `clinic:{clinicId}:call:{callId:N}` |
+| Auth helpers | `ClinicAuthorization.GetAuthorizedCall` — missing/cross-clinic → **404** |
+| SignalR | Groups `clinic:{clinicId}` and `clinic:{clinicId}:user:{userId}` from JWT only |
+| Presence | Key `(clinicId\|userId)`; snapshot always for principal clinic |
+| Recording | Metadata on call; path resolved server-side after clinic+participant check; filename includes clinic prefix. Nested `recordings/clinic/{id}/…` = remaining storage debt |
+| Tests | `.\scripts\smoke-test.ps1` · `.\scripts\clinic-isolation-test.ps1` (JWT login; optional SignalR probe) |
+
+**Remaining Phase 1+ debt (not Phase 0):** visitor `site_key`, queue/routing, agent lease, embed widget, object storage layout, RecordingPolicy, retention worker.
 
 ---
 
