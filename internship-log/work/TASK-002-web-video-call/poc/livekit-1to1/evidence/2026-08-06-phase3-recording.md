@@ -3,13 +3,17 @@
 | Field | Value |
 |-------|--------|
 | **Date** | 2026-08-06 |
-| **Git SHA** | `faf72d4` (compose) / `fe4c2de` (feature) on `main` |
-| **API** | VPS backend container `http://172.18.0.4:8080` (public gateway was restarted; suite run on docker network) |
+| **Git SHA** | `0eb2bce` on `main` |
+| **API** | `https://103.28.32.118.sslip.io` |
 | **Operator** | Automated goal session |
 
 ## Phase 3a — Policy / consent / ACL
 
-**Commands (on VPS host against backend network IP):** Python 3.6 urllib suite (equivalent to `scripts/recording-policy-test.ps1`).
+**Command:**
+```powershell
+.\scripts\recording-policy-test.ps1 -ApiUrl "https://103.28.32.118.sslip.io"
+```
+**Result: 64 checks PASS, 0 FAIL** (log: scratch `phase3a-recording-suite.log`)
 
 | Check | Result |
 |-------|--------|
@@ -18,14 +22,17 @@
 | Call snapshot `recordingMode=None` at create | **PASS** |
 | CallView has **no** `recordingEgressId` / `recordingFileName` | **PASS** |
 | Start while None → 409 | **PASS** |
-| Start without consent → 409 | **PASS** |
+| Start without consent / Declined → 409 | **PASS** |
 | Consent Granted + actor/timestamp | **PASS** |
-| Staff `canDownload=false` / file → **404** | **PASS** |
-| B-MGR on clinic-a recording → **404** | **PASS** |
+| Staff `canDownload=false` / file → **404** (pre and post Complete) | **PASS** |
+| Visitor download after Complete → **404** | **PASS** |
+| B-MGR on clinic-a Complete → **404** | **PASS** |
+| **A-MGR plant Complete + download 200 (real bytes)** | **PASS** |
+| **A-MGR delete + idempotent + audit Download/Deleted** | **PASS** |
 | A-MGR / B-MGR role Manager; agents/ready **403** | **PASS** |
-| AudioOnly start after gates → **200** (Egress accepted) | **PASS** |
-| Video start → 200; stop may 503 if file not on disk yet | **PASS** (call still endable) |
-| End call after recording fail/success | **PASS** |
+| AudioOnly start after gates → **200** | **PASS** |
+| Stop without archive file → **503 Failed** (not false Complete) | **PASS** |
+| End call still **200** after recording fail | **PASS** |
 
 Invariants:
 
@@ -39,22 +46,20 @@ Recording authorization ≠ Call participant authorization  (staff participant �
 | Item | Status |
 |------|--------|
 | `IRecordingStorage` | **Implemented** (`LocalRecordingStorage`, `S3RecordingStorage`) |
-| Key layout | `clinic/{clinicId}/calls/{callId}/{recordingId}.mp4` |
-| Config | `RECORDING_STORAGE=local` default; `s3`/`minio` optional |
-| MinIO | `docker-compose` profile `minio` (not required for Phase 0–2) |
+| Key layout | `clinic/{clinicId}/calls/{callId}/{recordingId}.mp4` — **PASS** in suite |
+| Complete only if object exists | **Fixed** in `0eb2bce` (stop/end never set Complete without archive) |
+| Plant + OpenRead path | Manager plant-complete writes object; download returns body |
+| Config | `RECORDING_STORAGE=local` default; MinIO profile optional |
 | Frontend secrets | None |
-
-Local path used on VPS (`RECORDING_STORAGE=local`). Stop→archive may 503 when Egress file not yet visible under `/recordings` mount timing — status becomes `Failed`, live call still ends.
 
 ## Phase 3c — Retention + audit
 
 | Item | Result |
 |------|--------|
-| `POST /api/admin/recording/retention-run` Manager | **200** `{ deleted: 0 }` |
+| Plant Complete with `ageDays=400` then retention-run | **deleted=1**, status **Deleted** |
+| Audit `RecordingExpired` | **PASS** |
 | Staff retention-run | **403** |
-| `GET /api/recording/audit` Manager | **200** (events present) |
-| Staff audit | **403** |
-| Active Starting/Recording never deleted | Code path skips those statuses |
+| Audit download/delete events | **PASS** |
 
 ## Phase 3d — Capacity
 
