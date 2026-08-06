@@ -2477,7 +2477,7 @@ if (isCallRoute) {
               <h1>SimlyDent</h1>
             </div>
             <p class="login-lead">Tư vấn video cho phòng khám</p>
-            <p class="login-hint">Bản demo · mật khẩu <strong>Demo@123</strong></p>
+            <p class="login-hint">Chọn tài khoản demo · mật khẩu <strong>Demo@123</strong></p>
             <div class="demo-account-list" role="listbox" aria-label="Chọn tài khoản demo">
               <button
                 v-for="user in loginAccounts"
