@@ -1,9 +1,9 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** **PR-0 … PR-C implemented**; PR-D/E pending.  
-**Depends on:** Phase 0–1 ✅ · PR-0/0b/A/B ✅ · PR-C widget ✅  
+**Status:** **PR-0 … PR-D implemented**; PR-E pending.  
+**Depends on:** Phase 0–1 ✅ · PR-A/B/C ✅ · PR-D staff polish + camera-optional ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
-**Full order:** PR-0 → PR-0b → PR-A → PR-B → **PR-C** → PR-D → PR-E  
+**Full order:** PR-0 → PR-0b → PR-A → PR-B → PR-C → **PR-D** → PR-E  
 
 ### Five MVP invariants
 
@@ -144,14 +144,15 @@ Never trust browser-supplied `clinicId`.
 
 **AC:** Demo pages on VPS; real call with staff A1 (browser E2E evidence = PR-E).
 
-### PR-D — Staff surface polish (minimal)
+### PR-D — Staff surface polish + camera-optional visitor ✅
 
 | Item | Detail |
 |------|--------|
-| Queue panel | Show `GET /api/queue` + `QueueUpdated` |
-| Agent badge | Available / Ringing / InCall |
-| Accept only assigned | Already enforced; clarify UI copy |
-| No full console rewrite | Extend current SPA |
+| Queue panel | `refreshQueue` REST + `QueueUpdated`; `CallerLabel`, wait, assigned, **Gán cho bạn** |
+| Agent badge | Available / Ringing / InCall / Offline chips (list + self footer) |
+| Accept only assigned | Popup only; no Accept on queue row |
+| Camera optional | Progressive AV → audio-only → receive-only; guest avatar; `retryDevices()` without rejoin |
+| Staff remote placeholder | Embed → guest-avatar; staff-staff → initials; TrackMuted/Unmuted |
 
 ### PR-E — Tests + docs + deploy
 

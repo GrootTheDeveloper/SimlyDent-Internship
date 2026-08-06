@@ -99,6 +99,43 @@ function peerAvatarText(id, known = null) {
   return String(id).slice(0, 2).toUpperCase()
 }
 
+const GUEST_AVATAR_URL = '/assets/guest-avatar.svg'
+
+function agentBadgeClass(state) {
+  const s = String(state || 'Offline').toLowerCase()
+  if (s === 'available') return 'agent-badge agent-badge--available'
+  if (s === 'ringing') return 'agent-badge agent-badge--ringing'
+  if (s === 'incall') return 'agent-badge agent-badge--incall'
+  return 'agent-badge agent-badge--offline'
+}
+
+function agentBadgeLabel(state) {
+  const s = String(state || 'Offline')
+  if (s === 'Available') return 'Available'
+  if (s === 'Ringing') return 'Ringing'
+  if (s === 'InCall') return 'InCall'
+  return 'Offline'
+}
+
+function formatQueueLabel(item) {
+  if (!item) return 'Khách'
+  if (item.callerLabel) return item.callerLabel
+  return peerLabel(item.callerId)
+}
+
+function queueStatusVi(status) {
+  if (status === 'Queued') return 'Đang xếp hàng'
+  if (status === 'Ringing') return 'Đang reo'
+  return status || '—'
+}
+
+function formatWaitSeconds(seconds) {
+  const n = Number(seconds)
+  if (!Number.isFinite(n) || n < 0) return '—'
+  if (n < 60) return `~${Math.floor(n)}s`
+  return `~${Math.floor(n / 60)}m`
+}
+
 async function apiFetch(path, options = {}) {
   const headers = authHeaders(options.headers || {})
   const res = await fetch(`${API_URL}${path}`, { ...options, headers })
@@ -837,7 +874,8 @@ if (isCallRoute) {
       showQualityPanel: false,
       recordingBusy: false,
       error: '',
-      broadcastChannel: null
+      broadcastChannel: null,
+      guestAvatarUrl: GUEST_AVATAR_URL
     },
     computed: {
       peerId() {
@@ -853,11 +891,25 @@ if (isCallRoute) {
       peerAvatar() {
         return peerAvatarText(this.peerId, this.peerKnown)
       },
+      isEmbedPeer() {
+        return isEmbedVisitorId(this.peerId)
+      },
+      showRemotePlaceholder() {
+        return this.mediaPermissionState === 'connected' && !this.remoteVideoConnected
+      },
+      remotePlaceholderText() {
+        if (this.isEmbedPeer) return 'Khách không bật camera'
+        return 'Người còn lại chưa bật camera'
+      },
       mediaSetupLabel() {
         if (this.mediaPermissionState === 'requesting') return 'Đang xin quyền camera và microphone…'
         if (this.mediaPermissionState === 'connecting') return 'Đang kết nối vào phòng media…'
         if (this.mediaPermissionState === 'error') return this.error || 'Không thể kết nối media'
-        if (this.mediaPermissionState === 'connected' && !this.remoteVideoConnected) return 'Đang chờ video từ người còn lại…'
+        if (this.mediaPermissionState === 'connected' && !this.remoteVideoConnected) {
+          return this.isEmbedPeer
+            ? 'Khách không bật camera (audio / placeholder).'
+            : 'Người còn lại chưa bật camera.'
+        }
         return 'Đang chuẩn bị thiết bị…'
       },
       qualityBadge() {
@@ -999,7 +1051,6 @@ if (isCallRoute) {
               },
               video: {
                 facingMode: 'user',
-                // Native-ish 1280×720 FOV only — no forced 9:16 (that zooms/crops).
                 resolution: captureResolution
               }
             })
@@ -1008,12 +1059,16 @@ if (isCallRoute) {
             if (typeof this.localMediaCleanup === 'function') this.localMediaCleanup()
             this.localMediaCleanup = prepared.cleanup
           } catch (e) {
-            console.warn('Could not start video, falling back to audio only:', e)
+            console.warn('Could not start AV, trying audio only:', e)
             try {
               localTracks = await createLocalTracks({ audio: true, video: false })
               this.cameraEnabled = false
             } catch (e2) {
-              throw e
+              // Staff may still join receive-only if devices fully denied.
+              console.warn('Audio also failed; joining without local tracks:', e2)
+              localTracks = []
+              this.cameraEnabled = false
+              this.microphoneEnabled = false
             }
           }
           this.localTracks = localTracks
@@ -1040,11 +1095,22 @@ if (isCallRoute) {
           })
           room.on(RoomEvent.TrackSubscriptionFailed, () => {
             this.remoteVideoConnected = false
-            this.error = 'Không thể nhận video từ người còn lại.'
           })
           room.on(RoomEvent.TrackUnsubscribed, track => {
             track.detach().forEach(node => node.remove())
             if (track.kind === Track.Kind.Video) this.remoteVideoConnected = false
+          })
+          // Mid-call cam toggle: muted → placeholder; unmuted → video again.
+          room.on(RoomEvent.TrackMuted, (publication) => {
+            if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
+              this.remoteVideoConnected = false
+            }
+          })
+          room.on(RoomEvent.TrackUnmuted, (publication) => {
+            if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
+              if (publication.track) this.attachRemoteTrack(publication.track)
+              else this.remoteVideoConnected = true
+            }
           })
           room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
             this.needsAudioPermission = !room.canPlaybackAudio
@@ -1475,7 +1541,22 @@ if (isCallRoute) {
           <!-- Video Grid inside Call Window -->
           <div v-else class="call-video-grid">
             <div class="remote-video-container" ref="remoteMedia">
-              <span v-if="mediaPermissionState !== 'connected' || !remoteVideoConnected" class="remote-video-status">{{ mediaSetupLabel }}</span>
+              <div
+                v-if="showRemotePlaceholder"
+                class="remote-avatar-placeholder"
+              >
+                <img
+                  v-if="isEmbedPeer"
+                  :src="guestAvatarUrl"
+                  alt="Khách"
+                />
+                <div v-else class="initials-avatar">{{ peerAvatar }}</div>
+                <p>{{ remotePlaceholderText }}</p>
+              </div>
+              <span
+                v-else-if="mediaPermissionState !== 'connected'"
+                class="remote-video-status"
+              >{{ mediaSetupLabel }}</span>
             </div>
             <div class="local-video-container" ref="localMedia"></div>
             <div ref="remoteAudio"></div>
@@ -1560,7 +1641,8 @@ if (isCallRoute) {
       agentStateMap: {},
       queueItems: [],
       heartbeatTimer: null,
-      showOtherClinics: false
+      showOtherClinics: false,
+      guestAvatarUrl: GUEST_AVATAR_URL
     },
     computed: {
       identityId() {
@@ -1607,6 +1689,15 @@ if (isCallRoute) {
       },
       isEmbedPeer() {
         return isEmbedVisitorId(this.peerIdentity?.id)
+      },
+      selfAgentState() {
+        return this.agentStateMap[this.identityId] || (this.identityId ? 'Available' : 'Offline')
+      },
+      selfAgentBadgeClass() {
+        return agentBadgeClass(this.selfAgentState)
+      },
+      selfAgentBadgeLabel() {
+        return agentBadgeLabel(this.selfAgentState)
       }
     },
     async mounted() {
@@ -1809,6 +1900,7 @@ if (isCallRoute) {
         this.hub.onreconnected(async () => {
           await this.refreshPresence()
           if (!this.isVisitor) {
+            await this.refreshQueue()
             try { await this.hub.invoke('Heartbeat') } catch { /* ignore */ }
           }
         })
@@ -1821,6 +1913,7 @@ if (isCallRoute) {
           try {
             await apiFetch('/api/agents/ready', { method: 'POST', headers: authHeaders() })
           } catch { /* ignore */ }
+          await this.refreshQueue()
           this.heartbeatTimer = setInterval(() => {
             if (this.hub?.state === 'Connected') {
               this.hub.invoke('Heartbeat').catch(() => {})
@@ -1860,6 +1953,34 @@ if (isCallRoute) {
         } catch (e) {
           console.warn('presence fetch failed', e)
         }
+      },
+      async refreshQueue() {
+        if (this.isVisitor) return
+        try {
+          const res = await apiFetch('/api/queue', { headers: authHeaders() })
+          if (res.ok) {
+            const snap = await res.json()
+            this.queueItems = snap?.items || []
+          }
+        } catch (e) {
+          console.warn('queue fetch failed', e)
+        }
+      },
+      formatQueueLabel,
+      queueStatusVi,
+      formatWaitSeconds,
+      isQueueAssignedToMe(item) {
+        if (!item || !this.identityId) return false
+        return String(item.assignedStaffId || '').toLowerCase() === this.identityId.toLowerCase()
+      },
+      agentStateFor(userId) {
+        return this.agentStateMap[userId] || 'Offline'
+      },
+      agentBadgeClassFor(userId) {
+        return agentBadgeClass(this.agentStateFor(userId))
+      },
+      agentBadgeLabelFor(userId) {
+        return agentBadgeLabel(this.agentStateFor(userId))
       },
       async startQueueCall() {
         if (this.isCallActive) return
@@ -1901,7 +2022,7 @@ if (isCallRoute) {
       contactStatusLabel(item) {
         if (!this.sameClinic(item)) return 'Phòng khám / clinic khác'
         const state = this.agentStateMap[item.id]
-        if (state && state !== 'Offline') return state
+        if (state && state !== 'Offline') return agentBadgeLabel(state)
         return this.isUserOnline(item.id) ? 'Available' : 'Offline'
       },
       async startCall(targetId) {
@@ -2155,7 +2276,10 @@ if (isCallRoute) {
                 </div>
                 <div class="contact-details">
                   <div class="contact-name">{{ item.displayName }}</div>
-                  <div class="contact-status">{{ contactStatusLabel(item) }}</div>
+                  <div class="contact-status">
+                    <span v-if="sameTenant(item)" :class="agentBadgeClassFor(item.id)">{{ agentBadgeLabelFor(item.id) }}</span>
+                    <span v-else>{{ contactStatusLabel(item) }}</span>
+                  </div>
                 </div>
               </div>
               <p v-if="!visibleContacts.length" style="padding: 16px; color: #65676b; font-size: 13px;">
@@ -2168,7 +2292,8 @@ if (isCallRoute) {
                 <div class="current-user-avatar">{{ currentUser.id }}</div>
                 <div>
                   <strong style="font-size: 14px; display: block;">{{ currentUser.displayName }}</strong>
-                  <span style="font-size: 11px; color: #65676b;">ID: {{ currentUser.id }}</span>
+                  <span style="font-size: 11px; color: #65676b; display: block;">ID: {{ currentUser.id }}</span>
+                  <span v-if="!isVisitor" :class="selfAgentBadgeClass" style="margin-top: 4px;">Bạn: {{ selfAgentBadgeLabel }}</span>
                 </div>
               </div>
               <button class="logout-btn" @click="logout">Đăng xuất</button>
@@ -2185,7 +2310,10 @@ if (isCallRoute) {
                 </div>
                 <div class="target-details">
                   <span class="target-name">{{ selectedIdentity.displayName }}</span>
-                  <span class="target-status">{{ contactStatusLabel(selectedIdentity) }}</span>
+                  <span class="target-status">
+                    <span v-if="sameTenant(selectedIdentity)" :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
+                    <span v-else>{{ contactStatusLabel(selectedIdentity) }}</span>
+                  </span>
                 </div>
               </div>
               <button
@@ -2205,7 +2333,37 @@ if (isCallRoute) {
                 <button @click="reopenCallWindow">Mở lại cửa sổ</button>
               </div>
 
-              <!-- Visitor queue entry (Phase 1) -->
+              <!-- PR-D: Staff queue awareness panel (Accept remains assigned popup only) -->
+              <div v-if="!isVisitor" class="queue-panel" aria-label="Hàng đợi tư vấn">
+                <div class="queue-panel-header">
+                  <span class="queue-panel-title">Hàng đợi tư vấn</span>
+                  <span class="queue-panel-count">{{ queueItems.length }}</span>
+                </div>
+                <div v-if="!queueItems.length" class="queue-empty">Không có khách trong hàng đợi.</div>
+                <div v-else class="queue-panel-list">
+                  <div v-for="item in queueItems" :key="item.id" class="queue-row">
+                    <div class="queue-row-avatar">
+                      <img :src="guestAvatarUrl" alt="" />
+                    </div>
+                    <div class="queue-row-body">
+                      <div class="queue-row-name">{{ formatQueueLabel(item) }}</div>
+                      <div class="queue-row-meta">
+                        {{ queueStatusVi(item.status) }}
+                        · chờ {{ formatWaitSeconds(item.waitingSeconds) }}
+                        · {{ item.assignedStaffId ? ('gán ' + item.assignedStaffId) : 'Chưa gán' }}
+                      </div>
+                    </div>
+                    <div class="queue-row-tags">
+                      <span
+                        :class="['queue-tag', item.status === 'Ringing' ? 'queue-tag--ringing' : 'queue-tag--queued']"
+                      >{{ item.status }}</span>
+                      <span v-if="isQueueAssignedToMe(item)" class="queue-tag queue-tag--mine">Gán cho bạn</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Visitor queue entry (Phase 1 demo VA) -->
               <div v-if="isVisitor" class="idle-placeholder">
                 <div class="hero-avatar-large">VA</div>
                 <h2 style="margin: 0; font-size: 22px;">Gọi phòng khám</h2>
@@ -2224,8 +2382,13 @@ if (isCallRoute) {
               <div v-else-if="selectedIdentity" class="idle-placeholder">
                 <div class="hero-avatar-large">{{ selectedIdentity.id }}</div>
                 <h2 style="margin: 0; font-size: 22px;">{{ selectedIdentity.displayName }}</h2>
-                <p style="margin: 0; color: #65676b; font-size: 14px;">
-                  Gọi trực tiếp 1:1 · Agent: {{ contactStatusLabel(selectedIdentity) }}
+                <p class="queue-hint">
+                  Gọi trực tiếp 1:1 · Agent:
+                  <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
+                </p>
+                <p class="queue-hint">
+                  Khách website vào <strong>Hàng đợi tư vấn</strong> phía trên.
+                  Chỉ Accept khi được gán (popup reo).
                 </p>
                 <button
                   class="start-call-btn"
@@ -2298,7 +2461,7 @@ if (isCallRoute) {
           <div class="call-popup-card">
             <div class="pulse-ring-avatar" :title="peerIdentity?.id">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách website đang gọi tư vấn…' : 'đang gọi video cho bạn...' }}</p>
+            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách website đang gọi tư vấn — call được gán cho bạn.' : 'đang gọi video cho bạn...' }}</p>
             <div class="popup-action-buttons">
               <button class="popup-btn danger" @click="rejectCall">Từ chối</button>
               <button class="popup-btn success" @click="acceptCall">Chấp nhận</button>

@@ -23,8 +23,11 @@
   var micEnabled = true;
   var camEnabled = true;
   var joining = false;
+  var retryingDevices = false;
   var intentionalLeave = false;
   var livekitLoadPromise = null;
+  var hasLocalVideo = false;
+  var hasLocalAudio = false;
   /** idle | waiting | ready | media | reconnect | perm | ended | error */
   var uiState = 'idle';
   var lastServerStatus = '';
@@ -49,8 +52,10 @@
     errorText: $('errorText'),
     permText: $('permText'),
     mediaHint: $('mediaHint'),
+    deviceBanner: $('deviceBanner'),
     remoteVideo: $('remoteVideo'),
     localVideo: $('localVideo'),
+    localSample: $('localSample'),
     btnCall: $('btnCall'),
     btnCancel: $('btnCancel'),
     btnJoin: $('btnJoin'),
@@ -59,6 +64,7 @@
     btnEndFromPerm: $('btnEndFromPerm'),
     btnEndFromReconnect: $('btnEndFromReconnect'),
     btnRetryMedia: $('btnRetryMedia'),
+    btnRetryDevices: $('btnRetryDevices'),
     btnReconnect: $('btnReconnect'),
     btnAgain: $('btnAgain'),
     btnRetry: $('btnRetry'),
@@ -347,42 +353,164 @@
     return livekitLoadPromise;
   }
 
+  function setDeviceBanner(text) {
+    if (!els.deviceBanner) return;
+    if (!text) {
+      els.deviceBanner.classList.add('hidden');
+      els.deviceBanner.textContent = '';
+      return;
+    }
+    els.deviceBanner.textContent = text;
+    els.deviceBanner.classList.remove('hidden');
+  }
+
+  function updateLocalPreview() {
+    var videoTrack = localTracks.find(function (t) { return t.kind === 'video'; });
+    hasLocalVideo = !!videoTrack;
+    hasLocalAudio = localTracks.some(function (t) { return t.kind === 'audio'; });
+    if (videoTrack && els.localVideo) {
+      try { videoTrack.attach(els.localVideo); } catch (e) { /* ignore */ }
+      els.localVideo.classList.remove('hidden');
+      if (els.localSample) els.localSample.classList.add('hidden');
+    } else {
+      if (els.localVideo) {
+        try { els.localVideo.srcObject = null; } catch (e) { /* ignore */ }
+        els.localVideo.classList.add('hidden');
+      }
+      if (els.localSample) els.localSample.classList.remove('hidden');
+    }
+    if (els.btnRetryDevices) {
+      els.btnRetryDevices.classList.toggle('hidden', hasLocalVideo && hasLocalAudio);
+    }
+    if (!hasLocalVideo && !hasLocalAudio) {
+      setDeviceBanner('Không có mic/cam — đang chỉ nhận (receive-only). Bấm Thử mic/cam khi sẵn sàng.');
+    } else if (!hasLocalVideo) {
+      setDeviceBanner('Không có camera — dùng ảnh khách. Mic ' + (hasLocalAudio ? 'đã bật' : 'tắt') + '.');
+    } else if (!hasLocalAudio) {
+      setDeviceBanner('Không có mic — chỉ gửi hình. Bấm Thử mic/cam để xin lại.');
+    } else {
+      setDeviceBanner('');
+    }
+  }
+
+  /**
+   * Progressive device acquisition — never throws for permission deny.
+   * Returns { tracks, note }.
+   */
+  async function acquireLocalTracks(LivekitClient) {
+    var createLocalTracks = LivekitClient.createLocalTracks;
+    var videoRes = LivekitClient.VideoPresets
+      ? LivekitClient.VideoPresets.h720.resolution
+      : { width: 1280, height: 720, frameRate: 30 };
+    var tracks = [];
+    var note = '';
+
+    try {
+      tracks = await createLocalTracks({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: { facingMode: 'user', resolution: videoRes }
+      });
+      note = 'av';
+      return { tracks: tracks, note: note };
+    } catch (eAv) {
+      console.warn('[embed] AV tracks failed', eAv);
+    }
+
+    try {
+      tracks = await createLocalTracks({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
+      });
+      note = 'audio-only';
+      return { tracks: tracks, note: note };
+    } catch (eAudio) {
+      console.warn('[embed] audio-only failed', eAudio);
+    }
+
+    return { tracks: [], note: 'receive-only' };
+  }
+
+  /**
+   * After room connected: re-request devices and publish new tracks (no rejoin).
+   */
+  async function retryDevices() {
+    if (!room || !callId || retryingDevices) return;
+    if (joining) return;
+    retryingDevices = true;
+    if (els.btnRetryDevices) els.btnRetryDevices.disabled = true;
+    try {
+      var LivekitClient = await loadLivekit();
+      var acquired = await acquireLocalTracks(LivekitClient);
+      var next = acquired.tracks || [];
+      if (!next.length) {
+        setDeviceBanner('Vẫn chưa lấy được mic/cam. Kiểm tra quyền trình duyệt rồi thử lại.');
+        return;
+      }
+
+      // Stop & unpublish previous local tracks we own.
+      for (var i = 0; i < localTracks.length; i++) {
+        try {
+          if (room.localParticipant) {
+            await room.localParticipant.unpublishTrack(localTracks[i]);
+          }
+        } catch (e) { /* ignore */ }
+        try { localTracks[i].stop(); } catch (e2) { /* ignore */ }
+      }
+      localTracks = next;
+
+      for (var j = 0; j < localTracks.length; j++) {
+        try {
+          await room.localParticipant.publishTrack(localTracks[j]);
+        } catch (pubErr) {
+          console.warn('[embed] publish after retry failed', pubErr);
+        }
+      }
+      updateLocalPreview();
+      setStatus('Đang tư vấn');
+    } catch (err) {
+      console.warn(err);
+      setDeviceBanner(err.message || 'Thử lại thiết bị thất bại.');
+    } finally {
+      retryingDevices = false;
+      if (els.btnRetryDevices) els.btnRetryDevices.disabled = false;
+    }
+  }
+
   async function joinMedia() {
-    if (joining || room) return;
-    if (!callId) return;
+    // If already in room, device retry is a separate path.
+    if (room) {
+      await retryDevices();
+      return;
+    }
+    if (joining || !callId) return;
     joining = true;
     intentionalLeave = false;
     showPane('media');
     setStatus('Đang kết nối');
     els.mediaHint.classList.remove('hidden');
     els.mediaHint.textContent = 'Đang tải media SDK…';
+    setDeviceBanner('');
 
     try {
       var LivekitClient = await loadLivekit();
-      els.mediaHint.textContent = 'Đang xin quyền camera / micro…';
+      els.mediaHint.textContent = 'Đang xin quyền thiết bị (camera tùy chọn)…';
 
       var tok = await api('/embed/calls/' + callId + '/token', { method: 'POST', body: '{}' });
       if (!tok.ok) {
         throw new Error((tok.body && tok.body.error) || ('Token failed (' + tok.status + ')'));
       }
 
-      var createLocalTracks = LivekitClient.createLocalTracks;
-      localTracks = await createLocalTracks({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: {
-          facingMode: 'user',
-          resolution: LivekitClient.VideoPresets
-            ? LivekitClient.VideoPresets.h720.resolution
-            : { width: 1280, height: 720, frameRate: 30 }
-        }
-      });
-
-      var localVideoTrack = localTracks.find(function (t) { return t.kind === 'video'; });
-      if (localVideoTrack) localVideoTrack.attach(els.localVideo);
+      var acquired = await acquireLocalTracks(LivekitClient);
+      localTracks = acquired.tracks || [];
+      updateLocalPreview();
 
       els.mediaHint.textContent = 'Đang vào phòng media…';
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
@@ -407,21 +535,26 @@
 
       await room.connect(tok.body.url, tok.body.token);
       for (var i = 0; i < localTracks.length; i++) {
-        await room.localParticipant.publishTrack(localTracks[i]);
+        try {
+          await room.localParticipant.publishTrack(localTracks[i]);
+        } catch (pubErr) {
+          console.warn('[embed] publish failed', pubErr);
+        }
       }
 
       setStatus('Đang tư vấn');
       els.mediaHint.classList.add('hidden');
+      updateLocalPreview();
       postParent({ type: 'state', state: 'Connected' });
       if (!pollTimer) startPoll();
       saveCallState();
     } catch (err) {
+      // Token / LiveKit / network only — not device permission (devices already soft-failed).
       console.error(err);
       disconnectMedia({ silent: true });
-      // Keep call Accepted — offer retry / end (permission or join failure).
       els.permText.textContent = err.message || String(err);
       showPane('perm');
-      setStatus('Cần camera/mic');
+      setStatus('Lỗi media');
       if (!pollTimer) startPoll();
     } finally {
       joining = false;
@@ -600,7 +733,12 @@
   els.btnCancel.addEventListener('click', cancelCall);
   els.btnJoin.addEventListener('click', joinMedia);
   els.btnRetryMedia.addEventListener('click', joinMedia);
-  els.btnReconnect.addEventListener('click', joinMedia);
+  if (els.btnRetryDevices) els.btnRetryDevices.addEventListener('click', retryDevices);
+  els.btnReconnect.addEventListener('click', function () {
+    // Full reconnect path when room was lost.
+    if (room) retryDevices();
+    else joinMedia();
+  });
   els.btnEnd.addEventListener('click', endCall);
   els.btnEndFromReady.addEventListener('click', endCall);
   els.btnEndFromPerm.addEventListener('click', endCall);

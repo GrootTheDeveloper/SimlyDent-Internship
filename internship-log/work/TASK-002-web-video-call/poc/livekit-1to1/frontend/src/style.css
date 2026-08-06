@@ -370,6 +370,195 @@ svg {
   text-overflow: ellipsis;
 }
 
+/* ---- PR-D: agent badges ---- */
+.agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.agent-badge--available {
+  background: #e7f8ef;
+  color: #0a7a3e;
+}
+.agent-badge--ringing {
+  background: #fff4e0;
+  color: #b86e00;
+}
+.agent-badge--incall {
+  background: #e8f1ff;
+  color: #0b5fff;
+}
+.agent-badge--offline {
+  background: #f0f2f5;
+  color: #65676b;
+}
+
+/* ---- PR-D: queue panel ---- */
+.queue-panel {
+  width: min(100%, 520px);
+  margin: 0 auto 18px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--color-border, #e4e6eb);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+.queue-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #f8fafc, #fff);
+  border-bottom: 1px solid var(--color-border, #e4e6eb);
+}
+.queue-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text, #050505);
+}
+.queue-panel-count {
+  font-size: 12px;
+  font-weight: 650;
+  color: #0d9488;
+  background: #ccfbf1;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.queue-panel-list {
+  max-height: min(40vh, 280px);
+  overflow: auto;
+}
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.queue-row:last-child { border-bottom: 0; }
+.queue-row-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0d9488, #115e59);
+  color: #ecfdf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.queue-row-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.queue-row-body { flex: 1; min-width: 0; }
+.queue-row-name {
+  font-weight: 650;
+  font-size: 14px;
+  color: #050505;
+}
+.queue-row-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #65676b;
+}
+.queue-row-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.queue-tag {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: #4b5563;
+}
+.queue-tag--mine {
+  background: #fff4e0;
+  color: #b86e00;
+}
+.queue-tag--ringing {
+  background: #fff4e0;
+  color: #b86e00;
+}
+.queue-tag--queued {
+  background: #e8f1ff;
+  color: #0b5fff;
+}
+.queue-empty {
+  padding: 16px 14px;
+  font-size: 13px;
+  color: #65676b;
+  text-align: center;
+}
+.queue-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #65676b;
+  line-height: 1.4;
+  max-width: 36ch;
+}
+
+/* Remote no-video placeholder in call window */
+.remote-avatar-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: radial-gradient(circle at 50% 40%, #1e293b, #020617 70%);
+  color: #e2e8f0;
+  z-index: 1;
+  pointer-events: none;
+}
+.remote-avatar-placeholder.hidden { display: none; }
+.remote-avatar-placeholder img {
+  width: min(160px, 40%);
+  aspect-ratio: 1;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 12px 32px rgba(0,0,0,.35);
+}
+.remote-avatar-placeholder .initials-avatar {
+  width: min(120px, 36%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0084ff, #00c6ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 700;
+  color: #fff;
+}
+.remote-avatar-placeholder p {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 0 16px;
+}
+.remote-video-container { position: relative; }
+
 .sidebar-user-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);

@@ -98,7 +98,10 @@ Backend phải đang chạy (`http://localhost:5080` hoặc URL VPS):
 **Phase 1 demo:** login staff **A1/A2** (Available qua SignalR). Login visitor **VA** → **Bắt đầu gọi (queue)** → backend gán longest-idle staff → Accept.  
 Env: `RING_TIMEOUT_SECONDS` (15), `VISITOR_TIMEOUT_SECONDS` (120), `AGENT_HEARTBEAT_STALE_SECONDS` (45).
 
-### Phase 2 — Public embed widget (visitor)
+### Phase 2 — Public embed widget (visitor) + staff queue
+
+**Staff:** login A1 → portal hiển thị **Hàng đợi tư vấn** (live). Accept chỉ khi popup “gán cho bạn”.  
+**Visitor Join:** camera **không bắt buộc** — audio-only / receive-only + ảnh sample `/assets/guest-avatar.svg`; **Thử mic/cam** publish lại mà không tạo call mới.
 
 Snippet nhúng trên website phòng khám (Origin phải nằm trong allowlist exact):
 

@@ -18,7 +18,7 @@
 
     <main class="main">
       <div id="idlePane" class="pane">
-        <p class="lead">Bấm gọi để xếp hàng với nhân viên. Camera chỉ bật sau khi bạn bấm Tham gia.</p>
+        <p class="lead">Bấm gọi để xếp hàng. Sau khi nhân viên nhận, bạn bấm Tham gia — camera không bắt buộc.</p>
         <button type="button" id="btnCall" class="primary">Gọi tư vấn</button>
       </div>
 
@@ -29,9 +29,9 @@
         <button type="button" id="btnCancel" class="secondary">Hủy cuộc gọi</button>
       </div>
 
-      <!-- Staff Accepted — visitor must confirm before getUserMedia -->
+      <!-- Staff Accepted — visitor confirms Join (cam optional) -->
       <div id="readyPane" class="pane hidden">
-        <p class="lead">Nhân viên đã sẵn sàng. Bấm Tham gia để bật camera/micro và vào cuộc gọi.</p>
+        <p class="lead">Nhân viên đã sẵn sàng. Bấm Tham gia — camera không bắt buộc (có thể chỉ mic / nhận hình).</p>
         <p id="readyMeta" class="meta">Chưa xin quyền thiết bị.</p>
         <button type="button" id="btnJoin" class="primary">Tham gia cuộc gọi</button>
         <button type="button" id="btnEndFromReady" class="secondary">Kết thúc</button>
@@ -41,20 +41,23 @@
         <div class="stage">
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="localVideo" autoplay playsinline muted></video>
+          <img id="localSample" class="local-sample hidden" src="/assets/guest-avatar.svg" alt="Không có camera" />
           <div id="mediaHint" class="media-hint">Đang kết nối media…</div>
+          <div id="deviceBanner" class="device-banner hidden"></div>
         </div>
         <div class="controls">
           <button type="button" id="btnMic" class="ctl">Mic</button>
           <button type="button" id="btnCam" class="ctl">Cam</button>
+          <button type="button" id="btnRetryDevices" class="ctl hidden">Thử mic/cam</button>
           <button type="button" id="btnEnd" class="ctl danger">Kết thúc</button>
         </div>
       </div>
 
-      <!-- Permission / media error while call still Accepted -->
+      <!-- Hard join failure only (token/network) — call still Accepted -->
       <div id="permPane" class="pane hidden">
-        <p id="permText" class="lead error">Không thể bật camera/micro.</p>
-        <p class="meta">Cuộc gọi vẫn đang mở với nhân viên. Thử lại hoặc kết thúc.</p>
-        <button type="button" id="btnRetryMedia" class="primary">Thử lại camera/mic</button>
+        <p id="permText" class="lead error">Không vào được phòng media.</p>
+        <p class="meta">Cuộc gọi vẫn Accepted. Thử lại join hoặc kết thúc.</p>
+        <button type="button" id="btnRetryMedia" class="primary">Thử join lại</button>
         <button type="button" id="btnEndFromPerm" class="secondary">Kết thúc cuộc gọi</button>
       </div>
 
