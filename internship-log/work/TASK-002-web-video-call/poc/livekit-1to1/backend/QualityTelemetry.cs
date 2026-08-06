@@ -61,7 +61,7 @@ public sealed record QualityConnectionStats(
 
 public sealed record QualitySampleEnvelope(
     Guid CallId,
-    string TenantId,
+    string ClinicId,
     string UserId,
     string ClientSessionId,
     ClientEnvironmentInfo Environment,
@@ -134,7 +134,7 @@ public sealed class CallQualityStore
         {
             var envelope = new QualitySampleEnvelope(
                 call.Id,
-                call.TenantId,
+                call.ClinicId,
                 identity.Id,
                 clientSessionId,
                 batch.Environment,

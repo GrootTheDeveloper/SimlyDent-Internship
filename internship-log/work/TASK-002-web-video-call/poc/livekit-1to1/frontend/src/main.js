@@ -56,6 +56,11 @@ function authHeaders(extra = {}) {
   return headers
 }
 
+/** Canonical clinic id from auth user DTO (clinicId preferred; tenantId is legacy alias). */
+function clinicIdOf(userOrIdentity) {
+  return userOrIdentity?.clinicId || userOrIdentity?.tenantId || ''
+}
+
 async function apiFetch(path, options = {}) {
   const headers = authHeaders(options.headers || {})
   const res = await fetch(`${API_URL}${path}`, { ...options, headers })
@@ -1506,9 +1511,9 @@ if (isCallRoute) {
       popupErrorMessage: '',
       callWindowRef: null,
       broadcastChannel: null,
-      /** userId -> online bool (same tenant only) */
+      /** userId -> online bool (same clinic only) */
       onlineMap: {},
-      showOtherTenants: false
+      showOtherClinics: false
     },
     computed: {
       identityId() {
@@ -1524,13 +1529,13 @@ if (isCallRoute) {
       },
       visibleContacts() {
         const query = this.searchQuery.trim().toLowerCase()
-        const tenant = this.currentUser?.tenantId
+        const clinic = clinicIdOf(this.currentUser)
         return this.identities.filter(i => {
           if (i.id === this.identityId) return false
-          // Default: only same clinic/tenant (demo B1 is other clinic)
-          if (!this.showOtherTenants && tenant && i.tenantId !== tenant) return false
+          // Default: only same clinic (demo B1 is other clinic). Backend also filters directory.
+          if (!this.showOtherClinics && clinic && clinicIdOf(i) !== clinic) return false
           if (!query) return true
-          return `${i.id} ${i.displayName} ${i.tenantId}`.toLowerCase().includes(query)
+          return `${i.id} ${i.displayName} ${clinicIdOf(i)}`.toLowerCase().includes(query)
         })
       },
       peerIdentity() {
@@ -1639,8 +1644,8 @@ if (isCallRoute) {
         this.onlineMap = {}
         history.replaceState(null, '', `?user=${encodeURIComponent(user.id)}`)
         await this.loadIdentities()
-        const sameTenantPeers = this.identities.filter(i => i.id !== user.id)
-        this.targetId = sameTenantPeers[0]?.id || ''
+        const sameClinicPeers = this.identities.filter(i => i.id !== user.id)
+        this.targetId = sameClinicPeers[0]?.id || ''
         await this.connectRealtime()
       },
       async logout() {
@@ -1753,22 +1758,26 @@ if (isCallRoute) {
         if (this.isCallActive) return
         const peer = this.identities.find(i => i.id === userId)
         if (!peer) return
-        if (!this.sameTenant(peer) && !this.showOtherTenants) return
+        if (!this.sameClinic(peer) && !this.showOtherClinics) return
         this.targetId = userId
       },
+      sameClinic(item) {
+        return clinicIdOf(item) === clinicIdOf(this.currentUser)
+      },
+      /** Compatibility alias used by existing templates. */
       sameTenant(item) {
-        return item.tenantId === this.currentUser?.tenantId
+        return this.sameClinic(item)
       },
       contactStatusLabel(item) {
-        if (!this.sameTenant(item)) return 'Phòng khám / tenant khác'
+        if (!this.sameClinic(item)) return 'Phòng khám / clinic khác'
         return this.isUserOnline(item.id) ? 'Đang online' : 'Offline'
       },
       async startCall(targetId) {
         if (this.isCallActive) return
         const peer = this.identities.find(i => i.id === targetId)
         if (!peer) return
-        if (!this.sameTenant(peer)) {
-          this.popupErrorMessage = 'Không thể gọi user thuộc phòng khám / tenant khác.'
+        if (!this.sameClinic(peer)) {
+          this.popupErrorMessage = 'Không thể gọi user thuộc phòng khám / clinic khác.'
           this.popupState = 'error'
           return
         }
@@ -1943,7 +1952,7 @@ if (isCallRoute) {
                 <div class="account-avatar">{{ user.id }}</div>
                 <div class="account-info">
                   <span class="account-name">{{ user.displayName }}</span>
-                  <span class="account-id">ID: {{ user.id }} · Tenant: {{ user.tenantId }}</span>
+                  <span class="account-id">ID: {{ user.id }} · Clinic: {{ user.clinicId || user.tenantId }}</span>
                 </div>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
               </button>

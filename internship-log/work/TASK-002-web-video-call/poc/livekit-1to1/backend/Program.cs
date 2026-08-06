@@ -49,14 +49,10 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 // ---- Auth (real-world shape: password verify → JWT access token) ----
+// Clinic membership is never accepted from the client; it is bound at login.
 app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>
     // Login picker: real demo clinics only (not synthetic Lxx load users).
-    Results.Ok(registry.Directory(includeLoadUsers: false).Select(u => new
-    {
-        u.Id,
-        u.TenantId,
-        u.DisplayName
-    })));
+    Results.Ok(registry.Directory(includeLoadUsers: false).Select(ToUserDto)));
 
 app.MapPost("/api/auth/login", (
     LoginRequest body,
@@ -67,29 +63,25 @@ app.MapPost("/api/auth/login", (
         return Results.Json(new { error = "Sai tài khoản hoặc mật khẩu." }, statusCode: 401);
 
     var (accessToken, expiresAt) = tokens.CreateAccessToken(user);
-    return Results.Ok(new LoginResponse(
-        accessToken,
-        expiresAt,
-        new AuthUserDto(user.Id, user.TenantId, user.DisplayName)));
+    return Results.Ok(new LoginResponse(accessToken, expiresAt, ToUserDto(user)));
 });
 
 app.MapGet("/api/auth/me", (ClaimsPrincipal principal, IdentityRegistry identities) =>
 {
-    var user = CurrentIdentity(principal, identities);
+    var user = ClinicAuthorization.CurrentUser(principal, identities);
     return user is null
         ? Results.Unauthorized()
-        : Results.Ok(new AuthUserDto(user.Id, user.TenantId, user.DisplayName));
+        : Results.Ok(ToUserDto(user));
 }).RequireAuthorization();
 
 app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry registry) =>
 {
-    var current = CurrentIdentity(principal, registry);
+    var current = ClinicAuthorization.CurrentUser(principal, registry);
     if (current is null) return Results.Unauthorized();
-    // Same clinic only — production directory is scoped by org/tenant.
-    // Synthetic load-test users (Lxx) are omitted so the messenger UI stays clean.
-    var peers = registry.Directory(includeLoadUsers: false)
-        .Where(u => string.Equals(u.TenantId, current.TenantId, StringComparison.OrdinalIgnoreCase))
-        .Select(u => new AuthUserDto(u.Id, u.TenantId, u.DisplayName));
+    // Directory is always scoped to the authenticated principal's clinic.
+    // Client cannot pass clinicId to broaden the list.
+    var peers = registry.DirectoryForClinic(current.ClinicId, includeLoadUsers: false)
+        .Select(ToUserDto);
     return Results.Ok(peers);
 }).RequireAuthorization();
 
@@ -98,9 +90,10 @@ app.MapGet("/api/presence", (
     IdentityRegistry identities,
     PresenceRegistry presence) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    return Results.Ok(presence.SnapshotForTenant(identities, current.TenantId));
+    // Clinic comes from principal only — ignore any query clinicId if present.
+    return Results.Ok(presence.SnapshotForClinic(identities, current.ClinicId));
 }).RequireAuthorization();
 
 app.MapPost("/api/calls", async (
@@ -110,13 +103,14 @@ app.MapPost("/api/calls", async (
     ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hub) =>
 {
-    var caller = CurrentIdentity(principal, identities);
+    var caller = ClinicAuthorization.CurrentUser(principal, identities);
     if (caller is null) return Results.Unauthorized();
     var callee = identities.Find(body.CalleeId);
     if (callee is null) return Results.BadRequest(new { error = "Unknown callee." });
     if (caller.Id == callee.Id) return Results.BadRequest(new { error = "Self-call is not allowed." });
-    if (caller.TenantId != callee.TenantId)
-        return Results.Json(new { error = "Không thể gọi user phòng khám / tenant khác." }, statusCode: 403);
+    // Cross-clinic create is forbidden. Clinic is server-owned on both identities.
+    if (!ClinicAuthorization.SameClinic(caller, callee))
+        return Results.Json(new { error = "Không thể gọi user phòng khám / clinic khác." }, statusCode: 403);
 
     var now = DateTimeOffset.UtcNow;
     var busy = calls.Values.Any(call =>
@@ -144,13 +138,13 @@ app.MapPost("/api/calls", async (
     var call = new CallSession
     {
         Id = id,
-        TenantId = caller.TenantId,
+        ClinicId = caller.ClinicId,
         CallerId = caller.Id,
         CalleeId = callee.Id,
-        RoomName = $"call-{id:N}"
+        RoomName = CallSession.BuildRoomName(caller.ClinicId, id)
     };
     calls[id] = call;
-    await hub.Clients.Group(CallHub.Group(callee.Id)).SendAsync("CallUpdated", call.ToView());
+    await hub.Clients.Group(CallHub.Group(call.ClinicId, callee.Id)).SendAsync("CallUpdated", call.ToView());
     return Results.Created($"/api/calls/{id}", call.ToView());
 }).RequireAuthorization();
 
@@ -159,10 +153,10 @@ app.MapGet("/api/calls/active", (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
     var active = calls.Values
-        .Where(call => call.TenantId == current.TenantId && call.Contains(current.Id) && call.IsActive)
+        .Where(call => call.BelongsToClinic(current.ClinicId) && call.Contains(current.Id) && call.IsActive)
         .OrderByDescending(call => call.CreatedAt)
         .FirstOrDefault();
     return active is null ? Results.NoContent() : Results.Ok(active.ToView());
@@ -174,11 +168,11 @@ app.MapGet("/api/calls/{id:guid}", (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
-    return Results.Ok(call.ToView());
+    // Cross-clinic or non-participant → 404 (hide existence).
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    return call is null ? Results.NotFound() : Results.Ok(call.ToView());
 }).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/accept", async (
@@ -188,10 +182,10 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
     ConcurrentDictionary<Guid, CallSession> calls,
     IHubContext<CallHub> hub) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || call.CalleeId != current.Id)
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCallAs(calls, id, current, requireCallee: true);
+    if (call is null) return Results.NotFound();
     lock (call.SyncRoot)
     {
         if (call.Status != CallStatus.Ringing)
@@ -218,10 +212,10 @@ app.MapPost("/api/calls/{id:guid}/end", async (
     LiveKitEgressService egress,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
 
     string? egressId;
     lock (call.SyncRoot)
@@ -260,14 +254,15 @@ app.MapPost("/api/calls/{id:guid}/token", (
     ConcurrentDictionary<Guid, CallSession> calls,
     LiveKitTokenService tokens) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
     lock (call.SyncRoot)
     {
         if (call.Status != CallStatus.Accepted)
             return Results.Conflict(new { error = "Media token is available only after accept." });
+        // Room name is backend-owned; clients never choose the room.
     }
     // Long enough for 15–30 min clinical demos; previously 5 min cut media mid-call.
     var mediaTtlMinutes = int.TryParse(
@@ -287,12 +282,14 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     IHubContext<CallHub> hub,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
 
-    var fileName = $"call-{call.Id:N}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.mp4";
+    // Logical clinic namespace in the filename; physical path stays under RECORDINGS_PATH
+    // with server-side resolution only (no client path input). Nested dirs remain debt.
+    var fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.mp4";
     lock (call.SyncRoot)
     {
         if (call.Status != CallStatus.Accepted)
@@ -339,10 +336,10 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     IHubContext<CallHub> hub,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
 
     string egressId;
     lock (call.SyncRoot)
@@ -385,13 +382,15 @@ app.MapGet("/api/calls/{id:guid}/recording/file", (
     ConcurrentDictionary<Guid, CallSession> calls,
     IConfiguration configuration) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
     if (call.RecordingStatus != "Complete" || string.IsNullOrWhiteSpace(call.RecordingFileName))
         return Results.Conflict(new { error = "Recording is not ready." });
 
+    // Path is resolved server-side from authorized metadata only.
+    // Clients never supply a filesystem path. GetFileName prevents path traversal.
     var root = configuration["RECORDINGS_PATH"] ?? "/recordings";
     var path = Path.Combine(root, Path.GetFileName(call.RecordingFileName));
     return File.Exists(path)
@@ -408,10 +407,10 @@ app.MapPost("/api/calls/{id:guid}/quality/samples", async (
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
     if (call.Status is not (CallStatus.Accepted or CallStatus.Ended))
         return Results.Conflict(new { error = "Quality samples are accepted only for connected calls." });
     if (string.IsNullOrWhiteSpace(batch.ClientSessionId) || batch.ClientSessionId.Length > 120)
@@ -436,10 +435,10 @@ app.MapGet("/api/calls/{id:guid}/quality/summary", async (
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
     return Results.Ok(await qualityStore.BuildReportAsync(id, cancellationToken));
 }).RequireAuthorization();
 
@@ -452,10 +451,10 @@ app.MapGet("/api/calls/{id:guid}/quality/export", async (
     CallQualityStore qualityStore,
     CancellationToken cancellationToken) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
 
     var samples = await qualityStore.ReadAsync(id, cancellationToken);
     if (samples.Count == 0) return Results.NotFound(new { error = "No quality samples have been stored." });
@@ -481,23 +480,18 @@ app.MapGet("/api/calls/{id:guid}/quality/export", async (
 app.MapHub<CallHub>("/hubs/calls").RequireAuthorization();
 app.Run();
 
-static TestIdentity? CurrentIdentity(ClaimsPrincipal? principal, IdentityRegistry identities)
-{
-    if (principal?.Identity?.IsAuthenticated != true) return null;
-    var id = principal.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? principal.FindFirstValue("sub");
-    return identities.Find(id);
-}
+static AuthUserDto ToUserDto(TestIdentity user) =>
+    new(user.Id, user.ClinicId, user.DisplayName);
 
 static Func<Guid, ClaimsPrincipal, IdentityRegistry, ConcurrentDictionary<Guid, CallSession>, IHubContext<CallHub>, Task<IResult>> Transition(
     CallStatus target,
     bool callerOnly,
     bool calleeOnly) => async (id, principal, identities, calls, hub) =>
 {
-    var current = CurrentIdentity(principal, identities);
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (!calls.TryGetValue(id, out var call) || call.TenantId != current.TenantId || !call.Contains(current.Id))
-        return Results.NotFound();
+    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
+    if (call is null) return Results.NotFound();
     if (callerOnly && call.CallerId != current.Id || calleeOnly && call.CalleeId != current.Id)
         return Results.StatusCode(403);
     lock (call.SyncRoot)
@@ -518,8 +512,8 @@ static Func<Guid, ClaimsPrincipal, IdentityRegistry, ConcurrentDictionary<Guid, 
 };
 
 static Task NotifyParticipants(IHubContext<CallHub> hub, CallSession call) => Task.WhenAll(
-    hub.Clients.Group(CallHub.Group(call.CallerId)).SendAsync("CallUpdated", call.ToView()),
-    hub.Clients.Group(CallHub.Group(call.CalleeId)).SendAsync("CallUpdated", call.ToView()));
+    hub.Clients.Group(CallHub.Group(call.ClinicId, call.CallerId)).SendAsync("CallUpdated", call.ToView()),
+    hub.Clients.Group(CallHub.Group(call.ClinicId, call.CalleeId)).SendAsync("CallUpdated", call.ToView()));
 
 static string LiveKitWebSocketUrl(HttpRequest request)
 {
@@ -532,7 +526,10 @@ static string LiveKitWebSocketUrl(HttpRequest request)
     return $"{scheme}://{host}";
 }
 
-// DTOs
+// DTOs — ClinicId is canonical; TenantId is a JSON compatibility alias for older SPA builds.
 file sealed record LoginRequest(string UserId, string Password);
-file sealed record AuthUserDto(string Id, string TenantId, string DisplayName);
+file sealed record AuthUserDto(string Id, string ClinicId, string DisplayName)
+{
+    public string TenantId => ClinicId;
+}
 file sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt, AuthUserDto User);

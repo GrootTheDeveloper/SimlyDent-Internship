@@ -3,30 +3,35 @@ namespace LiveKitPoc.Api;
 /// <summary>
 /// Demo clinic directory. In production this is a users table + hashed passwords.
 /// Default password for all demo accounts: <c>Demo@123</c>
+/// Clinic membership is server-owned — never accepted from the client.
 /// </summary>
 public sealed class IdentityRegistry
 {
     /// <summary>Shared demo password (hashed at startup).</summary>
     public const string DemoPassword = "Demo@123";
 
+    public const string ClinicA = "clinic-a";
+    public const string ClinicB = "clinic-b";
+
     private readonly Dictionary<string, StoredIdentity> _users =
         new(StringComparer.OrdinalIgnoreCase);
 
     public IdentityRegistry(AuthTokenService auth)
     {
-        void Add(string id, string tenantId, string displayName)
+        void Add(string id, string clinicId, string displayName)
         {
-            var identity = new TestIdentity(id, tenantId, displayName);
+            var identity = new TestIdentity(id, clinicId, displayName);
             _users[id] = new StoredIdentity(identity, auth.HashPassword(identity, DemoPassword));
         }
 
-        Add("A1", "tenant-a", "Nguyễn Minh Anh");
-        Add("A2", "tenant-a", "Trần Thu Hà");
-        Add("A3", "tenant-a", "Lê Quốc Bảo");
-        Add("B1", "tenant-b", "Phạm Ngọc Lan");
+        // Canonical demo mapping for TASK-003 Phase 0.
+        Add("A1", ClinicA, "Nguyễn Minh Anh");
+        Add("A2", ClinicA, "Trần Thu Hà");
+        Add("A3", ClinicA, "Lê Quốc Bảo");
+        Add("B1", ClinicB, "Phạm Ngọc Lan");
 
         // Synthetic identities for concurrent API/capacity tests (hidden from default directory).
-        // L01..L40 → up to 20 simultaneous 1:1 pairs in tenant-a.
+        // L01..L40 → up to 20 simultaneous 1:1 pairs in clinic-a.
         var loadCount = 40;
         if (int.TryParse(Environment.GetEnvironmentVariable("LOAD_TEST_USER_COUNT"), out var configured)
             && configured >= 0)
@@ -36,7 +41,7 @@ public sealed class IdentityRegistry
         for (var i = 1; i <= loadCount; i++)
         {
             var id = $"L{i:D2}";
-            Add(id, "tenant-a", $"Load User {i:D2}");
+            Add(id, ClinicA, $"Load User {i:D2}");
         }
     }
 
@@ -48,6 +53,12 @@ public sealed class IdentityRegistry
         _users.Values
             .Select(u => u.Identity)
             .Where(u => includeLoadUsers || !IsLoadTestUser(u.Id))
+            .ToArray();
+
+    /// <summary>Staff belonging to a single clinic (server-side filter only).</summary>
+    public IReadOnlyCollection<TestIdentity> DirectoryForClinic(string clinicId, bool includeLoadUsers = false) =>
+        Directory(includeLoadUsers)
+            .Where(u => string.Equals(u.ClinicId, clinicId, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
     public static bool IsLoadTestUser(string? id) =>

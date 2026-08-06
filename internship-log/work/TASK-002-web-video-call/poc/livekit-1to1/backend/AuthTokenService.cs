@@ -9,6 +9,9 @@ namespace LiveKitPoc.Api;
 public sealed class AuthTokenService
 {
     public const string ClaimUserId = ClaimTypes.NameIdentifier;
+    /// <summary>Canonical clinic claim for TASK-003.</summary>
+    public const string ClaimClinicId = "clinic_id";
+    /// <summary>Legacy alias of clinic_id (same value) for older clients/tools.</summary>
     public const string ClaimTenantId = "tenant_id";
     public const string ClaimDisplayName = "display_name";
 
@@ -42,11 +45,13 @@ public sealed class AuthTokenService
     public (string AccessToken, DateTimeOffset ExpiresAt) CreateAccessToken(TestIdentity user)
     {
         var expires = DateTimeOffset.UtcNow.Add(_lifetime);
+        // ClinicId is server-owned from IdentityRegistry at login time.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(ClaimUserId, user.Id),
-            new(ClaimTenantId, user.TenantId),
+            new(ClaimClinicId, user.ClinicId),
+            new(ClaimTenantId, user.ClinicId), // compatibility alias
             new(ClaimDisplayName, user.DisplayName),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
