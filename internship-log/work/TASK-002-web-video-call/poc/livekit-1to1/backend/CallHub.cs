@@ -4,6 +4,11 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace LiveKitPoc.Api;
 
+/// <summary>
+/// SignalR hub for call invitations and presence.
+/// Group membership is derived solely from JWT → IdentityRegistry (server-owned ClinicId).
+/// There is no JoinClinic(clinicId) client method — browsers cannot switch clinics.
+/// </summary>
 [Authorize]
 public sealed class CallHub(
     IdentityRegistry identities,
@@ -24,38 +29,45 @@ public sealed class CallHub(
         }
 
         Context.Items["userId"] = identity.Id;
-        Context.Items["tenantId"] = identity.TenantId;
+        Context.Items["clinicId"] = identity.ClinicId;
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(identity.Id));
-        await Groups.AddToGroupAsync(Context.ConnectionId, TenantGroup(identity.TenantId));
+        // Personal group is namespaced by clinic so user ids cannot collide across clinics.
+        await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(identity.ClinicId, identity.Id));
+        await Groups.AddToGroupAsync(Context.ConnectionId, ClinicGroup(identity.ClinicId));
 
-        presence.Connect(identity.Id);
-        await BroadcastPresenceAsync(identity.TenantId);
+        presence.Connect(identity.ClinicId, identity.Id);
+        await BroadcastPresenceAsync(identity.ClinicId);
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (Context.Items.TryGetValue("userId", out var uidObj) && uidObj is string userId
-            && Context.Items.TryGetValue("tenantId", out var tidObj) && tidObj is string tenantId)
+            && Context.Items.TryGetValue("clinicId", out var cidObj) && cidObj is string clinicId)
         {
-            presence.Disconnect(userId);
-            await BroadcastPresenceAsync(tenantId);
+            presence.Disconnect(clinicId, userId);
+            await BroadcastPresenceAsync(clinicId);
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    private Task BroadcastPresenceAsync(string tenantId)
+    private Task BroadcastPresenceAsync(string clinicId)
     {
-        var snapshot = presence.SnapshotForTenant(identities, tenantId);
-        return hubContext.Clients.Group(TenantGroup(tenantId))
+        var snapshot = presence.SnapshotForClinic(identities, clinicId);
+        // Only members of this clinic group receive presence — never cross-clinic.
+        return hubContext.Clients.Group(ClinicGroup(clinicId))
             .SendAsync(PresenceEvent, snapshot);
     }
 
-    public static string UserGroup(string userId) => $"user:{userId.ToUpperInvariant()}";
+    /// <summary>clinic:{clinicId}</summary>
+    public static string ClinicGroup(string clinicId) =>
+        $"clinic:{clinicId.Trim().ToLowerInvariant()}";
 
-    public static string TenantGroup(string tenantId) => $"tenant:{tenantId.ToUpperInvariant()}";
+    /// <summary>clinic:{clinicId}:user:{userId}</summary>
+    public static string UserGroup(string clinicId, string userId) =>
+        $"clinic:{clinicId.Trim().ToLowerInvariant()}:user:{userId.Trim().ToUpperInvariant()}";
 
-    public static string Group(string userId) => UserGroup(userId);
+    /// <summary>Notify a specific user inside a clinic (call invites / state).</summary>
+    public static string Group(string clinicId, string userId) => UserGroup(clinicId, userId);
 }

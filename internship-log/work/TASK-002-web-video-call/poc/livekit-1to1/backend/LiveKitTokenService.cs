@@ -9,23 +9,37 @@ public sealed class LiveKitTokenService(IConfiguration configuration)
     private readonly string _apiKey = configuration["LIVEKIT_API_KEY"] ?? "devkey";
     private readonly string _apiSecret = configuration["LIVEKIT_API_SECRET"]
         ?? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.");
+
+    /// <summary>
+    /// Join token for an exact authorized room only — no wildcards.
+    /// Identity sub is clinic-scoped: {clinicId}:{userId}.
+    /// </summary>
     public (string Token, DateTimeOffset ExpiresAt) CreateJoinToken(
         TestIdentity identity,
         string roomName,
         TimeSpan ttl)
     {
+        if (string.IsNullOrWhiteSpace(roomName))
+            throw new ArgumentException("Room name is required.", nameof(roomName));
+
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.Add(ttl);
         var header = new Dictionary<string, object> { ["alg"] = "HS256", ["typ"] = "JWT" };
         var payload = new Dictionary<string, object?>
         {
             ["iss"] = _apiKey,
-            ["sub"] = $"{identity.TenantId}:{identity.Id}",
+            ["sub"] = $"{identity.ClinicId}:{identity.Id}",
             ["name"] = identity.DisplayName,
             ["nbf"] = now.ToUnixTimeSeconds(),
             ["exp"] = expiresAt.ToUnixTimeSeconds(),
             ["jti"] = Guid.NewGuid().ToString("N"),
-            ["metadata"] = JsonSerializer.Serialize(new { identity.Id, identity.TenantId }),
+            ["metadata"] = JsonSerializer.Serialize(new
+            {
+                identity.Id,
+                clinicId = identity.ClinicId,
+                // legacy key kept so older tooling that reads tenantId still works
+                tenantId = identity.ClinicId
+            }),
             ["video"] = new
             {
                 roomJoin = true,
