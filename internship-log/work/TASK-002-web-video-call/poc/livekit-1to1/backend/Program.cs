@@ -70,7 +70,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = embedTokens.ValidationParameters();
         options.MapInboundClaims = false;
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Embed call API: EmbedBearer only (staff JWT audience/secret will not match).
+    options.AddPolicy("EmbedVisitor", policy =>
+        policy.AddAuthenticationSchemes(EmbedAuthTokenService.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .RequireClaim(EmbedAuthTokenService.ClaimTokenUse, EmbedAuthTokenService.TokenUseEmbed));
+});
 
 var app = builder.Build();
 app.UseCors();
@@ -118,9 +125,131 @@ app.MapPost("/embed/session", (
         site.SiteKey));
 }).RequireCors("EmbedCors");
 
-// Probe: embed JWT must not authenticate as staff default scheme on staff routes.
-// Staff JWT on /embed/calls will be rejected by EmbedBearer scheme (PR-B).
+// ---- Embed calls (visitor session) — Phase 2 PR-B ----
+// Auth: EmbedBearer only. Ownership: session VisitorId == call.CallerId + same clinic.
+// DTO: EmbedCallView (no room/recording/staff internals). Media token only after Accept.
 
+app.MapPost("/embed/calls", async (
+    HttpContext http,
+    ClaimsPrincipal principal,
+    CallDispatcher dispatcher,
+    EmbedRateLimiter rateLimiter) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+
+    var clientIp = EmbedRateLimiter.GetClientIp(http);
+    var rateKey = $"calls:{session.SessionId}:{clientIp}";
+    if (!rateLimiter.TryAcquire(rateKey))
+        return Results.Json(new { error = "Rate limit exceeded." }, statusCode: 429);
+
+    var actor = CallActor.FromEmbed(session);
+    var call = await dispatcher.EnqueueAsync(actor.AsIdentity());
+    ClinicAuthorization.TouchVisitorSeen(call);
+
+    if (call.Status == CallStatus.Closed)
+        return Results.Json(
+            new { error = "Clinic is closed.", call = EmbedCallView.From(call) },
+            statusCode: 403);
+
+    return Results.Created($"/embed/calls/{call.Id}", EmbedCallView.From(call));
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
+
+app.MapGet("/embed/calls/{id:guid}", (
+    Guid id,
+    ClaimsPrincipal principal,
+    ConcurrentDictionary<Guid, CallSession> calls) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+
+    var call = ClinicAuthorization.GetEmbedOwnedCall(calls, id, session);
+    if (call is null) return Results.NotFound();
+
+    // Poll = visitor heartbeat for stale recovery.
+    ClinicAuthorization.TouchVisitorSeen(call);
+    return Results.Ok(EmbedCallView.From(call));
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
+
+app.MapPost("/embed/calls/{id:guid}/cancel", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    CallDispatcher dispatcher) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+
+    // Ownership gate first → 404 for cross-session / cross-clinic (no enumeration).
+    var owned = ClinicAuthorization.GetEmbedOwnedCall(calls, id, session);
+    if (owned is null) return Results.NotFound();
+
+    ClinicAuthorization.TouchVisitorSeen(owned);
+    var result = await dispatcher.TryCancelAsync(id, CallActor.FromEmbed(session).AsIdentity());
+    return result.Kind switch
+    {
+        CallTransitionKind.Ok => Results.Ok(EmbedCallView.From(result.Call!)),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
+
+app.MapPost("/embed/calls/{id:guid}/end", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    CallDispatcher dispatcher) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+
+    var owned = ClinicAuthorization.GetEmbedOwnedCall(calls, id, session);
+    if (owned is null) return Results.NotFound();
+
+    ClinicAuthorization.TouchVisitorSeen(owned);
+    var result = await dispatcher.TryEndAsync(id, CallActor.FromEmbed(session).AsIdentity());
+    return result.Kind switch
+    {
+        CallTransitionKind.Ok => Results.Ok(EmbedCallView.From(result.Call!)),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
+
+app.MapPost("/embed/calls/{id:guid}/token", (
+    Guid id,
+    HttpRequest request,
+    ClaimsPrincipal principal,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    LiveKitTokenService tokens) =>
+{
+    var session = EmbedAuthTokenService.TryReadSession(principal);
+    if (session is null) return Results.Unauthorized();
+
+    var call = ClinicAuthorization.GetEmbedOwnedCall(calls, id, session);
+    if (call is null) return Results.NotFound();
+
+    ClinicAuthorization.TouchVisitorSeen(call);
+
+    string roomName;
+    lock (call.SyncRoot)
+    {
+        if (call.Status != CallStatus.Accepted)
+            return Results.Conflict(new { error = "Media token is available only after accept." });
+        roomName = call.RoomName;
+    }
+
+    // Room is server-chosen; widget never selects room. LiveKit JWT embeds room claim.
+    var mediaTtlMinutes = int.TryParse(
+        Environment.GetEnvironmentVariable("LIVEKIT_JOIN_TOKEN_MINUTES"), out var ttl)
+        ? Math.Clamp(ttl, 5, 180)
+        : 60;
+    var identity = CallActor.FromEmbed(session).AsIdentity();
+    var (token, expiresAt) = tokens.CreateJoinToken(identity, roomName, TimeSpan.FromMinutes(mediaTtlMinutes));
+    return Results.Ok(new TokenResponse(LiveKitWebSocketUrl(request), token, expiresAt));
+}).RequireAuthorization("EmbedVisitor").RequireCors("EmbedCors");
 
 // ---- Auth ----
 app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>

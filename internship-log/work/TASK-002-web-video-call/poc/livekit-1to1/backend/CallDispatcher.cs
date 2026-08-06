@@ -59,8 +59,18 @@ public sealed class CallDispatcher(
     private readonly bool _alwaysOpen =
         !string.Equals(configuration["CLINIC_FORCE_CLOSED"], "1", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Embed poll / heartbeat: if visitor stops GET/POST, abandon active queue call after this.
+    /// Frees staff capacity (invariant 5). Default 90s.
+    /// </summary>
+    private readonly TimeSpan _visitorStaleAfter = TimeSpan.FromSeconds(
+        Math.Clamp(
+            int.TryParse(configuration["EMBED_VISITOR_STALE_SECONDS"], out var s) ? s : 90,
+            20, 600));
+
     public TimeSpan RingTimeout => _ringTimeout;
     public TimeSpan VisitorTimeout => _visitorTimeout;
+    public TimeSpan VisitorStaleAfter => _visitorStaleAfter;
 
     private object ClinicLock(string clinicId) =>
         _clinicLocks.GetOrAdd(clinicId.Trim().ToLowerInvariant(), _ => new object());
@@ -440,6 +450,20 @@ public sealed class CallDispatcher(
         {
             if (ct.IsCancellationRequested) break;
 
+            // Embed visitor disappeared (no poll) — free queue / staff.
+            if (call.Origin == CallOrigin.Queue
+                && call.CallerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
+            {
+                DateTimeOffset lastSeen;
+                lock (call.SyncRoot)
+                    lastSeen = call.VisitorLastSeenAt ?? call.UpdatedAt;
+                if (now - lastSeen >= _visitorStaleAfter)
+                {
+                    await AbandonStaleVisitorAsync(call, ct);
+                    continue;
+                }
+            }
+
             if (call.Origin == CallOrigin.Queue && call.Status == CallStatus.Queued
                 && now - call.CreatedAt >= _visitorTimeout)
             {
@@ -466,6 +490,30 @@ public sealed class CallDispatcher(
                     call.Origin == CallOrigin.Direct ? CallStatus.Cancelled : CallStatus.Rejected,
                     ct);
             }
+        }
+    }
+
+    /// <summary>
+    /// Visitor stopped polling: cancel Queued/Ringing, end Accepted, free staff + redispatch.
+    /// </summary>
+    public async Task AbandonStaleVisitorAsync(CallSession call, CancellationToken ct = default)
+    {
+        CallStatus status;
+        lock (call.SyncRoot)
+            status = call.Status;
+
+        var actor = new TestIdentity(
+            call.CallerId, call.ClinicId, "Visitor", IdentityRoles.Visitor);
+
+        if (status is CallStatus.Queued or CallStatus.Ringing)
+        {
+            await TryCancelAsync(call.Id, actor);
+            return;
+        }
+
+        if (status == CallStatus.Accepted)
+        {
+            await TryEndAsync(call.Id, actor);
         }
     }
 

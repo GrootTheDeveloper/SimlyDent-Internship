@@ -137,4 +137,50 @@ public sealed record CallView(
 public sealed record CreateCallRequest(string CalleeId);
 public sealed record TokenResponse(string Url, string Token, DateTimeOffset ExpiresAt);
 
+/// <summary>
+/// Public embed poll DTO — intentionally smaller than <see cref="CallView"/>.
+/// No roomName, recording, egress, or staff assignment fields.
+/// Room is only present inside the short-lived LiveKit JWT after Accept.
+/// </summary>
+public sealed record EmbedCallView(
+    Guid Id,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    int WaitingSeconds)
+{
+    public static EmbedCallView From(CallSession call)
+    {
+        var waiting = Math.Max(0, (int)(DateTimeOffset.UtcNow - call.CreatedAt).TotalSeconds);
+        return new EmbedCallView(
+            call.Id,
+            call.Status.ToString(),
+            call.CreatedAt,
+            call.UpdatedAt,
+            waiting);
+    }
+}
+
+/// <summary>
+/// Unified actor for cancel/end/ownership checks.
+/// Staff comes from IdentityRegistry; embed visitors from EmbedSession claims (no registry row).
+/// </summary>
+public sealed record CallActor(string Id, string ClinicId, string Role, string DisplayName = "")
+{
+    public bool IsStaff =>
+        string.Equals(Role, IdentityRoles.Staff, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsVisitor =>
+        string.Equals(Role, IdentityRoles.Visitor, StringComparison.OrdinalIgnoreCase);
+
+    public TestIdentity AsIdentity() =>
+        new(Id, ClinicId, string.IsNullOrWhiteSpace(DisplayName) ? Id : DisplayName, Role);
+
+    public static CallActor FromStaff(TestIdentity staff) =>
+        new(staff.Id, staff.ClinicId, staff.Role, staff.DisplayName);
+
+    public static CallActor FromEmbed(EmbedSession session) =>
+        new(session.VisitorId, session.ClinicId, IdentityRoles.Visitor, "Visitor");
+}
+
 // Login DTOs live in Program.cs as file-scoped records for the auth endpoints.

@@ -1,9 +1,9 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** **PR-0 + PR-0b + PR-A implemented**; PR-B+ pending.  
-**Depends on:** Phase 0 ✅ · Phase 1 ✅ · PR-0/0b ✅ · PR-A embed session ✅  
+**Status:** **PR-0 + PR-0b + PR-A + PR-B implemented**; PR-C+ pending.  
+**Depends on:** Phase 0 ✅ · Phase 1 ✅ · PR-0/0b ✅ · PR-A embed session ✅ · PR-B embed calls ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
-**Full order:** PR-0 → PR-0b → **PR-A** → PR-B → PR-C → PR-D → PR-E  
+**Full order:** PR-0 → PR-0b → PR-A → **PR-B** → PR-C → PR-D → PR-E  
 
 ### Five MVP invariants
 
@@ -114,17 +114,21 @@ Never trust browser-supplied `clinicId`.
 
 **AC:** Wrong origin → 403; unknown site_key → 404; session JWT cannot call staff APIs as staff.
 
-### PR-B — Embed call API wired to dispatcher
+### PR-B — Embed call API wired to dispatcher ✅
 
 | Item | Detail |
 |------|--------|
-| `POST /embed/calls` | Enqueue for session clinic (reuse `CallDispatcher.EnqueueAsync`) |
-| `GET /embed/calls/{id}` | Only if session owns call |
-| `POST .../cancel` | Visitor cancel |
-| `POST .../token` | After Accepted only; exact room |
-| Events | Optional: SignalR group `clinic:{id}:session:{sessionId}` or poll 1–2s |
+| `POST /embed/calls` | Enqueue for session clinic (reuse `CallDispatcher.EnqueueAsync`); 1 active call / session |
+| `GET /embed/calls/{id}` | Session ownership only; updates `VisitorLastSeenAt` (poll = heartbeat) |
+| `POST .../cancel` | Queued/Ringing only; idempotent |
+| `POST .../end` | Accepted only; frees staff + redispatch |
+| `POST .../token` | After Accepted only; exact server room in LiveKit JWT |
+| DTO | `EmbedCallView` — id/status/timestamps/waiting; **no** roomName/recording/staff |
+| Auth | Policy `EmbedVisitor` (`EmbedBearer` + `token_use=embed`); staff JWT → 401 |
+| Stale | `EMBED_VISITOR_STALE_SECONDS` (default 90): abandon active embed call if no poll |
+| Tests | `scripts/embed-isolation-test.ps1` |
 
-**AC:** VB/`pk_clinic_b` cannot read clinic-a call id; isolation suite extended.
+**AC:** VB/`pk_clinic_b` cannot read clinic-a call id; same-clinic other session 404; isolation suite extended.
 
 ### PR-C — Visitor widget (minimal UI)
 

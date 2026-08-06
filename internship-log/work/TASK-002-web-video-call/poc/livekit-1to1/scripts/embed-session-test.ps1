@@ -154,16 +154,13 @@ try {
 }
 Add-Result "embed token cannot use /api/agents" ($st -in @(401, 403)) "status=$st"
 
-# Staff token cannot be used where EmbedBearer is required — probe with fake /embed/calls later (PR-B).
-# For PR-A: staff login works still
+# Staff login still works; full EmbedBearer rejection covered by embed-isolation-test.ps1.
 $login = Invoke-RestMethod -Method Post -Uri "$ApiUrl/api/auth/login" `
     -ContentType "application/json" `
     -Body (@{ userId = "A1"; password = $DemoPassword } | ConvertTo-Json -Compress)
 Add-Result "staff login still works" (-not [string]::IsNullOrWhiteSpace($login.accessToken)) "ok"
 
 $staffTok = $login.accessToken
-# Staff calling /embed/session is fine (anonymous). Calling a future embed-auth route:
-# Ensure staff token is not accepted as EmbedBearer by validating audience difference.
 $staffClaims = Get-JwtPayload $staffTok
 Add-Result "staff aud is not embed" ($staffClaims.aud -ne "simlydent-embed") "aud=$($staffClaims.aud)"
 

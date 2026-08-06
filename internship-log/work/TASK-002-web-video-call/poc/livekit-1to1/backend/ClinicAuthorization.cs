@@ -94,4 +94,26 @@ public static class ClinicAuthorization
             return Results.Json(new { error = "Staff role required." }, statusCode: 403);
         return null;
     }
+
+    /// <summary>
+    /// Embed call ownership: same clinic + CallerId equals embed visitor id.
+    /// Cross-clinic / other session → null (map to 404).
+    /// </summary>
+    public static CallSession? GetEmbedOwnedCall(
+        ConcurrentDictionary<Guid, CallSession> calls,
+        Guid callId,
+        EmbedSession session)
+    {
+        if (!calls.TryGetValue(callId, out var call)) return null;
+        if (!call.BelongsToClinic(session.ClinicId)) return null;
+        if (!string.Equals(call.CallerId, session.VisitorId, StringComparison.OrdinalIgnoreCase))
+            return null;
+        return call;
+    }
+
+    public static void TouchVisitorSeen(CallSession call)
+    {
+        lock (call.SyncRoot)
+            call.VisitorLastSeenAt = DateTimeOffset.UtcNow;
+    }
 }
