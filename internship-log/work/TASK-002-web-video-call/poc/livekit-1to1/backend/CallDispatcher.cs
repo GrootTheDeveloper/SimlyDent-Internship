@@ -555,6 +555,8 @@ public sealed class CallDispatcher(
             {
                 c.Id,
                 c.CallerId,
+                // Staff-friendly label (avoid full visitor:{guid} in UI).
+                CallerLabel = FormatCallerLabel(c.CallerId),
                 c.Status,
                 c.AssignedStaffId,
                 c.CreatedAt,
@@ -562,6 +564,26 @@ public sealed class CallDispatcher(
             })
             .ToArray();
         return new { clinicId, items };
+    }
+
+    /// <summary>Short label for staff queue/UI; internal id stays on CallerId.</summary>
+    public static string FormatCallerLabel(string? callerId)
+    {
+        if (string.IsNullOrWhiteSpace(callerId)) return "Khách";
+        if (callerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
+        {
+            var hex = new string(callerId.AsSpan("visitor:".Length)
+                .ToArray()
+                .Where(char.IsLetterOrDigit)
+                .Take(6)
+                .ToArray());
+            if (hex.Length == 0) return "Khách web";
+            return $"Khách #{hex.ToUpperInvariant()}";
+        }
+        if (callerId.StartsWith("V", StringComparison.OrdinalIgnoreCase)
+            && callerId.Length <= 4)
+            return $"Khách {callerId.ToUpperInvariant()}";
+        return callerId;
     }
 
     public Task NotifyCallAsync(CallSession call)

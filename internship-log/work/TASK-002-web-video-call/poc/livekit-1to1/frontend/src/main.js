@@ -61,6 +61,44 @@ function clinicIdOf(userOrIdentity) {
   return userOrIdentity?.clinicId || userOrIdentity?.tenantId || ''
 }
 
+/** Embed visitors use CallerId = visitor:{sessionId} — too long for staff UI. */
+function isEmbedVisitorId(id) {
+  return typeof id === 'string' && id.toLowerCase().startsWith('visitor:')
+}
+
+/** Short stable code from embed session id (first 6 hex chars). */
+function visitorShortCode(id) {
+  if (!isEmbedVisitorId(id)) return ''
+  const raw = id.slice('visitor:'.length).replace(/[^a-fA-F0-9]/g, '')
+  return (raw.slice(0, 6) || '------').toUpperCase()
+}
+
+/**
+ * Human label for staff surfaces. Never show full visitor:{guid} as the title.
+ * @param {string} id
+ * @param {{ displayName?: string } | null} [known]
+ */
+function peerLabel(id, known = null) {
+  if (known?.displayName && known.displayName !== id) return known.displayName
+  if (isEmbedVisitorId(id)) return `Khách #${visitorShortCode(id)}`
+  if (!id) return '—'
+  // Demo queue visitors VA/VB without directory hit
+  if (/^V[A-Z0-9]+$/i.test(id)) return `Khách ${id.toUpperCase()}`
+  return id
+}
+
+/** Compact avatar initials (never the full visitor GUID). */
+function peerAvatarText(id, known = null) {
+  if (known?.displayName && known.displayName !== id) {
+    const parts = String(known.displayName).trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return String(known.displayName).slice(0, 2).toUpperCase()
+  }
+  if (isEmbedVisitorId(id)) return 'K'
+  if (!id) return '?'
+  return String(id).slice(0, 2).toUpperCase()
+}
+
 async function apiFetch(path, options = {}) {
   const headers = authHeaders(options.headers || {})
   const res = await fetch(`${API_URL}${path}`, { ...options, headers })
@@ -806,9 +844,14 @@ if (isCallRoute) {
         if (!this.call) return ''
         return this.call.callerId === this.userId ? this.call.calleeId : this.call.callerId
       },
+      peerKnown() {
+        return this.identities.find(i => i.id === this.peerId) || null
+      },
       peerName() {
-        const p = this.identities.find(i => i.id === this.peerId)
-        return p?.displayName || this.peerId
+        return peerLabel(this.peerId, this.peerKnown)
+      },
+      peerAvatar() {
+        return peerAvatarText(this.peerId, this.peerKnown)
       },
       mediaSetupLabel() {
         if (this.mediaPermissionState === 'requesting') return 'Đang xin quyền camera và microphone…'
@@ -1406,7 +1449,7 @@ if (isCallRoute) {
       <div class="call-window-shell">
         <header class="call-window-header">
           <div class="call-header-user">
-            <div class="call-header-avatar">{{ peerId || '?' }}</div>
+            <div class="call-header-avatar" :title="peerId">{{ peerAvatar }}</div>
             <div>
               <div class="call-header-title">{{ peerName }}</div>
               <div class="call-header-status">{{ call ? call.status : 'Đang tải...' }}</div>
@@ -1422,7 +1465,7 @@ if (isCallRoute) {
         <main class="call-window-body">
           <!-- Connecting / Waiting State -->
           <div v-if="!call || call.status !== 'Accepted'" class="call-connecting-state">
-            <div class="pulse-ring-avatar">{{ peerId || '?' }}</div>
+            <div class="pulse-ring-avatar" :title="peerId">{{ peerAvatar }}</div>
             <h2>{{ peerName }}</h2>
             <p v-if="call && call.status === 'Ringing'">{{ call.callerId === userId ? 'Đang đổ chuông...' : 'Đang nhận cuộc gọi...' }}</p>
             <p v-else-if="call">{{ call.status }}</p>
@@ -1548,10 +1591,22 @@ if (isCallRoute) {
       peerIdentity() {
         if (!this.call) return this.selectedIdentity
         const peerId = this.call.callerId === this.identityId ? this.call.calleeId : this.call.callerId
-        return this.identities.find(i => i.id === peerId) || { id: peerId, displayName: peerId }
+        const known = this.identities.find(i => i.id === peerId)
+        if (known) return known
+        return {
+          id: peerId,
+          displayName: peerLabel(peerId),
+          role: isEmbedVisitorId(peerId) ? 'Visitor' : 'Staff'
+        }
       },
       peerName() {
-        return this.peerIdentity?.displayName || this.peerIdentity?.id || ''
+        return peerLabel(this.peerIdentity?.id, this.peerIdentity)
+      },
+      peerAvatar() {
+        return peerAvatarText(this.peerIdentity?.id, this.peerIdentity)
+      },
+      isEmbedPeer() {
+        return isEmbedVisitorId(this.peerIdentity?.id)
       }
     },
     async mounted() {
@@ -2241,9 +2296,9 @@ if (isCallRoute) {
         <!-- 1. Incoming Call Popup -->
         <div v-if="popupState === 'incoming'" class="modal-backdrop">
           <div class="call-popup-card">
-            <div class="pulse-ring-avatar">{{ peerIdentity.id }}</div>
+            <div class="pulse-ring-avatar" :title="peerIdentity?.id">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">đang gọi video cho bạn...</p>
+            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách website đang gọi tư vấn…' : 'đang gọi video cho bạn...' }}</p>
             <div class="popup-action-buttons">
               <button class="popup-btn danger" @click="rejectCall">Từ chối</button>
               <button class="popup-btn success" @click="acceptCall">Chấp nhận</button>
@@ -2254,7 +2309,7 @@ if (isCallRoute) {
         <!-- 2. Outgoing Call Ringing Popup -->
         <div v-if="popupState === 'ringing'" class="modal-backdrop">
           <div class="call-popup-card">
-            <div class="pulse-ring-avatar">{{ peerIdentity.id }}</div>
+            <div class="pulse-ring-avatar" :title="peerIdentity?.id">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
             <p class="popup-subtitle">Đang đổ chuông...</p>
             <div class="popup-action-buttons">
