@@ -98,6 +98,28 @@ Backend phải đang chạy (`http://localhost:5080` hoặc URL VPS):
 **Phase 1 demo:** login staff **A1/A2** (Available qua SignalR). Login visitor **VA** → **Bắt đầu gọi (queue)** → backend gán longest-idle staff → Accept.  
 Env: `RING_TIMEOUT_SECONDS` (15), `VISITOR_TIMEOUT_SECONDS` (120), `AGENT_HEARTBEAT_STALE_SECONDS` (45).
 
+### Phase 2 — Public embed widget (visitor)
+
+Snippet nhúng trên website phòng khám (Origin phải nằm trong allowlist exact):
+
+```html
+<script
+  src="https://YOUR_DOMAIN/widget/embed.js"
+  data-site-key="pk_clinic_a"
+  data-api-base="https://YOUR_DOMAIN"
+  data-name="Nha khoa Demo A"
+  data-color="#0d9488"
+  async></script>
+```
+
+- Demo UI: `https://YOUR_DOMAIN/widget/demo-a.html` · `…/demo-b.html`  
+  (cần `EMBED_PUBLIC_ORIGIN=https://YOUR_DOMAIN` nếu demo cùng host với API)
+- Session: parent page gọi `POST /embed/session` (Origin = domain clinic)
+- Iframe: `allow="camera; microphone"`; camera chỉ sau Accept
+- Stale visitor: waiting **30s** / in-call **90s** (poll heartbeat)
+- Tests API: `.\scripts\embed-session-test.ps1` · `.\scripts\embed-isolation-test.ps1`
+- Browser E2E multi-origin + evidence file: **PR-E**
+
 **Phase 2 plan:** [docs/PHASE-2-plan.md](docs/PHASE-2-plan.md).
 
 ### Embed session (Phase 2 PR-A)

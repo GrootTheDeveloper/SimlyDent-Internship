@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SimlyDent — Gọi tư vấn</title>
+  <link rel="stylesheet" href="./frame.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div>
+        <div id="clinicName" class="title">Tư vấn video</div>
+        <div id="statusLine" class="subtitle">Sẵn sàng</div>
+      </div>
+      <button type="button" id="btnClose" class="icon-btn" aria-label="Đóng">✕</button>
+    </header>
+
+    <main class="main">
+      <div id="idlePane" class="pane">
+        <p class="lead">Bấm gọi để kết nối với nhân viên phòng khám. Camera chỉ bật sau khi được chấp nhận.</p>
+        <button type="button" id="btnCall" class="primary">Gọi tư vấn</button>
+      </div>
+
+      <div id="waitPane" class="pane hidden">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="waitText" class="lead">Đang xếp hàng…</p>
+        <p id="waitMeta" class="meta"></p>
+        <button type="button" id="btnCancel" class="secondary">Hủy cuộc gọi</button>
+      </div>
+
+      <div id="mediaPane" class="pane media hidden">
+        <div class="stage">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <video id="localVideo" autoplay playsinline muted></video>
+          <div id="mediaHint" class="media-hint">Đang kết nối media…</div>
+        </div>
+        <div class="controls">
+          <button type="button" id="btnMic" class="ctl">Mic</button>
+          <button type="button" id="btnCam" class="ctl">Cam</button>
+          <button type="button" id="btnEnd" class="ctl danger">Kết thúc</button>
+        </div>
+      </div>
+
+      <div id="endedPane" class="pane hidden">
+        <p id="endedText" class="lead">Cuộc gọi đã kết thúc.</p>
+        <button type="button" id="btnAgain" class="primary">Gọi lại</button>
+      </div>
+
+      <div id="errorPane" class="pane hidden">
+        <p id="errorText" class="lead error">Có lỗi xảy ra.</p>
+        <button type="button" id="btnRetry" class="primary">Thử lại</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- LiveKit UMD for PoC; no bundler inside the iframe. -->
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.21.0/dist/livekit-client.umd.min.js"></script>
+  <script src="./frame.js"></script>
+</body>
+</html>

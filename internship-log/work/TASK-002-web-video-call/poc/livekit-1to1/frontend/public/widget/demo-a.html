@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo Clinic A — website phòng khám</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    header {
+      background: linear-gradient(120deg, #0f766e, #115e59);
+      color: #fff;
+      padding: 28px 20px;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      line-height: 1.5;
+    }
+    code { background: #e2e8f0; padding: 2px 6px; border-radius: 6px; font-size: 0.9em; }
+    .note { margin-top: 16px; font-size: 14px; color: #475569; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0 0 6px;font-size:1.5rem;">Nha khoa Demo A</h1>
+    <p style="margin:0;opacity:.9;">Trang giả lập website phòng khám (clinic-a / pk_clinic_a)</p>
+  </header>
+  <main>
+    <div class="card">
+      <p>Widget SimlyDent được nhúng bằng một thẻ <code>&lt;script&gt;</code>. Bấm nút gọi góc phải để tạo cuộc gọi queue.</p>
+      <p class="note">
+        <strong>Origin:</strong> trang này phải nằm trong allowlist
+        <code>EMBED_ORIGINS_CLINIC_A</code> hoặc <code>EMBED_PUBLIC_ORIGIN</code>.
+        Staff mở portal, login <code>A1</code>/<code>A2</code>, Accept cuộc gọi.
+      </p>
+      <p class="note">
+        Isolation thật sự cần <strong>origin khác</strong> cho clinic B (port/subdomain),
+        không phải hai path trên cùng host — xem PR-E.
+      </p>
+    </div>
+  </main>
+
+  <!-- api-base defaults to script origin (SimlyDent host) -->
+  <script
+    src="/widget/embed.js"
+    data-site-key="pk_clinic_a"
+    data-name="Nha khoa Demo A"
+    data-color="#0d9488"
+    async></script>
+</body>
+</html>

@@ -60,17 +60,35 @@ public sealed class CallDispatcher(
         !string.Equals(configuration["CLINIC_FORCE_CLOSED"], "1", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Embed poll / heartbeat: if visitor stops GET/POST, abandon active queue call after this.
-    /// Frees staff capacity (invariant 5). Default 90s.
+    /// Embed visitor stopped polling while Queued/Ringing — free queue slot soon (default 30s).
     /// </summary>
-    private readonly TimeSpan _visitorStaleAfter = TimeSpan.FromSeconds(
+    private readonly TimeSpan _visitorStaleWaiting = TimeSpan.FromSeconds(
         Math.Clamp(
-            int.TryParse(configuration["EMBED_VISITOR_STALE_SECONDS"], out var s) ? s : 90,
-            20, 600));
+            int.TryParse(
+                configuration["EMBED_VISITOR_STALE_WAITING_SECONDS"]
+                ?? configuration["EMBED_VISITOR_STALE_SECONDS"],
+                out var sw)
+                ? sw
+                : 30,
+            15, 300));
+
+    /// <summary>
+    /// Embed visitor stopped polling while Accepted — allow reload recovery (default 90s).
+    /// </summary>
+    private readonly TimeSpan _visitorStaleInCall = TimeSpan.FromSeconds(
+        Math.Clamp(
+            int.TryParse(
+                configuration["EMBED_VISITOR_STALE_INCALL_SECONDS"]
+                ?? configuration["EMBED_VISITOR_STALE_SECONDS"],
+                out var si)
+                ? si
+                : 90,
+            30, 600));
 
     public TimeSpan RingTimeout => _ringTimeout;
     public TimeSpan VisitorTimeout => _visitorTimeout;
-    public TimeSpan VisitorStaleAfter => _visitorStaleAfter;
+    public TimeSpan VisitorStaleWaiting => _visitorStaleWaiting;
+    public TimeSpan VisitorStaleInCall => _visitorStaleInCall;
 
     private object ClinicLock(string clinicId) =>
         _clinicLocks.GetOrAdd(clinicId.Trim().ToLowerInvariant(), _ => new object());
@@ -451,13 +469,22 @@ public sealed class CallDispatcher(
             if (ct.IsCancellationRequested) break;
 
             // Embed visitor disappeared (no poll) — free queue / staff.
+            // Waiting (Queued/Ringing): shorter threshold (default 30s) to clear ghost queue.
+            // In-call (Accepted): longer threshold (default 90s) for reload recovery.
             if (call.Origin == CallOrigin.Queue
                 && call.CallerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
             {
                 DateTimeOffset lastSeen;
+                CallStatus status;
                 lock (call.SyncRoot)
+                {
                     lastSeen = call.VisitorLastSeenAt ?? call.UpdatedAt;
-                if (now - lastSeen >= _visitorStaleAfter)
+                    status = call.Status;
+                }
+                var staleAfter = status == CallStatus.Accepted
+                    ? _visitorStaleInCall
+                    : _visitorStaleWaiting;
+                if (now - lastSeen >= staleAfter)
                 {
                     await AbandonStaleVisitorAsync(call, ct);
                     continue;

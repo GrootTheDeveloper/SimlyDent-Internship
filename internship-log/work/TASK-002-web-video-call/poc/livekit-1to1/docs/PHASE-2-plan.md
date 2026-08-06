@@ -1,9 +1,9 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** **PR-0 + PR-0b + PR-A + PR-B implemented**; PR-C+ pending.  
-**Depends on:** Phase 0 ✅ · Phase 1 ✅ · PR-0/0b ✅ · PR-A embed session ✅ · PR-B embed calls ✅  
+**Status:** **PR-0 … PR-C implemented**; PR-D/E pending.  
+**Depends on:** Phase 0–1 ✅ · PR-0/0b/A/B ✅ · PR-C widget ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
-**Full order:** PR-0 → PR-0b → PR-A → **PR-B** → PR-C → PR-D → PR-E  
+**Full order:** PR-0 → PR-0b → PR-A → PR-B → **PR-C** → PR-D → PR-E  
 
 ### Five MVP invariants
 
@@ -125,22 +125,24 @@ Never trust browser-supplied `clinicId`.
 | `POST .../token` | After Accepted only; exact server room in LiveKit JWT |
 | DTO | `EmbedCallView` — id/status/timestamps/waiting; **no** roomName/recording/staff |
 | Auth | Policy `EmbedVisitor` (`EmbedBearer` + `token_use=embed`); staff JWT → 401 |
-| Stale | `EMBED_VISITOR_STALE_SECONDS` (default 90): abandon active embed call if no poll |
+| Stale | Waiting (Queued/Ringing) **30s** · In-call (Accepted) **90s** (`EMBED_VISITOR_STALE_WAITING_SECONDS` / `_INCALL_`) |
 | Tests | `scripts/embed-isolation-test.ps1` |
 
 **AC:** VB/`pk_clinic_b` cannot read clinic-a call id; same-clinic other session 404; isolation suite extended.
 
-### PR-C — Visitor widget (minimal UI)
+### PR-C — Visitor widget (minimal UI) ✅
 
 | Item | Detail |
 |------|--------|
-| Deliverable | `widget/` or `frontend-embed/` static bundle |
-| UI | Floating button; Waiting / Ringing / Connected / Ended |
-| Media | getUserMedia **only** on Accepted; LiveKit join with embed token |
-| Config | `data-site-key`, optional colors/name |
-| Snippet | One script tag docs for clinic site |
+| Deliverable | `frontend/public/widget/` — `embed.js`, `frame.html/js/css`, `demo-a.html`, `demo-b.html` |
+| UI | Floating button; Idle / Waiting / Ringing / Connected / Ended |
+| Media | getUserMedia **only** after Accept; iframe `allow="camera; microphone"` |
+| Session | Parent page `POST /embed/session` (clinic **Origin**); frame polls + media |
+| Resume | `sessionStorage` token + `activeCallId` (parent + frame) |
+| Config | `data-site-key`, `data-api-base`, `data-name`, `data-color` |
+| Snippet | README / demo pages |
 
-**AC:** Demo page for clinic-a and clinic-b on VPS; real call with staff A1.
+**AC:** Demo pages on VPS; real call with staff A1 (browser E2E evidence = PR-E).
 
 ### PR-D — Staff surface polish (minimal)
 
