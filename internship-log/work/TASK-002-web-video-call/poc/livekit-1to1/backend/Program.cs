@@ -352,6 +352,66 @@ app.MapGet("/api/clinics/me/recording-policy", (
     return Results.Ok(policies.Get(current!.ClinicId).ToView());
 }).RequireAuthorization();
 
+/// <summary>
+/// Manager library: clinic-scoped recordings (Complete / Failed / Deleted / in-progress).
+/// Staff → 403. Cross-clinic isolation by principal clinic only.
+/// </summary>
+app.MapGet("/api/recordings", (
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    RecordingPolicyRegistry policies) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
+
+    var clinicId = current!.ClinicId;
+    var policy = policies.Get(clinicId);
+    static bool IsLibraryRow(CallSession c) =>
+        c.RecordingStatus is not ("Idle" or "")
+        || !string.IsNullOrWhiteSpace(c.RecordingStorageKey)
+        || c.RecordingMode != RecordingMode.None;
+
+    static string CallerLabel(string callerId)
+    {
+        if (string.IsNullOrWhiteSpace(callerId)) return "—";
+        if (callerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
+        {
+            var raw = callerId["visitor:".Length..].Replace("-", "");
+            var code = raw.Length >= 6 ? raw[..6].ToUpperInvariant() : raw.ToUpperInvariant();
+            return $"Khách #{code}";
+        }
+        if (callerId.Length <= 8 && char.IsLetter(callerId[0])) return callerId;
+        return callerId;
+    }
+
+    var items = calls.Values
+        .Where(c => c.BelongsToClinic(clinicId) && IsLibraryRow(c))
+        .OrderByDescending(c => c.UpdatedAt)
+        .Select(c =>
+        {
+            var view = RecordingAuthorization.BuildView(c, current, policy);
+            return new RecordingListItem(
+                c.Id,
+                c.RecordingId,
+                c.CallerId,
+                CallerLabel(c.CallerId),
+                c.AssignedStaffId ?? c.CalleeId,
+                c.Status.ToString(),
+                c.RecordingMode.ToString(),
+                c.RecordingStatus,
+                c.ConsentStatus.ToString(),
+                c.CreatedAt,
+                c.UpdatedAt,
+                view.CanDownload,
+                view.CanDelete);
+        })
+        .ToList();
+
+    return Results.Ok(new RecordingListResponse(items, items.Count));
+}).RequireAuthorization();
+
 app.MapGet("/api/recording/audit", (
     ClaimsPrincipal principal,
     IdentityRegistry identities,

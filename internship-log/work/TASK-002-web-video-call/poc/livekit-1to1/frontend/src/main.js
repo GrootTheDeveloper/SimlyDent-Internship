@@ -90,13 +90,30 @@ function peerLabel(id, known = null) {
 /** Compact avatar initials (never the full visitor GUID). */
 function peerAvatarText(id, known = null) {
   if (known?.displayName && known.displayName !== id) {
-    const parts = String(known.displayName).trim().split(/\s+/).filter(Boolean)
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return String(known.displayName).slice(0, 2).toUpperCase()
+    return initialsFromDisplayName(known.displayName, id)
   }
   if (isEmbedVisitorId(id)) return 'K'
   if (!id) return '?'
   return String(id).slice(0, 2).toUpperCase()
+}
+
+/** Initials for directory / login avatars (prefer display name). */
+function initialsFromDisplayName(displayName, fallbackId = '') {
+  const name = String(displayName || '').trim()
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return name.slice(0, 2).toUpperCase()
+  }
+  if (fallbackId) return String(fallbackId).slice(0, 2).toUpperCase()
+  return '?'
+}
+
+function userInitials(user) {
+  if (!user) return '?'
+  return initialsFromDisplayName(user.displayName, user.id)
 }
 
 const GUEST_AVATAR_URL = '/assets/guest-avatar.svg'
@@ -162,6 +179,36 @@ function recordingModeLabel(mode) {
   if (mode === 'AudioOnly') return 'Chỉ ghi âm'
   if (mode === 'Video') return 'Ghi hình'
   return 'Không ghi'
+}
+
+function recordingStatusLabelVi(status) {
+  switch (String(status || '')) {
+    case 'Complete': return 'Sẵn sàng tải'
+    case 'Failed': return 'Ghi lỗi'
+    case 'Deleted': return 'Đã xóa'
+    case 'Recording': return 'Đang ghi'
+    case 'Starting': return 'Đang bắt đầu'
+    case 'Stopping': return 'Đang dừng'
+    case 'Idle': return 'Chưa ghi'
+    default: return status || '—'
+  }
+}
+
+function formatViDateTime(iso) {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return '—'
+  }
 }
 
 function formatWaitSeconds(seconds) {
@@ -1742,11 +1789,18 @@ if (isCallRoute) {
       /** userId -> agent state string (Available/Ringing/InCall/Offline) */
       agentStateMap: {},
       queueItems: [],
-      /** Staff queue dock bottom-left; collapsed by default. */
+      /** Staff/Manager queue dock bottom-right; collapsed by default. */
       queuePanelOpen: false,
       heartbeatTimer: null,
       showOtherClinics: false,
-      guestAvatarUrl: GUEST_AVATAR_URL
+      guestAvatarUrl: GUEST_AVATAR_URL,
+      /** Manager library */
+      recordings: [],
+      recordingsTotal: 0,
+      recordingsLoading: false,
+      recordingsError: '',
+      recordingsFilter: 'all', // all | complete | deleted | failed
+      recordingActionId: null
     },
     computed: {
       identityId() {
@@ -1755,13 +1809,20 @@ if (isCallRoute) {
       isVisitor() {
         return (this.currentUser?.role || 'Staff') === 'Visitor'
       },
+      isManager() {
+        return String(this.currentUser?.role || '').toLowerCase() === 'manager'
+      },
       isCallActive() {
         return !!(this.call && ['Queued', 'Ringing', 'Accepted'].includes(this.call.status))
       },
       selectedIdentity() {
+        if (this.isVisitor) return null
         return this.identities.find(i => i.id === this.targetId)
           || this.visibleContacts[0]
           || null
+      },
+      showDetailPanel() {
+        return !!(this.selectedIdentity && !this.isVisitor && !this.isManager)
       },
       visibleContacts() {
         const query = this.searchQuery.trim().toLowerCase()
@@ -1805,6 +1866,17 @@ if (isCallRoute) {
       },
       queueMineCount() {
         return (this.queueItems || []).filter(i => this.isQueueAssignedToMe(i)).length
+      },
+      filteredRecordings() {
+        const list = this.recordings || []
+        const f = this.recordingsFilter
+        if (f === 'complete') return list.filter(r => r.recordingStatus === 'Complete')
+        if (f === 'deleted') return list.filter(r => r.recordingStatus === 'Deleted')
+        if (f === 'failed') return list.filter(r => r.recordingStatus === 'Failed')
+        return list
+      },
+      completeRecordingsCount() {
+        return (this.recordings || []).filter(r => r.recordingStatus === 'Complete').length
       }
     },
     async mounted() {
@@ -1902,11 +1974,16 @@ if (isCallRoute) {
         this.currentUser = user
         this.isLoggedIn = true
         this.onlineMap = {}
+        this.recordings = []
+        this.recordingsError = ''
         history.replaceState(null, '', `?user=${encodeURIComponent(user.id)}`)
         await this.loadIdentities()
         const sameClinicPeers = this.identities.filter(i => i.id !== user.id)
         this.targetId = sameClinicPeers[0]?.id || ''
         await this.connectRealtime()
+        if (String(user.role || '').toLowerCase() === 'manager') {
+          await this.loadRecordings()
+        }
       },
       async logout() {
         if (this.heartbeatTimer) {
@@ -1924,8 +2001,84 @@ if (isCallRoute) {
         this.queueItems = []
         this.queuePanelOpen = false
         this.identities = []
+        this.recordings = []
+        this.recordingsTotal = 0
+        this.recordingsError = ''
+        this.recordingActionId = null
         history.replaceState(null, '', location.pathname)
       },
+      async loadRecordings() {
+        if (!this.isManager) return
+        this.recordingsLoading = true
+        this.recordingsError = ''
+        try {
+          const res = await apiFetch('/api/recordings', { headers: authHeaders() })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(body.error || `Không tải được danh sách (HTTP ${res.status})`)
+          }
+          this.recordings = body.items || []
+          this.recordingsTotal = body.total ?? this.recordings.length
+        } catch (e) {
+          this.recordingsError = e.message || 'Lỗi tải bản ghi'
+          this.recordings = []
+          this.recordingsTotal = 0
+        } finally {
+          this.recordingsLoading = false
+        }
+      },
+      async downloadRecordingByCallId(callId) {
+        if (!callId || this.recordingActionId) return
+        this.recordingActionId = callId
+        try {
+          const res = await apiFetch(`/api/calls/${callId}/recording/file`, {
+            headers: authHeaders()
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            throw new Error(err.error || `Không tải được file (HTTP ${res.status})`)
+          }
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = `recording-${String(callId).replace(/-/g, '')}.mp4`
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          URL.revokeObjectURL(url)
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.recordingActionId = null
+        }
+      },
+      async deleteRecordingByCallId(callId) {
+        if (!callId || this.recordingActionId) return
+        const ok = window.confirm('Xóa bản ghi này? Thao tác không hoàn tác được.')
+        if (!ok) return
+        this.recordingActionId = callId
+        try {
+          const res = await apiFetch(`/api/calls/${callId}/recording`, {
+            method: 'DELETE',
+            headers: authHeaders()
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(body.error || `Không xóa được (HTTP ${res.status})`)
+          }
+          await this.loadRecordings()
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.recordingActionId = null
+        }
+      },
+      recordingStatusLabelVi,
+      recordingModeLabel,
+      formatViDateTime,
       isUserOnline(userId) {
         return !!this.onlineMap[userId]
       },
@@ -2016,17 +2169,19 @@ if (isCallRoute) {
         await this.hub.start()
         await this.refreshPresence()
 
-        if (!this.isVisitor) {
-          // REST ready + periodic hub heartbeat for agent lease freshness.
+        if (!this.isVisitor && !this.isManager) {
+          // Staff only — Manager is not dispatched / not "ready" for queue.
           try {
             await apiFetch('/api/agents/ready', { method: 'POST', headers: authHeaders() })
           } catch { /* ignore */ }
-          await this.refreshQueue()
           this.heartbeatTimer = setInterval(() => {
             if (this.hub?.state === 'Connected') {
               this.hub.invoke('Heartbeat').catch(() => {})
             }
           }, 15000)
+        }
+        if (!this.isVisitor) {
+          await this.refreshQueue()
         }
 
         // Check if there is an active call already
@@ -2080,6 +2235,7 @@ if (isCallRoute) {
       formatWaitSeconds,
       clinicDisplayName,
       roleDisplayName,
+      userInitials,
       isQueueAssignedToMe(item) {
         if (!item || !this.identityId) return false
         return String(item.assignedStaffId || '').toLowerCase() === this.identityId.toLowerCase()
@@ -2148,6 +2304,11 @@ if (isCallRoute) {
       async startCall(targetId) {
         if (this.isVisitor) {
           await this.startQueueCall()
+          return
+        }
+        if (this.isManager) {
+          this.popupErrorMessage = 'Tài khoản Quản lý không gọi video. Hãy dùng tài khoản nhân viên tư vấn để nhận khách.'
+          this.popupState = 'error'
           return
         }
         if (this.isCallActive) return
@@ -2308,30 +2469,35 @@ if (isCallRoute) {
     },
     template: `
       <div>
-        <!-- LOGIN SCREEN -->
+        <!-- LOGIN -->
         <div v-if="!isLoggedIn" class="login-overlay">
           <div class="login-card">
             <div class="login-brand">
               <div class="login-logo">S</div>
               <h1>SimlyDent</h1>
             </div>
-            <p class="login-lead">Cổng tư vấn video cho bác sĩ &amp; chuyên viên</p>
-            <p class="login-hint">Bản demo — mật khẩu: <strong>Demo@123</strong></p>
-            <div class="demo-account-list">
+            <p class="login-lead">Tư vấn video cho phòng khám</p>
+            <p class="login-hint">Bản demo · mật khẩu <strong>Demo@123</strong></p>
+            <div class="demo-account-list" role="listbox" aria-label="Chọn tài khoản demo">
               <button
                 v-for="user in loginAccounts"
                 :key="user.id"
                 type="button"
                 class="account-btn"
                 :class="{ selected: loginUserId === user.id }"
+                role="option"
+                :aria-selected="loginUserId === user.id ? 'true' : 'false'"
                 @click="selectLoginAccount(user)"
               >
-                <div class="account-avatar">{{ user.id }}</div>
+                <div class="account-avatar">{{ userInitials(user) }}</div>
                 <div class="account-info">
                   <span class="account-name">{{ user.displayName }}</span>
-                  <span class="account-id">{{ clinicLabel(user.clinicId || user.tenantId) }} · {{ roleLabel(user.role) }}</span>
+                  <span class="account-id">{{ clinicLabel(user.clinicId || user.tenantId) }}</span>
                 </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+                <span
+                  class="account-role-chip"
+                  :class="{ 'account-role-chip--manager': isManagerAccount(user) }"
+                >{{ roleLabel(user.role) }}</span>
               </button>
             </div>
             <div class="login-password-field">
@@ -2356,18 +2522,20 @@ if (isCallRoute) {
           </div>
         </div>
 
-        <!-- MAIN APP (3 COLUMNS) -->
-        <main v-else class="app-shell">
-          <!-- LEFT: colleagues -->
+        <!-- MAIN APP -->
+        <main v-else class="app-shell" :class="{ 'has-detail': showDetailPanel }">
           <aside class="sidebar">
             <header class="sidebar-header">
-              <h1>Đồng nghiệp</h1>
+              <div>
+                <h1>{{ isVisitor ? 'Tư vấn' : 'Đồng nghiệp' }}</h1>
+                <p class="sidebar-kicker">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }}</p>
+              </div>
             </header>
 
-            <div class="search-container">
+            <div v-if="!isVisitor" class="search-container">
               <div class="search-input-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input v-model="searchQuery" type="search" placeholder="Tìm đồng nghiệp…" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input v-model="searchQuery" type="search" placeholder="Tìm theo tên…" aria-label="Tìm đồng nghiệp" />
               </div>
             </div>
 
@@ -2379,7 +2547,7 @@ if (isCallRoute) {
                 @click="selectUser(item.id)"
               >
                 <div class="user-avatar" :class="{ accent: item.id === targetId }">
-                  {{ item.id }}
+                  {{ userInitials(item) }}
                   <div
                     v-if="sameTenant(item)"
                     :class="['status-dot', isUserOnline(item.id) ? 'online' : 'offline']"
@@ -2393,30 +2561,32 @@ if (isCallRoute) {
                   </div>
                 </div>
               </div>
-              <p v-if="!visibleContacts.length" class="empty-list-hint">
+              <p v-if="!isVisitor && !visibleContacts.length" class="empty-list-hint">
                 Chưa có đồng nghiệp cùng phòng khám.
+              </p>
+              <p v-if="isVisitor" class="empty-list-hint">
+                Dùng nút giữa màn hình để gọi tư vấn.
               </p>
             </div>
 
             <footer class="sidebar-user-footer">
               <div class="current-user-info">
-                <div class="current-user-avatar">{{ currentUser.id }}</div>
+                <div class="current-user-avatar">{{ userInitials(currentUser) }}</div>
                 <div>
                   <strong class="current-user-name">{{ currentUser.displayName }}</strong>
-                  <span class="current-user-meta">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }}</span>
-                  <span v-if="!isVisitor" :class="[selfAgentBadgeClass, 'self-status-badge']">{{ selfAgentBadgeLabel }}</span>
+                  <span class="current-user-meta">{{ roleLabel(currentUser.role) }} · {{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }}</span>
+                  <span v-if="!isVisitor && !isManager" :class="[selfAgentBadgeClass, 'self-status-badge']">{{ selfAgentBadgeLabel }}</span>
                 </div>
               </div>
-              <button class="logout-btn" @click="logout">Đăng xuất</button>
+              <button type="button" class="logout-btn" @click="logout">Đăng xuất</button>
             </footer>
           </aside>
 
-          <!-- MIDDLE -->
           <section class="main-stage">
-            <header class="main-header" v-if="selectedIdentity">
+            <header class="main-header" v-if="selectedIdentity && !isManager">
               <div class="target-info">
                 <div class="user-avatar accent">
-                  {{ selectedIdentity.id }}
+                  {{ userInitials(selectedIdentity) }}
                   <div :class="['status-dot', isUserOnline(selectedIdentity.id) ? 'online' : 'offline']"></div>
                 </div>
                 <div class="target-details">
@@ -2428,11 +2598,12 @@ if (isCallRoute) {
                 </div>
               </div>
               <button
+                type="button"
                 class="header-call-btn"
                 :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
                 @click="startCall(selectedIdentity.id)"
               >
-                <svg viewBox="0 0 24 24"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
                 <span>Gọi video</span>
               </button>
             </header>
@@ -2440,69 +2611,188 @@ if (isCallRoute) {
             <div class="main-body">
               <div v-if="popupState === 'active_window'" class="active-window-banner">
                 <span>Cuộc gọi đang mở ở cửa sổ riêng</span>
-                <button @click="reopenCallWindow">Mở lại</button>
+                <button type="button" @click="reopenCallWindow">Mở lại</button>
               </div>
 
+              <!-- Visitor home -->
               <div v-if="isVisitor" class="idle-placeholder">
-                <div class="hero-avatar-large">VA</div>
-                <h2 class="idle-title">Gọi phòng khám</h2>
+                <div class="hero-avatar-large hero-logo">S</div>
+                <h2 class="idle-title">Gọi tư vấn</h2>
                 <p class="idle-desc">
-                  Bạn sẽ vào danh sách chờ. Nhân viên rảnh sẽ được mời nhận cuộc gọi.
+                  Bạn sẽ vào hàng chờ. Nhân viên rảnh của phòng khám sẽ nhận cuộc gọi.
                 </p>
                 <p v-if="queueItems.length" class="idle-meta">
-                  Đang có {{ queueItems.length }} yêu cầu trong hàng chờ
+                  Hiện có {{ queueItems.length }} yêu cầu đang chờ
                 </p>
-                <button class="start-call-btn" :disabled="isCallActive" @click="startQueueCall">
-                  <span>{{ isCallActive ? ('Đang ' + callStatusVi(call && call.status)) : 'Bắt đầu gọi tư vấn' }}</span>
+                <button type="button" class="start-call-btn" :disabled="isCallActive" @click="startQueueCall">
+                  <span>{{ isCallActive ? ('Đang ' + callStatusVi(call && call.status).toLowerCase()) : 'Bắt đầu gọi tư vấn' }}</span>
                 </button>
               </div>
 
+              <!-- Manager: recording library -->
+              <div v-else-if="isManager" class="manager-library">
+                <header class="library-header">
+                  <div>
+                    <p class="library-kicker">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }} · Quản lý</p>
+                    <h2 class="library-title">Thư viện bản ghi</h2>
+                    <p class="library-desc">
+                      Chỉ quản lý đúng phòng được xem, tải và xóa. Nhân viên tư vấn không tải được file.
+                    </p>
+                  </div>
+                  <div class="library-actions">
+                    <button type="button" class="btn-secondary-pill" @click="queuePanelOpen = true">
+                      Khách chờ{{ queueItems.length ? ' (' + queueItems.length + ')' : '' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-secondary-pill"
+                      :disabled="recordingsLoading"
+                      @click="loadRecordings"
+                    >
+                      {{ recordingsLoading ? 'Đang tải…' : 'Làm mới' }}
+                    </button>
+                  </div>
+                </header>
+
+                <div class="library-filters" role="tablist" aria-label="Lọc bản ghi">
+                  <button
+                    type="button"
+                    role="tab"
+                    :class="['filter-chip', recordingsFilter === 'all' && 'active']"
+                    @click="recordingsFilter = 'all'"
+                  >Tất cả ({{ recordings.length }})</button>
+                  <button
+                    type="button"
+                    role="tab"
+                    :class="['filter-chip', recordingsFilter === 'complete' && 'active']"
+                    @click="recordingsFilter = 'complete'"
+                  >Sẵn sàng tải ({{ completeRecordingsCount }})</button>
+                  <button
+                    type="button"
+                    role="tab"
+                    :class="['filter-chip', recordingsFilter === 'failed' && 'active']"
+                    @click="recordingsFilter = 'failed'"
+                  >Lỗi</button>
+                  <button
+                    type="button"
+                    role="tab"
+                    :class="['filter-chip', recordingsFilter === 'deleted' && 'active']"
+                    @click="recordingsFilter = 'deleted'"
+                  >Đã xóa</button>
+                </div>
+
+                <p v-if="recordingsError" class="library-error">{{ recordingsError }}</p>
+
+                <div v-if="recordingsLoading && !recordings.length" class="library-empty">
+                  Đang tải danh sách bản ghi…
+                </div>
+                <div v-else-if="!filteredRecordings.length" class="library-empty">
+                  <p class="library-empty-title">Chưa có bản ghi phù hợp</p>
+                  <p class="library-empty-desc">
+                    Khi nhân viên bật ghi và hoàn tất cuộc gọi, file sẽ hiện ở đây để bạn tải hoặc xóa.
+                  </p>
+                </div>
+                <div v-else class="library-table-wrap">
+                  <table class="library-table">
+                    <thead>
+                      <tr>
+                        <th>Khách / cuộc gọi</th>
+                        <th>Chế độ</th>
+                        <th>Trạng thái</th>
+                        <th>Cập nhật</th>
+                        <th class="col-actions">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in filteredRecordings" :key="row.callId">
+                        <td>
+                          <div class="library-primary">{{ row.callerLabel || row.callerId }}</div>
+                          <div class="library-secondary">
+                            {{ row.assignedStaffId ? ('NV: ' + row.assignedStaffId) : 'Chưa gán NV' }}
+                            · <span class="mono" :title="row.callId">{{ String(row.callId).slice(0, 8) }}…</span>
+                          </div>
+                        </td>
+                        <td>{{ recordingModeLabel(row.recordingMode) }}</td>
+                        <td>
+                          <span
+                            class="status-pill"
+                            :class="'status-pill--' + String(row.recordingStatus || '').toLowerCase()"
+                          >{{ recordingStatusLabelVi(row.recordingStatus) }}</span>
+                        </td>
+                        <td class="library-secondary">{{ formatViDateTime(row.updatedAt) }}</td>
+                        <td class="col-actions">
+                          <button
+                            v-if="row.canDownload"
+                            type="button"
+                            class="row-btn row-btn--primary"
+                            :disabled="recordingActionId === row.callId"
+                            @click="downloadRecordingByCallId(row.callId)"
+                          >Tải</button>
+                          <button
+                            v-if="row.canDelete && row.recordingStatus !== 'Deleted'"
+                            type="button"
+                            class="row-btn row-btn--danger"
+                            :disabled="recordingActionId === row.callId"
+                            @click="deleteRecordingByCallId(row.callId)"
+                          >Xóa</button>
+                          <span v-if="!row.canDownload && row.recordingStatus === 'Deleted'" class="library-secondary">—</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Staff: peer selected -->
               <div v-else-if="selectedIdentity" class="idle-placeholder">
-                <div class="hero-avatar-large">{{ selectedIdentity.id }}</div>
+                <div class="hero-avatar-large">{{ userInitials(selectedIdentity) }}</div>
                 <h2 class="idle-title">{{ selectedIdentity.displayName }}</h2>
-                <p class="queue-hint">
-                  Trạng thái:
+                <p class="idle-desc">
                   <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
                 </p>
-                <p class="queue-hint">
-                  Khách từ website nằm ở <strong>Khách chờ</strong> (góc dưới trái).
-                  Khi có cuộc gọi dành cho bạn, hệ thống sẽ hiện cửa sổ <strong>Nhận cuộc gọi</strong>.
-                </p>
+                <ul class="idle-steps">
+                  <li><span class="idle-step-num">1</span><span>Khách website vào <strong>Khách chờ</strong> (góc dưới phải) — hệ thống mời bạn nhận máy.</span></li>
+                  <li><span class="idle-step-num">2</span><span>Hoặc gọi nội bộ đồng nghiệp khi cả hai đang trực tuyến.</span></li>
+                </ul>
                 <button
+                  type="button"
                   class="start-call-btn"
-                  :disabled="isCallActive || !sameTenant(selectedIdentity)"
+                  :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
                   @click="startCall(selectedIdentity.id)"
                 >
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
                   <span>Gọi video với đồng nghiệp</span>
                 </button>
               </div>
 
+              <!-- Staff empty -->
               <div v-else class="idle-placeholder">
                 <div class="hero-avatar-large hero-logo">S</div>
-                <h2 class="idle-title">Chào mừng đến SimlyDent</h2>
-                <p class="idle-desc">Chọn đồng nghiệp bên trái để gọi, hoặc mở <strong>Khách chờ</strong> để nhận khách từ website.</p>
+                <h2 class="idle-title">Sẵn sàng tư vấn</h2>
+                <p class="idle-desc">Chọn đồng nghiệp bên trái, hoặc mở <strong>Khách chờ</strong> (góc dưới phải) khi có khách từ website.</p>
+                <button type="button" class="btn-secondary-pill" @click="queuePanelOpen = true">
+                  Mở khách chờ
+                </button>
               </div>
             </div>
           </section>
 
-          <!-- RIGHT: peer info (simplified for clinical use) -->
-          <aside class="right-sidebar" v-if="selectedIdentity">
+          <aside class="right-sidebar" v-if="showDetailPanel">
             <div class="profile-section">
-              <div class="right-profile-avatar">{{ selectedIdentity.id }}</div>
+              <div class="right-profile-avatar">{{ userInitials(selectedIdentity) }}</div>
               <div class="right-profile-name">{{ selectedIdentity.displayName }}</div>
               <div class="peer-status-block">
                 <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
               </div>
               <p class="peer-clinic-line">{{ clinicLabel(selectedIdentity.clinicId || selectedIdentity.tenantId) }}</p>
               <p class="peer-help-text">
-                Gọi video nội bộ giữa nhân viên cùng phòng khám. Khách website được xử lý qua hàng chờ.
+                Gọi video nội bộ giữa nhân viên cùng phòng. Khách từ website được phân công qua hàng chờ — không cần gọi tay.
               </p>
             </div>
           </aside>
         </main>
 
-        <!-- Staff queue dock -->
+        <!-- Queue dock (staff + manager) -->
         <div v-if="!isVisitor" class="queue-dock" :class="{ open: queuePanelOpen }">
           <button
             type="button"
@@ -2511,11 +2801,10 @@ if (isCallRoute) {
             aria-controls="queue-dock-panel"
             @click="queuePanelOpen = !queuePanelOpen"
           >
-            <span class="queue-dock-icon" aria-hidden="true">📋</span>
             <span class="queue-dock-label">Khách chờ</span>
             <span class="queue-dock-badge" :class="{ hot: queueItems.length > 0 }">{{ queueItems.length }}</span>
             <span v-if="queueMineCount > 0" class="queue-dock-mine">{{ queueMineCount }} của bạn</span>
-            <span class="queue-dock-chevron">{{ queuePanelOpen ? '▾' : '▴' }}</span>
+            <span class="queue-dock-chevron" aria-hidden="true">{{ queuePanelOpen ? '▾' : '▴' }}</span>
           </button>
           <div
             v-show="queuePanelOpen"
@@ -2524,10 +2813,12 @@ if (isCallRoute) {
             aria-label="Khách đang chờ tư vấn"
           >
             <div class="queue-panel-header">
-              <span class="queue-panel-title">Khách đang chờ tư vấn</span>
+              <span class="queue-panel-title">Khách đang chờ</span>
               <button type="button" class="queue-panel-close" @click="queuePanelOpen = false" aria-label="Thu gọn">✕</button>
             </div>
-            <div v-if="!queueItems.length" class="queue-empty">Hiện không có khách chờ.</div>
+            <div v-if="!queueItems.length" class="queue-empty">
+              {{ isManager ? 'Chưa có khách trong hàng chờ.' : 'Hiện không có khách chờ. Khi có, hệ thống sẽ mời bạn nhận máy.' }}
+            </div>
             <div v-else class="queue-panel-list">
               <div v-for="item in queueItems" :key="item.id" class="queue-row">
                 <div class="queue-row-avatar">
@@ -2537,8 +2828,9 @@ if (isCallRoute) {
                   <div class="queue-row-name">{{ formatQueueLabel(item) }}</div>
                   <div class="queue-row-meta">
                     {{ queueStatusVi(item.status) }}
-                    · đã chờ {{ formatWaitSeconds(item.waitingSeconds) }}
-                    · {{ item.assignedStaffId ? ('phụ trách: ' + item.assignedStaffId) : 'Chưa phân công' }}
+                    · chờ {{ formatWaitSeconds(item.waitingSeconds) }}
+                    <template v-if="item.assignedStaffId"> · phụ trách {{ item.assignedStaffId }}</template>
+                    <template v-else> · chưa phân công</template>
                   </div>
                 </div>
                 <div class="queue-row-tags">
@@ -2557,10 +2849,10 @@ if (isCallRoute) {
           <div class="call-popup-card">
             <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách từ website đang chờ tư vấn — cuộc gọi dành cho bạn.' : 'Đang gọi video cho bạn…' }}</p>
+            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách từ website đang chờ — cuộc gọi dành cho bạn.' : 'Đang gọi video cho bạn…' }}</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn danger" @click="rejectCall">Từ chối</button>
-              <button class="popup-btn success" @click="acceptCall">Nhận cuộc gọi</button>
+              <button type="button" class="popup-btn danger" @click="rejectCall">Từ chối</button>
+              <button type="button" class="popup-btn success" @click="acceptCall">Nhận cuộc gọi</button>
             </div>
           </div>
         </div>
@@ -2571,18 +2863,18 @@ if (isCallRoute) {
             <h3 class="popup-title">{{ peerName }}</h3>
             <p class="popup-subtitle">Đang đổ chuông…</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn danger" @click="cancelCall">Hủy cuộc gọi</button>
+              <button type="button" class="popup-btn danger" @click="cancelCall">Hủy cuộc gọi</button>
             </div>
           </div>
         </div>
 
         <div v-if="popupState === 'popup_blocked'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title">Trình duyệt đã chặn cửa sổ gọi</h3>
-            <p class="popup-subtitle">Vui lòng bấm nút bên dưới để mở cửa sổ video.</p>
+            <h3 class="popup-title">Trình duyệt chặn cửa sổ gọi</h3>
+            <p class="popup-subtitle">Bấm nút bên dưới để mở cửa sổ video.</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="reopenCallWindow">Mở cuộc gọi</button>
-              <button class="popup-btn secondary" @click="closePopup">Đóng</button>
+              <button type="button" class="popup-btn primary" @click="reopenCallWindow">Mở cuộc gọi</button>
+              <button type="button" class="popup-btn secondary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
@@ -2592,7 +2884,7 @@ if (isCallRoute) {
             <h3 class="popup-title">Cuộc gọi bị từ chối</h3>
             <p class="popup-subtitle">{{ peerName }} đã từ chối cuộc gọi.</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="closePopup">Đóng</button>
+              <button type="button" class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
@@ -2600,9 +2892,9 @@ if (isCallRoute) {
         <div v-if="popupState === 'busy'" class="modal-backdrop">
           <div class="call-popup-card">
             <h3 class="popup-title">Đồng nghiệp đang bận</h3>
-            <p class="popup-subtitle">Người này đang trong cuộc gọi khác. Vui lòng thử lại sau.</p>
+            <p class="popup-subtitle">Người này đang trong cuộc gọi khác. Thử lại sau.</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="closePopup">Đóng</button>
+              <button type="button" class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
@@ -2610,19 +2902,19 @@ if (isCallRoute) {
         <div v-if="popupState === 'ended'" class="modal-backdrop">
           <div class="call-popup-card">
             <h3 class="popup-title">Cuộc gọi đã kết thúc</h3>
-            <p class="popup-subtitle">Cảm ơn bạn. Có thể nhận khách mới từ hàng chờ.</p>
+            <p class="popup-subtitle">Bạn có thể nhận khách mới từ hàng chờ.</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="closePopup">Đóng</button>
+              <button type="button" class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
 
         <div v-if="popupState === 'error'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title" style="color: var(--color-danger);">Không thực hiện được</h3>
+            <h3 class="popup-title">Không thực hiện được</h3>
             <p class="popup-subtitle">{{ popupErrorMessage }}</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="closePopup">Đóng</button>
+              <button type="button" class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>

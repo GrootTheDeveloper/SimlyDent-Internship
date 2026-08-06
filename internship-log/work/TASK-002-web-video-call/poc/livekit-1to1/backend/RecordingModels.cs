@@ -63,6 +63,26 @@ public sealed record RecordingView(
 public sealed record SetRecordingModeRequest(string Mode);
 public sealed record SetConsentRequest(string Status);
 
+/// <summary>
+/// Manager library row — business fields only (no storage path / egress id).
+/// </summary>
+public sealed record RecordingListItem(
+    Guid CallId,
+    string? RecordingId,
+    string CallerId,
+    string CallerLabel,
+    string? AssignedStaffId,
+    string CallStatus,
+    string RecordingMode,
+    string RecordingStatus,
+    string ConsentStatus,
+    DateTimeOffset CallCreatedAt,
+    DateTimeOffset UpdatedAt,
+    bool CanDownload,
+    bool CanDelete);
+
+public sealed record RecordingListResponse(IReadOnlyList<RecordingListItem> Items, int Total);
+
 public sealed record RecordingAuditEvent(
     string Id,
     DateTimeOffset At,

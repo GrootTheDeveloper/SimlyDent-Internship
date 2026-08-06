@@ -7,7 +7,7 @@
  *     data-site-key="pk_clinic_a"
  *     data-api-base="https://YOUR_DOMAIN"
  *     data-name="Phòng khám A"
- *     data-color="#0d9488"
+ *     data-color="#0066cc"
  *     async></script>
  *
  * Session is created from the **parent** page so Origin is the clinic website.
@@ -25,7 +25,7 @@
   var siteKey = (script.getAttribute('data-site-key') || '').trim();
   var apiBase = (script.getAttribute('data-api-base') || '').trim().replace(/\/$/, '');
   var clinicName = script.getAttribute('data-name') || 'Tư vấn video';
-  var color = script.getAttribute('data-color') || '#0d9488';
+  var color = script.getAttribute('data-color') || '#0066cc';
   var position = (script.getAttribute('data-position') || 'bottom-right').toLowerCase();
 
   if (!siteKey) {
@@ -81,24 +81,27 @@
     style.id = NS + '-styles';
     style.textContent = [
       '#' + NS + '-launcher{',
-      'position:fixed;z-index:2147483000;width:56px;height:56px;border-radius:50%;',
-      'border:none;cursor:pointer;box-shadow:0 8px 24px rgba(15,23,42,.28);',
-      'color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;',
-      'transition:transform .15s ease,box-shadow .15s ease;',
+      'position:fixed;z-index:2147483000;min-width:56px;height:56px;border-radius:9999px;',
+      'border:none;cursor:pointer;box-shadow:rgba(0,0,0,.22) 3px 5px 24px 0;',
+      'color:#fff;font:600 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;',
+      'letter-spacing:-0.02em;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:8px;',
+      'transition:transform .12s ease,filter .12s ease;',
       '}',
-      '#' + NS + '-launcher:hover{transform:scale(1.05);box-shadow:0 10px 28px rgba(15,23,42,.35);}',
+      '#' + NS + '-launcher:hover{transform:scale(1.03);filter:brightness(1.05);}',
+      '#' + NS + '-launcher:active{transform:scale(0.98);}',
       '#' + NS + '-launcher.bottom-right{right:20px;bottom:20px;}',
       '#' + NS + '-launcher.bottom-left{left:20px;bottom:20px;}',
+      '#' + NS + '-launcher svg{width:18px;height:18px;flex-shrink:0;}',
       '#' + NS + '-panel{',
       'position:fixed;z-index:2147483001;width:min(380px,calc(100vw - 24px));',
-      'height:min(640px,calc(100vh - 100px));border-radius:16px;overflow:hidden;',
-      'box-shadow:0 18px 50px rgba(15,23,42,.35);background:#0f172a;',
-      'display:none;border:1px solid rgba(255,255,255,.08);',
+      'height:min(640px,calc(100vh - 100px));border-radius:18px;overflow:hidden;',
+      'box-shadow:rgba(0,0,0,.22) 3px 8px 36px 0;background:#ffffff;',
+      'display:none;border:1px solid #e0e0e0;',
       '}',
       '#' + NS + '-panel.open{display:block;}',
       '#' + NS + '-panel.bottom-right{right:20px;bottom:88px;}',
       '#' + NS + '-panel.bottom-left{left:20px;bottom:88px;}',
-      '#' + NS + '-panel iframe{width:100%;height:100%;border:0;display:block;background:#0f172a;}',
+      '#' + NS + '-panel iframe{width:100%;height:100%;border:0;display:block;background:#f5f5f7;}',
       '@media (max-width:480px){',
       '#' + NS + '-panel{',
       'width:100vw;height:100vh;left:0!important;right:0!important;top:0!important;bottom:0!important;',
@@ -117,7 +120,10 @@
     launcher.className = position.indexOf('left') >= 0 ? 'bottom-left' : 'bottom-right';
     launcher.style.background = color;
     launcher.setAttribute('aria-label', clinicName + ' — Gọi tư vấn');
-    launcher.innerHTML = '📞';
+    launcher.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/>' +
+      '</svg><span>Gọi tư vấn</span>';
     launcher.addEventListener('click', togglePanel);
 
     // Panel shell only — iframe mounted lazily on first open (point 10).

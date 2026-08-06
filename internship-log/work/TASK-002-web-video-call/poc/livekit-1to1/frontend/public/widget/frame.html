@@ -11,14 +11,14 @@
     <header class="header">
       <div>
         <div id="clinicName" class="title">Tư vấn video</div>
-        <div id="statusLine" class="subtitle">Sẵn sàng</div>
+        <div id="statusLine" class="subtitle">Sẵn sàng hỗ trợ</div>
       </div>
       <button type="button" id="btnClose" class="icon-btn" aria-label="Đóng">✕</button>
     </header>
 
     <main class="main">
       <div id="idlePane" class="pane">
-        <p class="lead">Bấm <strong>Gọi tư vấn</strong> để được nhân viên phòng khám hỗ trợ. Camera không bắt buộc.</p>
+        <p class="lead">Bấm <strong>Gọi tư vấn</strong> để được nhân viên phòng khám hỗ trợ. Bạn có thể chỉ dùng micro — camera không bắt buộc.</p>
         <button type="button" id="btnCall" class="primary">Gọi tư vấn</button>
       </div>
 
@@ -30,11 +30,11 @@
       </div>
 
       <div id="readyPane" class="pane hidden">
-        <p class="lead">Nhân viên đã sẵn sàng. Bấm <strong>Tham gia</strong> — có thể chỉ bật micro, không cần camera.</p>
-        <p id="readyMeta" class="meta">Chưa bật camera / micro.</p>
+        <p class="lead">Nhân viên đã sẵn sàng. Bấm <strong>Tham gia</strong> — có thể chỉ bật micro.</p>
+        <p id="readyMeta" class="meta">Chưa bật micro / camera.</p>
         <label id="consentRow" class="consent-row hidden">
           <input type="checkbox" id="chkConsent" />
-          <span>Tôi đồng ý cho phòng khám ghi âm/ghi hình cuộc tư vấn này (nếu được bật).</span>
+          <span>Tôi đồng ý cho phòng khám ghi âm hoặc ghi hình cuộc tư vấn này (nếu được bật).</span>
         </label>
         <button type="button" id="btnConsent" class="secondary hidden">Gửi đồng ý ghi</button>
         <button type="button" id="btnJoin" class="primary">Tham gia cuộc gọi</button>

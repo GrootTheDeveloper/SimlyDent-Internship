@@ -211,6 +211,21 @@ Add-Result "Visitor download 403 or 404" ($vaDl.Status -in @(403, 404)) "status=
 $bMgrDl2 = Invoke-Api -Method GET -Path "/api/calls/$callId/recording/file" -Token $bMgr.accessToken
 Add-Result "B-MGR download Complete A 404" ($bMgrDl2.Status -eq 404) "status=$($bMgrDl2.Status)"
 
+# Manager library list (clinic-scoped)
+$list = Invoke-Api -Method GET -Path "/api/recordings" -Token $aMgr.accessToken
+Add-Result "A-MGR list recordings 200" ($list.Status -eq 200) "status=$($list.Status)"
+$listItems = @($list.Json.items)
+$callIdStr = [string]$callId
+Add-Result "list has planted call" (@($listItems | Where-Object { [string]$_.callId -eq $callIdStr }).Count -ge 1) "count=$($listItems.Count)"
+$plantedRow = $listItems | Where-Object { [string]$_.callId -eq $callIdStr } | Select-Object -First 1
+Add-Result "list row canDownload" ($plantedRow.canDownload -eq $true) "canDownload=$($plantedRow.canDownload) status=$($plantedRow.recordingStatus)"
+$listStaff = Invoke-Api -Method GET -Path "/api/recordings" -Token $a1.accessToken
+Add-Result "Staff list recordings 403" ($listStaff.Status -eq 403) "status=$($listStaff.Status)"
+$listB = Invoke-Api -Method GET -Path "/api/recordings" -Token $bMgr.accessToken
+Add-Result "B-MGR list does not include clinic-a call" (
+    $listB.Status -eq 200 -and @($listB.Json.items | Where-Object { [string]$_.callId -eq $callIdStr }).Count -eq 0
+) "status=$($listB.Status) total=$($listB.Json.total)"
+
 # Manager delete + audit
 $del = Invoke-Api -Method DELETE -Path "/api/calls/$callId/recording" -Token $aMgr.accessToken
 Add-Result "A-MGR delete 200" ($del.Status -eq 200) "status=$($del.Status)"
