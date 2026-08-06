@@ -192,7 +192,10 @@ Script cần `lk` trong `PATH` hoặc truyền đường dẫn bằng `-LiveKitC
 ```
 
 - Capacity auto: [docs/capacity-load-testing.md](docs/capacity-load-testing.md)  
-- **Test browser thật × 3–4 lần:** [docs/real-world-test-protocol.md](docs/real-world-test-protocol.md)
+- **Test browser thật × 3–4 lần:** [docs/real-world-test-protocol.md](docs/real-world-test-protocol.md)  
+- **Báo cáo gửi sếp (PDF):** [TASK-002-PoC-Video-Call-Ket-Qua.pdf](TASK-002-PoC-Video-Call-Ket-Qua.pdf) · nguồn LaTeX `docs/latex/`  
+- **Markdown ngắn:** [REPORT-GUI-SEP.md](REPORT-GUI-SEP.md)  
+- **Markdown tổng hợp:** [REPORT-TONG-HOP-SEP.md](REPORT-TONG-HOP-SEP.md)
 
 Trong cuộc gọi thật, mở badge chất lượng → **Tải báo cáo CSV** hoặc **Kết thúc + tải**. Xuất lại từ API:
 

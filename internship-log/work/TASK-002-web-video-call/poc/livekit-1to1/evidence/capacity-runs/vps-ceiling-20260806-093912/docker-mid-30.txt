@@ -1,0 +1,6 @@
+lk-cap-proxy|4.44%|20.16MiB / 3.852GiB
+livekit-1to1-livekit-1|60.90%|242.7MiB / 3.852GiB
+livekit-1to1-gateway-1|0.00%|14.63MiB / 3.852GiB
+livekit-1to1-frontend-1|0.00%|3.973MiB / 3.852GiB
+livekit-1to1-backend-1|0.70%|82.33MiB / 3.852GiB
+livekit-1to1-redis-1|6.62%|4.859MiB / 3.852GiB

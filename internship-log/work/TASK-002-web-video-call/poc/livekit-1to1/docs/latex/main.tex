@@ -1,0 +1,105 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\setmainfont{Times New Roman}
+
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{csquotes}
+\DeclareQuoteStyle{vietnamese}
+  {\textquotedblleft}{\textquotedblright}{\textquoteleft}{\textquoteright}
+
+\definecolor{internallinkblue}{HTML}{0057A8}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=internallinkblue,
+  urlcolor=blue,
+  citecolor=blue,
+  pdftitle={Báo cáo kết quả PoC Video Call 1:1},
+  pdfauthor={Đặng Phúc An Khang}
+}
+
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\setlist{itemsep=0.2em,topsep=0.3em,leftmargin=*}
+\setlength{\parskip}{0.25em}
+\setlength{\emergencystretch}{2em}
+\captionsetup{
+  font=small,
+  labelfont=bf,
+  labelsep=period,
+  justification=centering,
+  skip=0.2em,
+  hypcap=false
+}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{TASK-002 - KẾT QUẢ PoC}
+\fancyhead[R]{Đặng Phúc An Khang}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[L]{TASK-002 - KẾT QUẢ PoC}
+  \fancyhead[R]{Đặng Phúc An Khang}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0.4pt}
+}
+\fancypagestyle{firstpage}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\begin{document}
+
+\thispagestyle{firstpage}
+\begin{center}
+  {\small\bfseries BÁO CÁO KẾT QUẢ KỸ THUẬT\par}
+  \vspace{0.25cm}
+  {\LARGE\bfseries PoC Video Call 1:1 (LiveKit self-host)\par}
+  \vspace{0.15cm}
+  {\Large Đo lường cuộc gọi thật và chịu tải server\par}
+\end{center}
+
+\vspace{0.45cm}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.22}
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.18\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}|>{\bfseries\raggedright\arraybackslash}p{0.19\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+Người thực hiện & Đặng Phúc An Khang & Bộ phận & Kỹ thuật \\
+\hline
+Vị trí & Thực tập sinh Full-stack Developer & Người giao và duyệt & CTO Tín Nguyễn \\
+\hline
+Thời gian thực hiện & 04/08/2026 -- 06/08/2026 & Ngày báo cáo & 06/08/2026 \\
+\hline
+\end{tabularx}
+\end{center}
+
+\vspace{0.35cm}
+
+\input{sections/00-scope}
+\input{sections/01-infra-cpu-ram}
+\input{sections/02-real-calls}
+\input{sections/03-load-test}
+\input{sections/04-conclusion}
+
+\end{document}

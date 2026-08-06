@@ -1,0 +1,28 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-00-1785985267-25134
+publishing simulcast video track - mmzhc_pub_1
+publishing simulcast video track - mmzhc_pub_0
+Finished connecting to room, waiting 30s
+subscribed to track mmzhc_2 TR_VCDjJ6kbje9Vgh video 1/1
+subscribed to track mmzhc_3 TR_VCDjJ6kbje9Vgh video 1/1
+subscribed to track mmzhc_3 TR_VCvGwsiHdJJR54 video 2/2
+subscribed to track mmzhc_2 TR_VCvGwsiHdJJR54 video 2/2
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬───────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate   │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼───────────┼───────────┤
+│ Sub 0  │ TR_VCvGwsiHdJJR54 │ video │ 1405  │ 397.7kbps │ 0 (0%)    │
+│        │ TR_VCDjJ6kbje9Vgh │ video │ 4465  │ 1.3mbps   │ 0 (0%)    │
+│        │                   │       │       │           │           │
+│ Sub 1  │ TR_VCvGwsiHdJJR54 │ video │ 1438  │ 405.4kbps │ 0 (0%)    │
+│        │ TR_VCDjJ6kbje9Vgh │ video │ 4466  │ 1.3mbps   │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴───────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error │
+├────────┼────────┼───────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 2/2    │ 1.7mbps               │ 0 (0%)          │ -     │
+│ Sub 1  │ 2/2    │ 1.7mbps               │ 0 (0%)          │ -     │
+│ Total  │ 4/4    │ 3.4mbps (1.7mbps avg) │ 0 (0%)          │ 0     │
+└────────┴────────┴───────────────────────┴─────────────────┴───────┘

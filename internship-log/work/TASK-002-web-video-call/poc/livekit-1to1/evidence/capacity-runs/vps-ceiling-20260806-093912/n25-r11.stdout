@@ -1,0 +1,22 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-11-1785985267-9917
+publishing simulcast video track - giusu_pub_1
+subscribed to track giusu_2 TR_VCh8NrNm4ocM9V video 1/1
+could not connect Pub 0: could not connect after timeout
+Finished connecting to room, waiting 30s
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬─────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼─────────┼───────────┤
+│ Sub 0  │ TR_VCh8NrNm4ocM9V │ video │ 12752 │ 1.4mbps │ 0 (0%)    │
+│        │                   │       │       │         │           │
+└────────┴───────────────────┴───────┴───────┴─────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬─────────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate                 │ Total Pkt. Loss │ Error │
+├────────┼────────┼─────────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 1/2    │ 1.4mbps                 │ 0 (0%)          │ -     │
+│ Sub 1  │ 0/2    │ NaNmbps                 │  -              │ -     │
+│ Total  │ 1/4    │ 1.4mbps (692.5kbps avg) │ 0 (0%)          │ 0     │
+└────────┴────────┴─────────────────────────┴─────────────────┴───────┘

@@ -1,0 +1,21 @@
+--- Media rooms N=1 duration=25s ---
+N=1 ok=1 fail=0
+livekit-1to1-gateway-1|0.00%|17.91MiB / 3.852GiB
+livekit-1to1-frontend-1|0.00%|3.973MiB / 3.852GiB
+livekit-1to1-backend-1|0.13%|59.59MiB / 3.852GiB
+livekit-1to1-livekit-1|22.47%|74.15MiB / 3.852GiB
+livekit-1to1-redis-1|0.84%|4.117MiB / 3.852GiB
+--- Media rooms N=3 duration=25s ---
+N=3 ok=3 fail=0
+livekit-1to1-gateway-1|0.17%|17.91MiB / 3.852GiB
+livekit-1to1-frontend-1|0.00%|3.973MiB / 3.852GiB
+livekit-1to1-backend-1|0.18%|61.39MiB / 3.852GiB
+livekit-1to1-livekit-1|25.21%|100.8MiB / 3.852GiB
+livekit-1to1-redis-1|0.85%|4.078MiB / 3.852GiB
+--- Media rooms N=5 duration=25s ---
+N=5 ok=5 fail=0
+livekit-1to1-gateway-1|0.03%|17.91MiB / 3.852GiB
+livekit-1to1-frontend-1|0.00%|3.973MiB / 3.852GiB
+livekit-1to1-backend-1|0.06%|61.88MiB / 3.852GiB
+livekit-1to1-livekit-1|35.13%|137.5MiB / 3.852GiB
+livekit-1to1-redis-1|0.83%|4.156MiB / 3.852GiB

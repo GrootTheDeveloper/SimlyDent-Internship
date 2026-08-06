@@ -1,0 +1,21 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-08-1785984865-5552
+could not connect Pub 1: could not connect after timeout
+could not connect Pub 0: could not connect after timeout
+could not connect Sub 0: could not connect after timeout
+Finished connecting to room, waiting 30s
+
+Track loading:
+┌────────┬───────┬──────┬───────┬─────────┬───────────┐
+│ Tester │ Track │ Kind │ Pkts. │ Bitrate │ Pkt. Loss │
+├────────┼───────┼──────┼───────┼─────────┼───────────┤
+│        │       │      │       │         │           │
+└────────┴───────┴──────┴───────┴─────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬─────────────────────────────────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error                           │
+├────────┼────────┼───────────────────────┼─────────────────┼─────────────────────────────────┤
+│ Sub 0  │ 0/2    │ NaNmbps               │  -              │ could not connect after timeout │
+│ Sub 1  │ 0/2    │ NaNmbps               │  -              │ -                               │
+│ Total  │ 0/4    │ NaNmbps (NaNmbps avg) │  -              │ 1                               │
+└────────┴────────┴───────────────────────┴─────────────────┴─────────────────────────────────┘

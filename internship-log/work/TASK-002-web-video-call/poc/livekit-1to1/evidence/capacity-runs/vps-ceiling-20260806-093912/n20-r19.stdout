@@ -1,0 +1,24 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-19-1785985067-15436
+publishing simulcast video track - rbfjh_pub_1
+subscribed to track rbfjh_2 TR_VChbYQh3uWD8GN video 1/1
+subscribed to track rbfjh_3 TR_VChbYQh3uWD8GN video 1/1
+could not connect Pub 0: could not connect after timeout
+Finished connecting to room, waiting 30s
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬─────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼─────────┼───────────┤
+│ Sub 0  │ TR_VChbYQh3uWD8GN │ video │ 7438  │ 1.4mbps │ 0 (0%)    │
+│        │                   │       │       │         │           │
+│ Sub 1  │ TR_VChbYQh3uWD8GN │ video │ 7437  │ 1.4mbps │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴─────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error │
+├────────┼────────┼───────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 1/2    │ 1.4mbps               │ 0 (0%)          │ -     │
+│ Sub 1  │ 1/2    │ 1.4mbps               │ 0 (0%)          │ -     │
+│ Total  │ 2/4    │ 2.7mbps (1.4mbps avg) │ 0 (0%)          │ 0     │
+└────────┴────────┴───────────────────────┴─────────────────┴───────┘

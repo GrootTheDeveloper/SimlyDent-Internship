@@ -1,8 +1,11 @@
 {
+	# Accept TLS for IP, localhost, and SSH-tunnel hosts (127.0.0.1).
 	default_sni {$LAN_IP}
+	local_certs
 }
 
-https://{$LAN_IP}:8443 {
+# Bind by port only so Host can be 10.11.10.23 or 127.0.0.1 (SSH tunnel).
+https://:8443 {
   tls internal
 
   @api path /api/*

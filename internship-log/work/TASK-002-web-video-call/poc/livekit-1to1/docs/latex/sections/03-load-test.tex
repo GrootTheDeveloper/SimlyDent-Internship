@@ -1,0 +1,92 @@
+\section{Chịu tải media}
+
+Media giả: mỗi room 2 publisher + 2 subscriber (\texttt{lk load-test}), 30\,s/mức, trên VPS.
+
+\subsection{Mức chính}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\raggedleft\arraybackslash}p{0.14\textwidth}|>{\centering\arraybackslash}p{0.12\textwidth}|>{\raggedleft\arraybackslash}p{0.16\textwidth}|>{\raggedleft\arraybackslash}p{0.18\textwidth}|>{\raggedleft\arraybackslash}X|}
+\hline
+\bfseries Room & \bfseries Kết quả & \bfseries CPU LiveKit & \bfseries RAM LiveKit & \bfseries Bandwidth tổng \\
+\hline
+1 & 1/1 OK & 15{,}5\% & $\sim$75\,MB & 17{,}6\,Mbps \\
+\hline
+5 & 5/5 OK & 33{,}2\% & $\sim$141\,MB & 49{,}1\,Mbps \\
+\hline
+10 & 10/10 OK & 50{,}3\% & $\sim$171\,MB & 61{,}3\,Mbps \\
+\hline
+20 & 20/20 OK & 55{,}2\% & $\sim$217\,MB & 60{,}4\,Mbps \\
+\hline
+25 & 25/25 OK & 72{,}8\% & $\sim$240\,MB & 59{,}3\,Mbps \\
+\hline
+30 & 30/30 OK & 60{,}9\% & $\sim$243\,MB & 64{,}4\,Mbps \\
+\hline
+\end{tabularx}
+\caption{Chịu tải media giả (mức chính).}
+\label{tab:load-main}
+\end{table}
+
+\subsection{CPU và RAM LiveKit theo ladder}
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedleft\arraybackslash}p{0.10\textwidth}|>{\centering\arraybackslash}p{0.10\textwidth}|>{\raggedleft\arraybackslash}p{0.16\textwidth}|>{\raggedleft\arraybackslash}p{0.18\textwidth}|>{\raggedleft\arraybackslash}X|}
+\hline
+\bfseries $N$ & \bfseries OK & \bfseries CPU mid & \bfseries RAM mid & \bfseries Mbps tổng \\
+\hline
+1 & 1/1 & 15{,}5\% & $\sim$75\,MB & 17{,}6 \\
+\hline
+3 & 3/3 & 23{,}6\% & $\sim$106\,MB & 30{,}8 \\
+\hline
+5 & 5/5 & 33{,}2\% & $\sim$141\,MB & 49{,}1 \\
+\hline
+8 & 8/8 & 53{,}4\% & $\sim$188\,MB & 52{,}8 \\
+\hline
+10 & 10/10 & 50{,}3\% & $\sim$171\,MB & 61{,}3 \\
+\hline
+12 & 12/12 & 60{,}2\% & $\sim$179\,MB & 59{,}8 \\
+\hline
+15 & 15/15 & 47{,}3\% & $\sim$187\,MB & 60{,}5 \\
+\hline
+18 & 18/18 & 53{,}1\% & $\sim$177\,MB & 51{,}8 \\
+\hline
+20 & 20/20 & 55{,}2\% & $\sim$217\,MB & 60{,}4 \\
+\hline
+25 & 25/25 & 72{,}8\% & $\sim$240\,MB & 59{,}3 \\
+\hline
+30 & 30/30 & 60{,}9\% & $\sim$243\,MB & 64{,}4 \\
+\hline
+\end{tabularx}
+\caption{Ladder $N=1\ldots 30$; soft max $N=30$, không process fail.}
+\label{tab:load-full}
+\end{table}
+
+\subsection{Tóm tắt tài nguyên}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.32\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+CPU mid thấp nhất (có tải) & $\sim$15\% @ 1 room \\
+\hline
+CPU mid cao nhất & $\sim$73\% @ 25 room ($\approx$ 0{,}7 core) \\
+\hline
+RAM LiveKit idle $\to$ 30 room & $\sim$58\,MB $\to$ $\sim$243\,MB \\
+\hline
+Host sau load & available $\sim$2--3\,GB; không OOM \\
+\hline
+Backend / Redis / Caddy (mẫu) & $\sim$60--90\,MB / $\sim$4--5\,MB / $\sim$15--18\,MB \\
+\hline
+Bandwidth tổng & bão hòa $\sim$50--65\,Mbps từ khoảng 8--10 room \\
+\hline
+\end{tabularx}
+\caption{Đọc CPU, RAM và bandwidth.}
+\label{tab:resource-read}
+\end{table}
+
+Ba mươi room OK không đồng nghĩa ba mươi cuộc gọi HD thực tế. CLI load-test chạy cùng
+máy với SFU.

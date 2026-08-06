@@ -1,0 +1,674 @@
+# HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 0.000114934
+go_gc_duration_seconds{quantile="0.25"} 0.000231806
+go_gc_duration_seconds{quantile="0.5"} 0.000366773
+go_gc_duration_seconds{quantile="0.75"} 0.001691901
+go_gc_duration_seconds{quantile="1"} 0.020116481
+go_gc_duration_seconds_sum 0.236639642
+go_gc_duration_seconds_count 132
+# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.
+# TYPE go_gc_gogc_percent gauge
+go_gc_gogc_percent 100
+# HELP go_gc_gomemlimit_bytes Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.
+# TYPE go_gc_gomemlimit_bytes gauge
+go_gc_gomemlimit_bytes 9.223372036854776e+18
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 966
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.26.4"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 1.07354744e+08
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 6.035758352e+09
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 2.146817e+06
+# HELP go_memstats_frees_total Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 7.2549169e+07
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 5.923616e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 1.07354744e+08
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 6.9566464e+07
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 1.39264e+08
+# HELP go_memstats_heap_objects Number of currently allocated objects. Equals to /gc/heap/objects:objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 553098
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 4.3737088e+07
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 2.08830464e+08
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.7859852469262767e+09
+# HELP go_memstats_mallocs_total Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 7.3102267e+07
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 4592
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 16072
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 1.87696e+06
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 2.7744e+06
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 1.53739978e+08
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 1.052623e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 1.3467648e+07
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 1.3467648e+07
+# HELP go_memstats_sys_bytes Number of bytes obtained from system. Equals to /memory/classes/total:byte.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 2.3421164e+08
+# HELP go_sched_gomaxprocs_threads The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.
+# TYPE go_sched_gomaxprocs_threads gauge
+go_sched_gomaxprocs_threads 2
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 13
+# HELP livekit_forward_jitter 
+# TYPE livekit_forward_jitter gauge
+livekit_forward_jitter{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+# HELP livekit_forward_latency 
+# TYPE livekit_forward_latency gauge
+livekit_forward_latency{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+# HELP livekit_forward_latency_ns 
+# TYPE livekit_forward_latency_ns histogram
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="50000"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="100000"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="250000"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="500000"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1e+06"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2e+06"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3e+06"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="5e+06"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1e+07"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2e+07"} 0
+livekit_forward_latency_ns_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="+Inf"} 0
+livekit_forward_latency_ns_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+livekit_forward_latency_ns_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+# HELP livekit_jitter_us 
+# TYPE livekit_jitter_us histogram
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1000"} 1354
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10000"} 3293
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="30000"} 3723
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="50000"} 3786
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="70000"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100000"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="300000"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="600000"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1e+06"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 3794
+livekit_jitter_us_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 1.6665142e+07
+livekit_jitter_us_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3794
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1000"} 0
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10000"} 280
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="30000"} 530
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="50000"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="70000"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100000"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="300000"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="600000"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1e+06"} 534
+livekit_jitter_us_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 534
+livekit_jitter_us_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 6.063879e+06
+livekit_jitter_us_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 534
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1000"} 328
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10000"} 510
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="30000"} 696
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="50000"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="70000"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100000"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="300000"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="600000"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1e+06"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 697
+livekit_jitter_us_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3.490021e+06
+livekit_jitter_us_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 697
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1000"} 1
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="30000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="50000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="70000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="300000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="600000"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1e+06"} 8
+livekit_jitter_us_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 8
+livekit_jitter_us_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 30860
+livekit_jitter_us_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 8
+# HELP livekit_nack_total 
+# TYPE livekit_nack_total counter
+livekit_nack_total{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 295
+livekit_nack_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 9530
+# HELP livekit_node_messages 
+# TYPE livekit_node_messages counter
+livekit_node_messages{direction="request",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="failure",type="signal"} 8
+livekit_node_messages{direction="request",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="signal"} 14129
+livekit_node_messages{direction="response",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="failure",type="signal"} 66
+livekit_node_messages{direction="response",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="signal"} 22050
+# HELP livekit_node_packet_total System level packet count. Count starts at 0 when service is first started.
+# TYPE livekit_node_packet_total gauge
+livekit_node_packet_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",type="dropped"} 0
+livekit_node_packet_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",type="out"} 0
+# HELP livekit_node_service_operation 
+# TYPE livekit_node_service_operation counter
+livekit_node_service_operation{error_type="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="asnwer"} 1611
+livekit_node_service_operation{error_type="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="offer"} 1772
+livekit_node_service_operation{error_type="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="participant_join"} 1118
+livekit_node_service_operation{error_type="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",status="success",type="peer_connection"} 828
+# HELP livekit_packet_bytes 
+# TYPE livekit_packet_bytes counter
+livekit_packet_bytes{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="initial"} 1.768918861e+09
+livekit_packet_bytes{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="initial"} 1.603886917e+09
+livekit_packet_bytes{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="retransmit"} 4.704849e+06
+# HELP livekit_packet_loss_percent 
+# TYPE livekit_packet_loss_percent histogram
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0"} 3778
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.1"} 3778
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.3"} 3782
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.5"} 3785
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.7"} 3790
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1"} 3791
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5"} 3794
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10"} 3794
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="40"} 3794
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 3794
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 3794
+livekit_packet_loss_percent_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 11.502009870773591
+livekit_packet_loss_percent_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3794
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.1"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.3"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.5"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.7"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="40"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 534
+livekit_packet_loss_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 534
+livekit_packet_loss_percent_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 0
+livekit_packet_loss_percent_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 534
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0"} 2246
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.1"} 2246
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.3"} 2247
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.5"} 2247
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.7"} 2247
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1"} 2247
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5"} 2248
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10"} 2248
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="40"} 2248
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 2248
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 2260
+livekit_packet_loss_percent_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3227.8417231372728
+livekit_packet_loss_percent_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 2260
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.1"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.3"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.5"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.7"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="40"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 10
+livekit_packet_loss_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 10
+livekit_packet_loss_percent_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 0
+livekit_packet_loss_percent_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 10
+# HELP livekit_packet_loss_total 
+# TYPE livekit_packet_loss_total counter
+livekit_packet_loss_total{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 59
+livekit_packet_loss_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 17987
+# HELP livekit_packet_out_of_order_percent 
+# TYPE livekit_packet_out_of_order_percent histogram
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0"} 3780
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.1"} 3781
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.3"} 3781
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.5"} 3781
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.7"} 3781
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1"} 3781
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5"} 3785
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10"} 3787
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="40"} 3792
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 3793
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 3794
+livekit_packet_out_of_order_percent_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 306.32709256989705
+livekit_packet_out_of_order_percent_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3794
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.1"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.3"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.5"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.7"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="40"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 534
+livekit_packet_out_of_order_percent_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 0
+livekit_packet_out_of_order_percent_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 534
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0"} 2258
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.1"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.3"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.5"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="0.7"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="40"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 2260
+livekit_packet_out_of_order_percent_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 0.1775410913457977
+livekit_packet_out_of_order_percent_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 2260
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.1"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.3"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.5"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="0.7"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="40"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 10
+livekit_packet_out_of_order_percent_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 10
+livekit_packet_out_of_order_percent_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 0
+livekit_packet_out_of_order_percent_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 10
+# HELP livekit_packet_out_of_order_total 
+# TYPE livekit_packet_out_of_order_total counter
+livekit_packet_out_of_order_total{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 391
+livekit_packet_out_of_order_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 2
+# HELP livekit_packet_total 
+# TYPE livekit_packet_total counter
+livekit_packet_total{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="initial"} 1.677296e+06
+livekit_packet_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="initial"} 1.485068e+06
+livekit_packet_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",transmission="retransmit"} 4613
+# HELP livekit_participant_join_total 
+# TYPE livekit_participant_join_total counter
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="rtc_active"} 440
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="rtc_canceled"} 79
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="rtc_connected"} 1118
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="rtc_init"} 1572
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="signal_connected"} 1571
+livekit_participant_join_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="signal_failed"} 2
+# HELP livekit_participant_total 
+# TYPE livekit_participant_total gauge
+livekit_participant_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 2
+# HELP livekit_pli_total 
+# TYPE livekit_pli_total counter
+livekit_pli_total{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 2113
+livekit_pli_total{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 243
+# HELP livekit_psrpc_bytes_total 
+# TYPE livekit_psrpc_bytes_total counter
+livekit_psrpc_bytes_total{direction="rx",kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 8.309652e+06
+livekit_psrpc_bytes_total{direction="rx",kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 7.592807e+06
+livekit_psrpc_bytes_total{direction="tx",kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 7.592855e+06
+livekit_psrpc_bytes_total{direction="tx",kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 8.309662e+06
+# HELP livekit_psrpc_error_total 
+# TYPE livekit_psrpc_error_total counter
+livekit_psrpc_error_total{kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 12
+livekit_psrpc_error_total{kind="stream",method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 2
+# HELP livekit_psrpc_stream_count 
+# TYPE livekit_psrpc_stream_count gauge
+livekit_psrpc_stream_count{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 2
+livekit_psrpc_stream_count{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 7
+# HELP livekit_psrpc_stream_receive_total 
+# TYPE livekit_psrpc_stream_receive_total counter
+livekit_psrpc_stream_receive_total{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 15096
+livekit_psrpc_stream_receive_total{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 8440
+# HELP livekit_psrpc_stream_send_time_ms 
+# TYPE livekit_psrpc_stream_send_time_ms histogram
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="10"} 6165
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="50"} 7550
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="100"} 8111
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="300"} 8435
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="500"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="1000"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="1500"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="2000"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="5000"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="10000"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal",le="+Inf"} 8440
+livekit_psrpc_stream_send_time_ms_sum{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 136550
+livekit_psrpc_stream_send_time_ms_count{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="client",service="Signal"} 8440
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="10"} 12305
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="50"} 14018
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="100"} 14687
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="300"} 15079
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="500"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="1000"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="1500"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="2000"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="5000"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="10000"} 15095
+livekit_psrpc_stream_send_time_ms_bucket{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal",le="+Inf"} 15095
+livekit_psrpc_stream_send_time_ms_sum{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 179049
+livekit_psrpc_stream_send_time_ms_count{method="RelaySignal",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",role="server",service="Signal"} 15095
+# HELP livekit_pubsubtime_ms 
+# TYPE livekit_pubsubtime_ms histogram
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="100"} 30
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="200"} 47
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="500"} 88
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="700"} 114
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="1000"} 120
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="5000"} 123
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="10000"} 123
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="+Inf"} 138
+livekit_pubsubtime_ms_sum{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO"} 519045
+livekit_pubsubtime_ms_count{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO"} 138
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="100"} 4
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="200"} 7
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="500"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="700"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="1000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="5000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="10000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="+Inf"} 8
+livekit_pubsubtime_ms_sum{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO"} 850
+livekit_pubsubtime_ms_count{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="100"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="200"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="500"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="700"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="1000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="5000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="10000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="+Inf"} 8
+livekit_pubsubtime_ms_sum{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO"} 366
+livekit_pubsubtime_ms_count{count="1",country="",direction="publish",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="100"} 77
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="200"} 132
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="500"} 218
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="700"} 235
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="1000"} 242
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="5000"} 244
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="10000"} 244
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO",le="+Inf"} 264
+livekit_pubsubtime_ms_sum{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO"} 362479
+livekit_pubsubtime_ms_count{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="GO",source="CAMERA",type="VIDEO"} 264
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="100"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="200"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="500"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="700"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="1000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="5000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="10000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO",le="+Inf"} 8
+livekit_pubsubtime_ms_sum{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO"} 504
+livekit_pubsubtime_ms_count{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="CAMERA",type="VIDEO"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="100"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="200"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="500"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="700"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="1000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="5000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="10000"} 8
+livekit_pubsubtime_ms_bucket{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO",le="+Inf"} 8
+livekit_pubsubtime_ms_sum{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO"} 394
+livekit_pubsubtime_ms_count{count="1",country="",direction="subscribe",kind="STANDARD",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",sdk="JS",source="MICROPHONE",type="AUDIO"} 8
+# HELP livekit_quality_rating 
+# TYPE livekit_quality_rating histogram
+livekit_quality_rating_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="0"} 1
+livekit_quality_rating_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1"} 3
+livekit_quality_rating_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2"} 4167
+livekit_quality_rating_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="+Inf"} 4167
+livekit_quality_rating_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 8330
+livekit_quality_rating_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 4167
+# HELP livekit_quality_score 
+# TYPE livekit_quality_score histogram
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1"} 0
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2"} 1
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2.5"} 1
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3"} 2
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3.25"} 2
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3.5"} 2
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3.75"} 2
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="4"} 3
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="4.25"} 6
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="4.5"} 4167
+livekit_quality_score_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="+Inf"} 4167
+livekit_quality_score_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 18743.34345984459
+livekit_quality_score_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 4167
+# HELP livekit_room_duration_seconds 
+# TYPE livekit_room_duration_seconds histogram
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="5"} 0
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="10"} 0
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="60"} 45
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="300"} 85
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="600"} 86
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1800"} 88
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3600"} 88
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="7200"} 88
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="18000"} 88
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="36000"} 88
+livekit_room_duration_seconds_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="+Inf"} 88
+livekit_room_duration_seconds_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 9875.073168148003
+livekit_room_duration_seconds_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 88
+# HELP livekit_room_total 
+# TYPE livekit_room_total gauge
+livekit_room_total{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 9
+# HELP livekit_rtt_ms 
+# TYPE livekit_rtt_ms histogram
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="50"} 3570
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 3753
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="150"} 3765
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="200"} 3774
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="250"} 3778
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="500"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="750"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1000"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5000"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10000"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 3787
+livekit_rtt_ms_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 39696
+livekit_rtt_ms_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 3787
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="50"} 403
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 527
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="150"} 531
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="200"} 532
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="250"} 532
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="500"} 534
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="750"} 534
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1000"} 534
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5000"} 534
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10000"} 534
+livekit_rtt_ms_bucket{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 534
+livekit_rtt_ms_sum{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 17834
+livekit_rtt_ms_count{country="",direction="incoming",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 534
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="50"} 1668
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="100"} 1816
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="150"} 1835
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="200"} 1837
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="250"} 1838
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="500"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="750"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="1000"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="5000"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="10000"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO",le="+Inf"} 1839
+livekit_rtt_ms_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 23082
+livekit_rtt_ms_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="CAMERA",type="VIDEO"} 1839
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="50"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="100"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="150"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="200"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="250"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="500"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="750"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="1000"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="5000"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="10000"} 3
+livekit_rtt_ms_bucket{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO",le="+Inf"} 3
+livekit_rtt_ms_sum{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 22
+livekit_rtt_ms_count{country="",direction="outgoing",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",source="MICROPHONE",type="AUDIO"} 3
+# HELP livekit_session_duration_ms 
+# TYPE livekit_session_duration_ms histogram
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="100"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="233.59011674382418"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="545.6434264039341"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="1274.5691167419518"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="2977.267487778254"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="6954.602600477145"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="16245.264333523593"} 38
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="37947.33192202059"} 355
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="88641.21693781434"} 395
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="207057.12212818698"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="483664.9733056345"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="1.1297935757936179e+06"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="2.639086132660537e+06"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="6.164644378251824e+06"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="1.440000000000003e+07"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="+Inf"} 432
+livekit_session_duration_ms_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16"} 1.8121915e+07
+livekit_session_duration_ms_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16"} 432
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="100"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="233.59011674382418"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="545.6434264039341"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="1274.5691167419518"} 0
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="2977.267487778254"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="6954.602600477145"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="16245.264333523593"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="37947.33192202059"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="88641.21693781434"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="207057.12212818698"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="483664.9733056345"} 2
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="1.1297935757936179e+06"} 6
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="2.639086132660537e+06"} 6
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="6.164644378251824e+06"} 6
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="1.440000000000003e+07"} 6
+livekit_session_duration_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="+Inf"} 6
+livekit_session_duration_ms_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17"} 2.546216e+06
+livekit_session_duration_ms_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17"} 6
+# HELP livekit_session_start_time_ms 
+# TYPE livekit_session_start_time_ms histogram
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="100"} 195
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="138.94954943731375"} 215
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="193.06977288832496"} 228
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="268.26957952797244"} 249
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="372.7593720314938"} 272
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="517.9474679231207"} 297
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="719.6856730011514"} 330
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="999.999999999999"} 368
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="1389.495494373136"} 409
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="1930.6977288832477"} 426
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="2682.695795279722"} 431
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="3727.593720314934"} 432
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="5179.474679231202"} 432
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="7196.856730011506"} 432
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="9999.999999999978"} 432
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16",le="+Inf"} 432
+livekit_session_start_time_ms_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16"} 178299
+livekit_session_start_time_ms_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="16"} 432
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="100"} 0
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="138.94954943731375"} 0
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="193.06977288832496"} 0
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="268.26957952797244"} 3
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="372.7593720314938"} 4
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="517.9474679231207"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="719.6856730011514"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="999.999999999999"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="1389.495494373136"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="1930.6977288832477"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="2682.695795279722"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="3727.593720314934"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="5179.474679231202"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="7196.856730011506"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="9999.999999999978"} 8
+livekit_session_start_time_ms_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17",le="+Inf"} 8
+livekit_session_start_time_ms_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17"} 2943
+livekit_session_start_time_ms_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",protocol_version="17"} 8
+# HELP livekit_track_publish_counter 
+# TYPE livekit_track_publish_counter counter
+livekit_track_publish_counter{kind="AUDIO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="attempt"} 8
+livekit_track_publish_counter{kind="AUDIO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="success"} 8
+livekit_track_publish_counter{kind="VIDEO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="attempt"} 233
+livekit_track_publish_counter{kind="VIDEO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="cancel"} 87
+livekit_track_publish_counter{kind="VIDEO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="success"} 146
+# HELP livekit_track_published_total 
+# TYPE livekit_track_published_total gauge
+livekit_track_published_total{kind="AUDIO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 2
+livekit_track_published_total{kind="VIDEO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 2
+# HELP livekit_track_subscribe_counter 
+# TYPE livekit_track_subscribe_counter counter
+livekit_track_subscribe_counter{error="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="attempt"} 308
+livekit_track_subscribe_counter{error="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="cancel"} 25
+livekit_track_subscribe_counter{error="",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="success"} 280
+livekit_track_subscribe_counter{error="track not bound",node_id="ND_JprVX5iwb4Lr",node_type="SERVER",state="failure"} 6
+# HELP livekit_track_subscribed_total 
+# TYPE livekit_track_subscribed_total gauge
+livekit_track_subscribed_total{kind="AUDIO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 2
+livekit_track_subscribed_total{kind="VIDEO",node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 4
+# HELP livekit_webhook_queue_length 
+# TYPE livekit_webhook_queue_length histogram
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="1"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="2"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="3"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="4"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="5"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="10"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="20"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="40"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="80"} 0
+livekit_webhook_queue_length_bucket{node_id="ND_JprVX5iwb4Lr",node_type="SERVER",le="+Inf"} 0
+livekit_webhook_queue_length_sum{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+livekit_webhook_queue_length_count{node_id="ND_JprVX5iwb4Lr",node_type="SERVER"} 0
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 319.99
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP process_network_receive_bytes_total Number of bytes received by the process over the network.
+# TYPE process_network_receive_bytes_total counter
+process_network_receive_bytes_total 1.924118126e+09
+# HELP process_network_transmit_bytes_total Number of bytes sent by the process over the network.
+# TYPE process_network_transmit_bytes_total counter
+process_network_transmit_bytes_total 1.619620361e+09
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 165
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 2.27479552e+08
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.78598385057e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.550880768e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 27
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0

@@ -1,0 +1,28 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-06-1785984266-16257
+publishing simulcast video track - pypod_pub_1
+publishing simulcast video track - pypod_pub_0
+Finished connecting to room, waiting 30s
+subscribed to track pypod_2 TR_VCyZANWcjPztxK video 1/1
+subscribed to track pypod_3 TR_VCyZANWcjPztxK video 1/1
+subscribed to track pypod_2 TR_VCCbTeWqjXQrQH video 2/2
+subscribed to track pypod_3 TR_VCCbTeWqjXQrQH video 2/2
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬─────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼─────────┼───────────┤
+│ Sub 0  │ TR_VCyZANWcjPztxK │ video │ 4404  │ 1.3mbps │ 0 (0%)    │
+│        │ TR_VCCbTeWqjXQrQH │ video │ 6     │ 0bps    │ 0 (0%)    │
+│        │                   │       │       │         │           │
+│ Sub 1  │ TR_VCCbTeWqjXQrQH │ video │ 6     │ 0bps    │ 0 (0%)    │
+│        │ TR_VCyZANWcjPztxK │ video │ 4404  │ 1.3mbps │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴─────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error │
+├────────┼────────┼───────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 2/2    │ 1.3mbps               │ 0 (0%)          │ -     │
+│ Sub 1  │ 2/2    │ 1.3mbps               │ 0 (0%)          │ -     │
+│ Total  │ 4/4    │ 2.6mbps (1.3mbps avg) │ 0 (0%)          │ 0     │
+└────────┴────────┴───────────────────────┴─────────────────┴───────┘

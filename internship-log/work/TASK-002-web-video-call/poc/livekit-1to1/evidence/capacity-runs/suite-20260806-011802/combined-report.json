@@ -1,0 +1,15 @@
+﻿{
+    "host":  {
+                 "machine":  "GROOTTHEDEVELOP",
+                 "os":  "Microsoft Windows NT 10.0.26200.0",
+                 "atUtc":  "2026-08-05T18:18:03.0929374+00:00",
+                 "note":  "Local Docker Desktop host unless run on VPS. VPS GOLD4 = 2 vCPU / 4 GB — re-run suite there for production-ish numbers."
+             },
+    "apiExitCode":  99,
+    "mediaExitCode":  99,
+    "apiMaxFullPairs":  null,
+    "mediaMaxFullRooms":  null,
+    "apiBusyRulePass":  null,
+    "apiReport":  null,
+    "mediaReport":  null
+}

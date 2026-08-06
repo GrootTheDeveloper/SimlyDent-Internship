@@ -1,0 +1,24 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-06-1785984465-4776
+publishing simulcast video track - daend_pub_0
+publishing simulcast video track - daend_pub_1
+subscribed to track daend_2 TR_VCPyLuNKu7tSKb video 1/2
+subscribed to track daend_2 TR_VCMkmaaZSRgGQe video 2/2
+Finished connecting to room, waiting 30s
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬───────────┬────────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate   │ Pkt. Loss  │
+├────────┼───────────────────┼───────┼───────┼───────────┼────────────┤
+│ Sub 0  │ TR_VCPyLuNKu7tSKb │ video │ 7116  │ 991.3kbps │ 2 (0.028%) │
+│        │ TR_VCMkmaaZSRgGQe │ video │ 1680  │ 223.0kbps │ 1 (0.059%) │
+│        │                   │       │       │           │            │
+└────────┴───────────────────┴───────┴───────┴───────────┴────────────┘
+
+Subscriber summaries:
+┌────────┬────────┬─────────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate                 │ Total Pkt. Loss │ Error │
+├────────┼────────┼─────────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 2/2    │ 1.2mbps                 │ 3 (0.034%)      │ -     │
+│ Sub 1  │ 0/2    │ NaNmbps                 │  -              │ -     │
+│ Total  │ 2/4    │ 1.2mbps (606.8kbps avg) │ 3 (0.034%)      │ 0     │
+└────────┴────────┴─────────────────────────┴─────────────────┴───────┘

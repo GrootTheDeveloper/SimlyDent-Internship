@@ -1,0 +1,105 @@
+﻿{
+    "kind":  "media-load-repeated",
+    "repetitions":  2,
+    "concurrentRooms":  "1",
+    "durationSeconds":  12,
+    "subscribers":  2,
+    "exitCodes":  [
+                      0,
+                      0
+                  ],
+    "allRunsOk":  true,
+    "aggregates":  [
+                       {
+                           "concurrentRooms":  1,
+                           "repeats":  2,
+                           "successRate":  {
+                                               "n":  2,
+                                               "min":  100,
+                                               "max":  100,
+                                               "avg":  100,
+                                               "p50":  100
+                                           },
+                           "mbpsTotal":  {
+                                             "n":  2,
+                                             "min":  6.42,
+                                             "max":  6.521,
+                                             "avg":  6.47,
+                                             "p50":  6.42
+                                         },
+                           "mbpsTotalMid":  {
+                                                "n":  2,
+                                                "min":  9.642,
+                                                "max":  9.664,
+                                                "avg":  9.653,
+                                                "p50":  9.642
+                                            },
+                           "mbpsIn":  {
+                                          "n":  2,
+                                          "min":  3.555,
+                                          "max":  3.618,
+                                          "avg":  3.586,
+                                          "p50":  3.555
+                                      },
+                           "mbpsOut":  {
+                                           "n":  2,
+                                           "min":  2.865,
+                                           "max":  2.903,
+                                           "avg":  2.884,
+                                           "p50":  2.865
+                                       },
+                           "lossAvgPercent":  {
+                                                  "n":  2,
+                                                  "min":  0,
+                                                  "max":  0,
+                                                  "avg":  0,
+                                                  "p50":  0
+                                              },
+                           "livekitCpuPeak":  {
+                                                  "n":  2,
+                                                  "min":  10.62,
+                                                  "max":  10.9,
+                                                  "avg":  10.76,
+                                                  "p50":  10.62
+                                              },
+                           "rawRuns":  [
+                                           {
+                                               "run":  1,
+                                               "successRate":  100,
+                                               "mbpsIn":  3.618,
+                                               "mbpsOut":  2.903,
+                                               "mbpsTotal":  6.521,
+                                               "mbpsInMid":  6.056,
+                                               "mbpsOutMid":  3.608,
+                                               "lossAvgPercent":  0,
+                                               "livekitCpuPeak":  10.9,
+                                               "packetsInPerSec":  425.1
+                                           },
+                                           {
+                                               "run":  2,
+                                               "successRate":  100,
+                                               "mbpsIn":  3.555,
+                                               "mbpsOut":  2.865,
+                                               "mbpsTotal":  6.42,
+                                               "mbpsInMid":  6.009,
+                                               "mbpsOutMid":  3.633,
+                                               "lossAvgPercent":  0,
+                                               "livekitCpuPeak":  10.62,
+                                               "packetsInPerSec":  417.7
+                                           }
+                                       ]
+                       }
+                   ],
+    "runs":  [
+                 {
+                     "runIndex":  1,
+                     "exitCode":  0,
+                     "hasReport":  true
+                 },
+                 {
+                     "runIndex":  2,
+                     "exitCode":  0,
+                     "hasReport":  true
+                 }
+             ]
+}

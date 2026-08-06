@@ -1,0 +1,27 @@
+\section{Phạm vi và môi trường}
+
+PoC triển khai cuộc gọi video 1:1 trên web: LiveKit Server 1.13.1, backend ASP.NET Core,
+SignalR, frontend Vue~2. Stack chạy Docker Compose trên VPS công cộng, HTTPS, TURN.
+Đăng nhập JWT, tách tenant, trạng thái online/offline. Telemetry chất lượng được ghi từ
+trình duyệt về server.
+
+Hai lớp đo: (1)~cuộc gọi thật hai máy (camera/microphone); (2)~chịu tải media giả bằng
+\texttt{lk load-test} trên VPS. Hai lớp không thay thế nhau.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.28\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+URL demo & \url{https://103.28.32.118.sslip.io/} \\
+\hline
+Public IP & 103.28.32.118 \\
+\hline
+Git (VPS) & \texttt{563f23e} \\
+\hline
+Ngày số liệu & 06/08/2026 \\
+\hline
+\end{tabularx}
+\caption{Thông tin triển khai.}
+\label{tab:deploy-meta}
+\end{table}

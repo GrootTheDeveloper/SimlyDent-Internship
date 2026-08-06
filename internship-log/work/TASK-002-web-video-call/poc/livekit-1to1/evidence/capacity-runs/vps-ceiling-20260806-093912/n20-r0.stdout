@@ -1,0 +1,28 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-00-1785985066-6165
+publishing simulcast video track - rvnup_pub_0
+publishing simulcast video track - rvnup_pub_1
+Finished connecting to room, waiting 30s
+subscribed to track rvnup_3 TR_VCn4ZJswzzwt5u video 1/2
+subscribed to track rvnup_3 TR_VCZEqpmFFmTpaK video 2/2
+subscribed to track rvnup_2 TR_VCZEqpmFFmTpaK video 1/2
+subscribed to track rvnup_2 TR_VCn4ZJswzzwt5u video 2/2
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬───────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate   │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼───────────┼───────────┤
+│ Sub 0  │ TR_VCZEqpmFFmTpaK │ video │ 4448  │ 1.3mbps   │ 0 (0%)    │
+│        │ TR_VCn4ZJswzzwt5u │ video │ 1447  │ 405.3kbps │ 0 (0%)    │
+│        │                   │       │       │           │           │
+│ Sub 1  │ TR_VCZEqpmFFmTpaK │ video │ 1117  │ 290.0kbps │ 0 (0%)    │
+│        │ TR_VCn4ZJswzzwt5u │ video │ 5942  │ 1.8mbps   │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴───────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬───────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error │
+├────────┼────────┼───────────────────────┼─────────────────┼───────┤
+│ Sub 0  │ 2/2    │ 1.7mbps               │ 0 (0%)          │ -     │
+│ Sub 1  │ 2/2    │ 2.1mbps               │ 0 (0%)          │ -     │
+│ Total  │ 4/4    │ 3.8mbps (1.9mbps avg) │ 0 (0%)          │ 0     │
+└────────┴────────┴───────────────────────┴─────────────────┴───────┘

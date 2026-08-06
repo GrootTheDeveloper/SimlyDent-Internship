@@ -1,0 +1,659 @@
+﻿{
+    "kind":  "media-load",
+    "liveKitUrl":  "http://localhost:7880",
+    "metricsUrl":  "http://localhost:6789/metrics",
+    "durationSeconds":  25,
+    "videoResolution":  "high",
+    "subscribersPerRoom":  2,
+    "concurrentRoomLevels":  [
+                                 1,
+                                 3,
+                                 5
+                             ],
+    "topologyNote":  "Each room = 2 video publishers + N subscribers (CLI). Bitrate/loss from LiveKit Prometheus livekit_packet_* counters — SFU-observed, not browser getStats.",
+    "maxFullSuccessRooms":  5,
+    "levels":  [
+                   {
+                       "concurrentRooms":  1,
+                       "videoPublishersEach":  2,
+                       "subscribersEach":  2,
+                       "durationSeconds":  25,
+                       "videoResolution":  "high",
+                       "processesOk":  1,
+                       "processesFail":  0,
+                       "successRatePercent":  100,
+                       "livekitCpuAfter":  0.23,
+                       "livekitMemAfter":  "48.29MiB / 6.698GiB",
+                       "livekitCpuPeakSeen":  9.13,
+                       "backendCpuAfter":  0.06,
+                       "egressCpuAfter":  0.07,
+                       "mbpsIn":  3.025,
+                       "mbpsOut":  3.042,
+                       "mbpsTotal":  6.067,
+                       "packetsInPerSec":  357.6,
+                       "packetsOutPerSec":  353.2,
+                       "lossAvgPercent":  0,
+                       "oooAvgPercent":  0,
+                       "nodeDropPercent":  0,
+                       "roomsGauge":  1,
+                       "participantsGauge":  0,
+                       "tracksVideoGauge":  0,
+                       "mbpsInMid":  4.387,
+                       "mbpsOutMid":  3.593,
+                       "prometheusRates":  {
+                                               "ok":  true,
+                                               "elapsedSec":  27.71,
+                                               "bytesInDelta":  10478488,
+                                               "bytesOutDelta":  10538999,
+                                               "packetsInDelta":  9909,
+                                               "packetsOutDelta":  9788,
+                                               "packetsDroppedDelta":  0,
+                                               "mbpsIn":  3.025,
+                                               "mbpsOut":  3.042,
+                                               "mbpsTotal":  6.067,
+                                               "packetsInPerSec":  357.6,
+                                               "packetsOutPerSec":  353.2,
+                                               "nodeDropPercent":  0,
+                                               "roomsEnd":  1,
+                                               "participantsEnd":  0,
+                                               "tracksVideoEnd":  0,
+                                               "lossAvgPercentEnd":  0,
+                                               "oooAvgPercentEnd":  0,
+                                               "forwardLatencyEnd":  0,
+                                               "forwardJitterEnd":  0,
+                                               "sampleBeforeUtc":  "2026-08-05T23:43:13.8713954+00:00",
+                                               "sampleAfterUtc":  "2026-08-05T23:43:41.5842645+00:00"
+                                           },
+                       "prometheusRatesMid":  {
+                                                  "ok":  true,
+                                                  "elapsedSec":  10.91,
+                                                  "bytesInDelta":  5982234,
+                                                  "bytesOutDelta":  4900335,
+                                                  "packetsInDelta":  5617,
+                                                  "packetsOutDelta":  4509,
+                                                  "packetsDroppedDelta":  0,
+                                                  "mbpsIn":  4.387,
+                                                  "mbpsOut":  3.593,
+                                                  "mbpsTotal":  7.98,
+                                                  "packetsInPerSec":  514.9,
+                                                  "packetsOutPerSec":  413.3,
+                                                  "nodeDropPercent":  0,
+                                                  "roomsEnd":  1,
+                                                  "participantsEnd":  4,
+                                                  "tracksVideoEnd":  2,
+                                                  "lossAvgPercentEnd":  0,
+                                                  "oooAvgPercentEnd":  0,
+                                                  "forwardLatencyEnd":  0,
+                                                  "forwardJitterEnd":  0,
+                                                  "sampleBeforeUtc":  "2026-08-05T23:43:13.8713954+00:00",
+                                                  "sampleAfterUtc":  "2026-08-05T23:43:24.7811118+00:00"
+                                              },
+                       "roomNames":  [
+                                         "cap-media-00-37ba9970"
+                                     ],
+                       "judgements":  [
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  32,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-00-37ba9970\npublishing simulcast video track - bxoma_pub_0\npublishing simulcast video track - bxoma_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track bxoma_3 TR_VCK9Mv5coQj6Mp video 1/2\nsubscribed to track b"
+                                          }
+                                      ],
+                       "startedAtUtc":  "2026-08-05T23:43:09.8149982+00:00",
+                       "endedAtUtc":  "2026-08-05T23:43:37.5287163+00:00",
+                       "dockerBefore":  [
+                                            {
+                                                "Name":  "livekit-1to1-livekit-1",
+                                                "CpuPercent":  0.28,
+                                                "MemUsage":  "78.41MiB / 6.698GiB",
+                                                "MemPercent":  1.14,
+                                                "AtUtc":  "2026-08-05T23:43:09.8127722+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-backend-1",
+                                                "CpuPercent":  0.07,
+                                                "MemUsage":  "62.92MiB / 6.698GiB",
+                                                "MemPercent":  0.92,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-frontend-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.04MiB / 6.698GiB",
+                                                "MemPercent":  0.16,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-egress-1",
+                                                "CpuPercent":  0.1,
+                                                "MemUsage":  "118.9MiB / 6.698GiB",
+                                                "MemPercent":  1.73,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-redis-1",
+                                                "CpuPercent":  0.49,
+                                                "MemUsage":  "5.234MiB / 6.698GiB",
+                                                "MemPercent":  0.08,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-gateway-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.39MiB / 6.698GiB",
+                                                "MemPercent":  0.17,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-cloudflared-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "20.59MiB / 6.698GiB",
+                                                "MemPercent":  0.3,
+                                                "AtUtc":  "2026-08-05T23:43:09.8149982+00:00"
+                                            }
+                                        ],
+                       "dockerAfter":  [
+                                           {
+                                               "Name":  "livekit-1to1-livekit-1",
+                                               "CpuPercent":  0.23,
+                                               "MemUsage":  "48.29MiB / 6.698GiB",
+                                               "MemPercent":  0.7,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-backend-1",
+                                               "CpuPercent":  0.06,
+                                               "MemUsage":  "62.95MiB / 6.698GiB",
+                                               "MemPercent":  0.92,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-frontend-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.04MiB / 6.698GiB",
+                                               "MemPercent":  0.16,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-egress-1",
+                                               "CpuPercent":  0.07,
+                                               "MemUsage":  "119.1MiB / 6.698GiB",
+                                               "MemPercent":  1.74,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-redis-1",
+                                               "CpuPercent":  0.39,
+                                               "MemUsage":  "4.965MiB / 6.698GiB",
+                                               "MemPercent":  0.07,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-gateway-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.39MiB / 6.698GiB",
+                                               "MemPercent":  0.17,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-cloudflared-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "20.59MiB / 6.698GiB",
+                                               "MemPercent":  0.3,
+                                               "AtUtc":  "2026-08-05T23:43:39.5543710+00:00"
+                                           }
+                                       ]
+                   },
+                   {
+                       "concurrentRooms":  3,
+                       "videoPublishersEach":  2,
+                       "subscribersEach":  2,
+                       "durationSeconds":  25,
+                       "videoResolution":  "high",
+                       "processesOk":  3,
+                       "processesFail":  0,
+                       "successRatePercent":  100,
+                       "livekitCpuAfter":  0.35,
+                       "livekitMemAfter":  "72.54MiB / 6.698GiB",
+                       "livekitCpuPeakSeen":  27.47,
+                       "backendCpuAfter":  0.09,
+                       "egressCpuAfter":  0.09,
+                       "mbpsIn":  8.82,
+                       "mbpsOut":  8.877,
+                       "mbpsTotal":  17.697,
+                       "packetsInPerSec":  1042.3,
+                       "packetsOutPerSec":  1031.2,
+                       "lossAvgPercent":  0,
+                       "oooAvgPercent":  0,
+                       "nodeDropPercent":  0,
+                       "roomsGauge":  3,
+                       "participantsGauge":  0,
+                       "tracksVideoGauge":  0,
+                       "mbpsInMid":  12.527,
+                       "mbpsOutMid":  10.243,
+                       "prometheusRates":  {
+                                               "ok":  true,
+                                               "elapsedSec":  28.7,
+                                               "bytesInDelta":  31640811,
+                                               "bytesOutDelta":  31845857,
+                                               "packetsInDelta":  29915,
+                                               "packetsOutDelta":  29596,
+                                               "packetsDroppedDelta":  0,
+                                               "mbpsIn":  8.82,
+                                               "mbpsOut":  8.877,
+                                               "mbpsTotal":  17.697,
+                                               "packetsInPerSec":  1042.3,
+                                               "packetsOutPerSec":  1031.2,
+                                               "nodeDropPercent":  0,
+                                               "roomsEnd":  3,
+                                               "participantsEnd":  0,
+                                               "tracksVideoEnd":  0,
+                                               "lossAvgPercentEnd":  0,
+                                               "oooAvgPercentEnd":  0,
+                                               "forwardLatencyEnd":  0,
+                                               "forwardJitterEnd":  0,
+                                               "sampleBeforeUtc":  "2026-08-05T23:43:51.8065240+00:00",
+                                               "sampleAfterUtc":  "2026-08-05T23:44:20.5071329+00:00"
+                                           },
+                       "prometheusRatesMid":  {
+                                                  "ok":  true,
+                                                  "elapsedSec":  11.45,
+                                                  "bytesInDelta":  17935953,
+                                                  "bytesOutDelta":  14666287,
+                                                  "packetsInDelta":  16839,
+                                                  "packetsOutDelta":  13496,
+                                                  "packetsDroppedDelta":  0,
+                                                  "mbpsIn":  12.527,
+                                                  "mbpsOut":  10.243,
+                                                  "mbpsTotal":  22.77,
+                                                  "packetsInPerSec":  1470.1,
+                                                  "packetsOutPerSec":  1178.2,
+                                                  "nodeDropPercent":  0,
+                                                  "roomsEnd":  3,
+                                                  "participantsEnd":  12,
+                                                  "tracksVideoEnd":  6,
+                                                  "lossAvgPercentEnd":  0,
+                                                  "oooAvgPercentEnd":  0,
+                                                  "forwardLatencyEnd":  0,
+                                                  "forwardJitterEnd":  0,
+                                                  "sampleBeforeUtc":  "2026-08-05T23:43:51.8065240+00:00",
+                                                  "sampleAfterUtc":  "2026-08-05T23:44:03.2611351+00:00"
+                                              },
+                       "roomNames":  [
+                                         "cap-media-00-725fbba7",
+                                         "cap-media-01-bf19a82b",
+                                         "cap-media-02-97e2d3e1"
+                                     ],
+                       "judgements":  [
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  33,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-00-725fbba7\npublishing simulcast video track - gmzbq_pub_0\npublishing simulcast video track - gmzbq_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track gmzbq_2 TR_VCLG7Qf4gQU6dp video 1/1\nsubscribed to track g"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  33,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-01-bf19a82b\npublishing simulcast video track - pbtup_pub_0\npublishing simulcast video track - pbtup_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track pbtup_3 TR_VCjmvrrhNn5spn video 1/1\nsubscribed to track p"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  33,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-02-97e2d3e1\npublishing simulcast video track - jhhjj_pub_0\npublishing simulcast video track - jhhjj_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track jhhjj_3 TR_VCuz2Uou7v2CFS video 1/2\nsubscribed to track j"
+                                          }
+                                      ],
+                       "startedAtUtc":  "2026-08-05T23:43:47.7751202+00:00",
+                       "endedAtUtc":  "2026-08-05T23:44:16.4583484+00:00",
+                       "dockerBefore":  [
+                                            {
+                                                "Name":  "livekit-1to1-livekit-1",
+                                                "CpuPercent":  0.26,
+                                                "MemUsage":  "48.29MiB / 6.698GiB",
+                                                "MemPercent":  0.7,
+                                                "AtUtc":  "2026-08-05T23:43:47.7745895+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-backend-1",
+                                                "CpuPercent":  0.06,
+                                                "MemUsage":  "62.95MiB / 6.698GiB",
+                                                "MemPercent":  0.92,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-frontend-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.04MiB / 6.698GiB",
+                                                "MemPercent":  0.16,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-egress-1",
+                                                "CpuPercent":  0.11,
+                                                "MemUsage":  "119.1MiB / 6.698GiB",
+                                                "MemPercent":  1.74,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-redis-1",
+                                                "CpuPercent":  0.41,
+                                                "MemUsage":  "5.203MiB / 6.698GiB",
+                                                "MemPercent":  0.08,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-gateway-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.39MiB / 6.698GiB",
+                                                "MemPercent":  0.17,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-cloudflared-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "20.59MiB / 6.698GiB",
+                                                "MemPercent":  0.3,
+                                                "AtUtc":  "2026-08-05T23:43:47.7751202+00:00"
+                                            }
+                                        ],
+                       "dockerAfter":  [
+                                           {
+                                               "Name":  "livekit-1to1-livekit-1",
+                                               "CpuPercent":  0.35,
+                                               "MemUsage":  "72.54MiB / 6.698GiB",
+                                               "MemPercent":  1.06,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-backend-1",
+                                               "CpuPercent":  0.09,
+                                               "MemUsage":  "62.92MiB / 6.698GiB",
+                                               "MemPercent":  0.92,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-frontend-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.04MiB / 6.698GiB",
+                                               "MemPercent":  0.16,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-egress-1",
+                                               "CpuPercent":  0.09,
+                                               "MemUsage":  "119.1MiB / 6.698GiB",
+                                               "MemPercent":  1.74,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-redis-1",
+                                               "CpuPercent":  0.37,
+                                               "MemUsage":  "5.258MiB / 6.698GiB",
+                                               "MemPercent":  0.08,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-gateway-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.39MiB / 6.698GiB",
+                                               "MemPercent":  0.17,
+                                               "AtUtc":  "2026-08-05T23:44:18.4815542+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-cloudflared-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "20.59MiB / 6.698GiB",
+                                               "MemPercent":  0.3,
+                                               "AtUtc":  "2026-08-05T23:44:18.4820752+00:00"
+                                           }
+                                       ]
+                   },
+                   {
+                       "concurrentRooms":  5,
+                       "videoPublishersEach":  2,
+                       "subscribersEach":  2,
+                       "durationSeconds":  25,
+                       "videoResolution":  "high",
+                       "processesOk":  5,
+                       "processesFail":  0,
+                       "successRatePercent":  100,
+                       "livekitCpuAfter":  5.96,
+                       "livekitMemAfter":  "86.66MiB / 6.698GiB",
+                       "livekitCpuPeakSeen":  11.07,
+                       "backendCpuAfter":  0.06,
+                       "egressCpuAfter":  0.09,
+                       "mbpsIn":  3.213,
+                       "mbpsOut":  3.779,
+                       "mbpsTotal":  6.992,
+                       "packetsInPerSec":  390,
+                       "packetsOutPerSec":  444,
+                       "lossAvgPercent":  0,
+                       "oooAvgPercent":  0,
+                       "nodeDropPercent":  0,
+                       "roomsGauge":  1,
+                       "participantsGauge":  0,
+                       "tracksVideoGauge":  0,
+                       "mbpsInMid":  3.791,
+                       "mbpsOutMid":  4.005,
+                       "prometheusRates":  {
+                                               "ok":  true,
+                                               "elapsedSec":  55.67,
+                                               "bytesInDelta":  22362201,
+                                               "bytesOutDelta":  26298674,
+                                               "packetsInDelta":  21713,
+                                               "packetsOutDelta":  24721,
+                                               "packetsDroppedDelta":  0,
+                                               "mbpsIn":  3.213,
+                                               "mbpsOut":  3.779,
+                                               "mbpsTotal":  6.992,
+                                               "packetsInPerSec":  390,
+                                               "packetsOutPerSec":  444,
+                                               "nodeDropPercent":  0,
+                                               "roomsEnd":  1,
+                                               "participantsEnd":  0,
+                                               "tracksVideoEnd":  0,
+                                               "lossAvgPercentEnd":  0,
+                                               "oooAvgPercentEnd":  0,
+                                               "forwardLatencyEnd":  0,
+                                               "forwardJitterEnd":  0,
+                                               "sampleBeforeUtc":  "2026-08-05T23:44:30.8548356+00:00",
+                                               "sampleAfterUtc":  "2026-08-05T23:45:26.5266627+00:00"
+                                           },
+                       "prometheusRatesMid":  {
+                                                  "ok":  true,
+                                                  "elapsedSec":  10.51,
+                                                  "bytesInDelta":  4980063,
+                                                  "bytesOutDelta":  5261507,
+                                                  "packetsInDelta":  4951,
+                                                  "packetsOutDelta":  5009,
+                                                  "packetsDroppedDelta":  0,
+                                                  "mbpsIn":  3.791,
+                                                  "mbpsOut":  4.005,
+                                                  "mbpsTotal":  7.796,
+                                                  "packetsInPerSec":  471.1,
+                                                  "packetsOutPerSec":  476.6,
+                                                  "nodeDropPercent":  0,
+                                                  "roomsEnd":  5,
+                                                  "participantsEnd":  20,
+                                                  "tracksVideoEnd":  2,
+                                                  "lossAvgPercentEnd":  0,
+                                                  "oooAvgPercentEnd":  0,
+                                                  "forwardLatencyEnd":  0,
+                                                  "forwardJitterEnd":  0,
+                                                  "sampleBeforeUtc":  "2026-08-05T23:44:30.8548356+00:00",
+                                                  "sampleAfterUtc":  "2026-08-05T23:44:41.3653772+00:00"
+                                              },
+                       "roomNames":  [
+                                         "cap-media-00-2dce2774",
+                                         "cap-media-01-e8cfde7c",
+                                         "cap-media-02-1b61800e",
+                                         "cap-media-03-50d86582",
+                                         "cap-media-04-6d7a9609"
+                                     ],
+                       "judgements":  [
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  60,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-00-2dce2774\npublishing simulcast video track - ghyta_pub_1\npublishing simulcast video track - ghyta_pub_0\nFinished connecting to room, waiting 25s\nsubscribed to track ghyta_2 TR_VC4v9A64wYaHni video 1/1\nsubscribed to track g"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  60,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-01-e8cfde7c\npublishing simulcast video track - cmqrm_pub_0\npublishing simulcast video track - cmqrm_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track cmqrm_3 TR_VCp685MPCrE64S video 1/1\nsubscribed to track c"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  60,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-02-1b61800e\npublishing simulcast video track - mgydh_pub_1\npublishing simulcast video track - mgydh_pub_0\nFinished connecting to room, waiting 25s\n\nTrack loading:\n┌────────┬───────┬──────┬───────┬─────────┬───────────┐\n│ Tes"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  60,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-03-50d86582\npublishing simulcast video track - cgyhc_pub_0\npublishing simulcast video track - cgyhc_pub_1\nFinished connecting to room, waiting 25s\n\nTrack loading:\n┌────────┬───────┬──────┬───────┬─────────┬───────────┐\n│ Tes"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  60,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, 2 subscribers, room: cap-media-04-6d7a9609\npublishing simulcast video track - xtakd_pub_0\npublishing simulcast video track - xtakd_pub_1\nFinished connecting to room, waiting 25s\nsubscribed to track xtakd_3 TR_VCTvBPrTFKZzET video 1/2\nsubscribed to track x"
+                                          }
+                                      ],
+                       "startedAtUtc":  "2026-08-05T23:44:26.8045289+00:00",
+                       "endedAtUtc":  "2026-08-05T23:45:21.8889055+00:00",
+                       "dockerBefore":  [
+                                            {
+                                                "Name":  "livekit-1to1-livekit-1",
+                                                "CpuPercent":  0.21,
+                                                "MemUsage":  "72.61MiB / 6.698GiB",
+                                                "MemPercent":  1.06,
+                                                "AtUtc":  "2026-08-05T23:44:26.8040038+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-backend-1",
+                                                "CpuPercent":  0.06,
+                                                "MemUsage":  "62.92MiB / 6.698GiB",
+                                                "MemPercent":  0.92,
+                                                "AtUtc":  "2026-08-05T23:44:26.8040038+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-frontend-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.04MiB / 6.698GiB",
+                                                "MemPercent":  0.16,
+                                                "AtUtc":  "2026-08-05T23:44:26.8045289+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-egress-1",
+                                                "CpuPercent":  0.09,
+                                                "MemUsage":  "118.9MiB / 6.698GiB",
+                                                "MemPercent":  1.73,
+                                                "AtUtc":  "2026-08-05T23:44:26.8045289+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-redis-1",
+                                                "CpuPercent":  0.37,
+                                                "MemUsage":  "4.996MiB / 6.698GiB",
+                                                "MemPercent":  0.07,
+                                                "AtUtc":  "2026-08-05T23:44:26.8045289+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-gateway-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.39MiB / 6.698GiB",
+                                                "MemPercent":  0.17,
+                                                "AtUtc":  "2026-08-05T23:44:26.8045289+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-cloudflared-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "20.59MiB / 6.698GiB",
+                                                "MemPercent":  0.3,
+                                                "AtUtc":  "2026-08-05T23:44:26.8045289+00:00"
+                                            }
+                                        ],
+                       "dockerAfter":  [
+                                           {
+                                               "Name":  "livekit-1to1-livekit-1",
+                                               "CpuPercent":  5.96,
+                                               "MemUsage":  "86.66MiB / 6.698GiB",
+                                               "MemPercent":  1.26,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-backend-1",
+                                               "CpuPercent":  0.06,
+                                               "MemUsage":  "62.95MiB / 6.698GiB",
+                                               "MemPercent":  0.92,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-frontend-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.04MiB / 6.698GiB",
+                                               "MemPercent":  0.16,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-egress-1",
+                                               "CpuPercent":  0.09,
+                                               "MemUsage":  "120MiB / 6.698GiB",
+                                               "MemPercent":  1.75,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-redis-1",
+                                               "CpuPercent":  0.35,
+                                               "MemUsage":  "5.273MiB / 6.698GiB",
+                                               "MemPercent":  0.08,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-gateway-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.39MiB / 6.698GiB",
+                                               "MemPercent":  0.17,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-cloudflared-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "20.69MiB / 6.698GiB",
+                                               "MemPercent":  0.3,
+                                               "AtUtc":  "2026-08-05T23:45:24.4974902+00:00"
+                                           }
+                                       ]
+                   }
+               ]
+}

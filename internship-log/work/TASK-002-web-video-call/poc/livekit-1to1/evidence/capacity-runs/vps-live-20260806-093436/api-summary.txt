@@ -1,0 +1,8 @@
+--- API pairs N=1 ---
+N=1 ok=1 fail=0 wall_ms=3998
+--- API pairs N=3 ---
+N=3 ok=3 fail=0 wall_ms=4437
+--- API pairs N=5 ---
+N=5 ok=5 fail=0 wall_ms=5273
+--- API pairs N=8 ---
+N=8 ok=8 fail=0 wall_ms=6535

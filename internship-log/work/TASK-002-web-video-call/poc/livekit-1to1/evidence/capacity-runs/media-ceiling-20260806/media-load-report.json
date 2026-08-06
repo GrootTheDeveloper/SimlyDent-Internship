@@ -1,0 +1,438 @@
+﻿{
+    "kind":  "media-load",
+    "liveKitUrl":  "http://localhost:7880",
+    "durationSeconds":  25,
+    "videoResolution":  "high",
+    "concurrentRoomLevels":  [
+                                 8,
+                                 10
+                             ],
+    "topologyNote":  "Each room = 2 video publishers (simulated 1:1 both cams on). Not browser encode path.",
+    "maxFullSuccessRooms":  10,
+    "levels":  [
+                   {
+                       "concurrentRooms":  8,
+                       "videoPublishersEach":  2,
+                       "durationSeconds":  25,
+                       "videoResolution":  "high",
+                       "processesOk":  8,
+                       "processesFail":  0,
+                       "successRatePercent":  100,
+                       "livekitCpuAfter":  0.06,
+                       "livekitMemAfter":  "60.91MiB / 6.698GiB",
+                       "livekitCpuPeakSeen":  78.7,
+                       "backendCpuAfter":  0.06,
+                       "egressCpuAfter":  0.08,
+                       "roomNames":  [
+                                         "cap-media-00-2a33540d",
+                                         "cap-media-01-0026907c",
+                                         "cap-media-02-8630238f",
+                                         "cap-media-03-2c964e49",
+                                         "cap-media-04-d7fd5b85",
+                                         "cap-media-05-fc663216",
+                                         "cap-media-06-1dc7c960",
+                                         "cap-media-07-bf6c1d6f"
+                                     ],
+                       "judgements":  [
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-00-2a33540d\npublishing simulcast video track - xjmph_pub_0\npublishing simulcast video track - xjmph_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-01-0026907c\npublishing simulcast video track - mtoyp_pub_1\npublishing simulcast video track - mtoyp_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-02-8630238f\npublishing simulcast video track - diuqe_pub_0\npublishing simulcast video track - diuqe_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-03-2c964e49\npublishing simulcast video track - hxmta_pub_0\npublishing simulcast video track - hxmta_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-04-d7fd5b85\npublishing simulcast video track - sovwf_pub_0\npublishing simulcast video track - sovwf_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-05-fc663216\npublishing simulcast video track - pqmca_pub_0\npublishing simulcast video track - pqmca_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-06-1dc7c960\npublishing simulcast video track - asobz_pub_0\npublishing simulcast video track - asobz_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  28,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-07-bf6c1d6f\npublishing simulcast video track - frnoh_pub_0\npublishing simulcast video track - frnoh_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          }
+                                      ],
+                       "startedAtUtc":  "2026-08-05T18:31:15.5408106+00:00",
+                       "endedAtUtc":  "2026-08-05T18:31:44.8422237+00:00",
+                       "dockerBefore":  [
+                                            {
+                                                "Name":  "livekit-1to1-backend-1",
+                                                "CpuPercent":  0.05,
+                                                "MemUsage":  "61.96MiB / 6.698GiB",
+                                                "MemPercent":  0.9,
+                                                "AtUtc":  "2026-08-05T18:31:15.5350831+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-frontend-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.04MiB / 6.698GiB",
+                                                "MemPercent":  0.16,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-egress-1",
+                                                "CpuPercent":  0.07,
+                                                "MemUsage":  "118.9MiB / 6.698GiB",
+                                                "MemPercent":  1.73,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-livekit-1",
+                                                "CpuPercent":  0.05,
+                                                "MemUsage":  "102.8MiB / 6.698GiB",
+                                                "MemPercent":  1.5,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-redis-1",
+                                                "CpuPercent":  0.36,
+                                                "MemUsage":  "4.879MiB / 6.698GiB",
+                                                "MemPercent":  0.07,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-gateway-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.43MiB / 6.698GiB",
+                                                "MemPercent":  0.17,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-cloudflared-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "20.29MiB / 6.698GiB",
+                                                "MemPercent":  0.3,
+                                                "AtUtc":  "2026-08-05T18:31:15.5408106+00:00"
+                                            }
+                                        ],
+                       "dockerAfter":  [
+                                           {
+                                               "Name":  "livekit-1to1-backend-1",
+                                               "CpuPercent":  0.06,
+                                               "MemUsage":  "60.91MiB / 6.698GiB",
+                                               "MemPercent":  0.89,
+                                               "AtUtc":  "2026-08-05T18:31:46.8548202+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-frontend-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.04MiB / 6.698GiB",
+                                               "MemPercent":  0.16,
+                                               "AtUtc":  "2026-08-05T18:31:46.8548202+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-egress-1",
+                                               "CpuPercent":  0.08,
+                                               "MemUsage":  "118.9MiB / 6.698GiB",
+                                               "MemPercent":  1.73,
+                                               "AtUtc":  "2026-08-05T18:31:46.8548202+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-livekit-1",
+                                               "CpuPercent":  1.03,
+                                               "MemUsage":  "87.11MiB / 6.698GiB",
+                                               "MemPercent":  1.27,
+                                               "AtUtc":  "2026-08-05T18:31:46.8553398+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-redis-1",
+                                               "CpuPercent":  0.41,
+                                               "MemUsage":  "5.188MiB / 6.698GiB",
+                                               "MemPercent":  0.08,
+                                               "AtUtc":  "2026-08-05T18:31:46.8553398+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-gateway-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.44MiB / 6.698GiB",
+                                               "MemPercent":  0.17,
+                                               "AtUtc":  "2026-08-05T18:31:46.8553398+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-cloudflared-1",
+                                               "CpuPercent":  0.09,
+                                               "MemUsage":  "19.94MiB / 6.698GiB",
+                                               "MemPercent":  0.29,
+                                               "AtUtc":  "2026-08-05T18:31:46.8553398+00:00"
+                                           }
+                                       ]
+                   },
+                   {
+                       "concurrentRooms":  10,
+                       "videoPublishersEach":  2,
+                       "durationSeconds":  25,
+                       "videoResolution":  "high",
+                       "processesOk":  10,
+                       "processesFail":  0,
+                       "successRatePercent":  100,
+                       "livekitCpuAfter":  0.06,
+                       "livekitMemAfter":  "60.9MiB / 6.698GiB",
+                       "livekitCpuPeakSeen":  96.69,
+                       "backendCpuAfter":  0.06,
+                       "egressCpuAfter":  0.08,
+                       "roomNames":  [
+                                         "cap-media-00-9ac03d86",
+                                         "cap-media-01-b1f1cf8b",
+                                         "cap-media-02-8acbc4f8",
+                                         "cap-media-03-e4a5e918",
+                                         "cap-media-04-ceeb4c1a",
+                                         "cap-media-05-51cd749a",
+                                         "cap-media-06-c9df6337",
+                                         "cap-media-07-72f7c32f",
+                                         "cap-media-08-4a031ddf",
+                                         "cap-media-09-fcf80e23"
+                                     ],
+                       "judgements":  [
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  48,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-00-9ac03d86\npublishing simulcast video track - amyay_pub_1\npublishing simulcast video track - amyay_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  48,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-01-b1f1cf8b\npublishing simulcast video track - nensk_pub_1\npublishing simulcast video track - nensk_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  48,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-02-8acbc4f8\npublishing simulcast video track - afzud_pub_0\npublishing simulcast video track - afzud_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  48,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-03-e4a5e918\npublishing simulcast video track - eexas_pub_0\npublishing simulcast video track - eexas_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  48,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-04-ceeb4c1a\npublishing simulcast video track - svuby_pub_0\npublishing simulcast video track - svuby_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  47,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-05-51cd749a\npublishing simulcast video track - mpzhx_pub_1\npublishing simulcast video track - mpzhx_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  47,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-06-c9df6337\npublishing simulcast video track - uxttf_pub_1\npublishing simulcast video track - uxttf_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  47,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-07-72f7c32f\npublishing simulcast video track - gkiuo_pub_1\npublishing simulcast video track - gkiuo_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  47,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-08-4a031ddf\npublishing simulcast video track - ioxbs_pub_1\npublishing simulcast video track - ioxbs_pub_0\nFinished connecting to room, waiting 25s\n"
+                                          },
+                                          {
+                                              "Ok":  true,
+                                              "Connected":  true,
+                                              "FailedHard":  false,
+                                              "RanLongEnough":  true,
+                                              "ExitOk":  false,
+                                              "ElapsedSeconds":  47,
+                                              "Snippet":  "\nStarting load test with 2 video publishers, room: cap-media-09-fcf80e23\npublishing simulcast video track - qsfqo_pub_0\npublishing simulcast video track - qsfqo_pub_1\nFinished connecting to room, waiting 25s\n"
+                                          }
+                                      ],
+                       "startedAtUtc":  "2026-08-05T18:31:54.2689486+00:00",
+                       "endedAtUtc":  "2026-08-05T18:32:43.3529684+00:00",
+                       "dockerBefore":  [
+                                            {
+                                                "Name":  "livekit-1to1-backend-1",
+                                                "CpuPercent":  0.08,
+                                                "MemUsage":  "60.91MiB / 6.698GiB",
+                                                "MemPercent":  0.89,
+                                                "AtUtc":  "2026-08-05T18:31:54.2684160+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-frontend-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.04MiB / 6.698GiB",
+                                                "MemPercent":  0.16,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-egress-1",
+                                                "CpuPercent":  0.07,
+                                                "MemUsage":  "118.7MiB / 6.698GiB",
+                                                "MemPercent":  1.73,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-livekit-1",
+                                                "CpuPercent":  0.6,
+                                                "MemUsage":  "87.1MiB / 6.698GiB",
+                                                "MemPercent":  1.27,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-redis-1",
+                                                "CpuPercent":  0.37,
+                                                "MemUsage":  "5.188MiB / 6.698GiB",
+                                                "MemPercent":  0.08,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-gateway-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "11.44MiB / 6.698GiB",
+                                                "MemPercent":  0.17,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            },
+                                            {
+                                                "Name":  "livekit-1to1-cloudflared-1",
+                                                "CpuPercent":  0,
+                                                "MemUsage":  "19.94MiB / 6.698GiB",
+                                                "MemPercent":  0.29,
+                                                "AtUtc":  "2026-08-05T18:31:54.2689486+00:00"
+                                            }
+                                        ],
+                       "dockerAfter":  [
+                                           {
+                                               "Name":  "livekit-1to1-backend-1",
+                                               "CpuPercent":  0.06,
+                                               "MemUsage":  "60.9MiB / 6.698GiB",
+                                               "MemPercent":  0.89,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-frontend-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.04MiB / 6.698GiB",
+                                               "MemPercent":  0.16,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-egress-1",
+                                               "CpuPercent":  0.08,
+                                               "MemUsage":  "118.7MiB / 6.698GiB",
+                                               "MemPercent":  1.73,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-livekit-1",
+                                               "CpuPercent":  0.5,
+                                               "MemUsage":  "110.3MiB / 6.698GiB",
+                                               "MemPercent":  1.61,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-redis-1",
+                                               "CpuPercent":  0.37,
+                                               "MemUsage":  "5.5MiB / 6.698GiB",
+                                               "MemPercent":  0.08,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-gateway-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "11.44MiB / 6.698GiB",
+                                               "MemPercent":  0.17,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           },
+                                           {
+                                               "Name":  "livekit-1to1-cloudflared-1",
+                                               "CpuPercent":  0,
+                                               "MemUsage":  "20.44MiB / 6.698GiB",
+                                               "MemPercent":  0.3,
+                                               "AtUtc":  "2026-08-05T18:32:45.9707115+00:00"
+                                           }
+                                       ]
+                   }
+               ]
+}

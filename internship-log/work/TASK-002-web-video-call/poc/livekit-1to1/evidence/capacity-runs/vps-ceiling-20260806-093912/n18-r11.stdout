@@ -1,0 +1,25 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-11-1785984865-30824
+publishing simulcast video track - cvkuw_pub_0
+publishing simulcast video track - cvkuw_pub_1
+subscribed to track cvkuw_3 TR_VC2kTk6MEdrurS video 1/1
+subscribed to track cvkuw_3 TR_VCWLRJQKUE9f5i video 2/2
+could not connect Sub 0: could not connect after timeout
+Finished connecting to room, waiting 30s
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬───────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate   │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼───────────┼───────────┤
+│        │                   │       │       │           │           │
+│ Sub 1  │ TR_VC2kTk6MEdrurS │ video │ 19932 │ 1.9mbps   │ 0 (0%)    │
+│        │ TR_VCWLRJQKUE9f5i │ video │ 1444  │ 119.2kbps │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴───────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬───────────────────────┬─────────────────┬─────────────────────────────────┐
+│ Tester │ Tracks │ Bitrate               │ Total Pkt. Loss │ Error                           │
+├────────┼────────┼───────────────────────┼─────────────────┼─────────────────────────────────┤
+│ Sub 0  │ 0/2    │ NaNmbps               │  -              │ could not connect after timeout │
+│ Sub 1  │ 2/2    │ 2.1mbps               │ 0 (0%)          │ -                               │
+│ Total  │ 2/4    │ 2.1mbps (1.0mbps avg) │ 0 (0%)          │ 1                               │
+└────────┴────────┴───────────────────────┴─────────────────┴─────────────────────────────────┘

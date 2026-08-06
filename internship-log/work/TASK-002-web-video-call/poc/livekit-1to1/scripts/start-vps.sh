@@ -58,6 +58,9 @@ echo "Wrote $RUNTIME (TURN domain: $TURN_DOMAIN)"
 PROFILES=()
 if [[ "${RECORDING:-0}" == "1" ]]; then
   PROFILES+=(--profile recording)
+  # Egress container runs as uid 1001; host bind-mount is often root-owned.
+  mkdir -p "$ROOT/recordings"
+  chmod 777 "$ROOT/recordings" || true
 fi
 
 "${COMPOSE[@]}" -f docker-compose.vps.yml "${PROFILES[@]}" up -d --build

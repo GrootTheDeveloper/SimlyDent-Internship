@@ -1,0 +1,12 @@
+\section{Kết luận}
+
+PoC đáp ứng video call 1:1 trên VPS 2\,vCPU / $\sim$4\,GB RAM. Ba cuộc gọi thật ổn định
+10{,}5--12{,}3 phút; RTT trung vị 7--9\,ms; packet loss trung vị 0\%. Sau phút 5 không rớt
+media và bitrate không suy giảm; bitrate nhận (p50 late) khoảng 2{,}4\,Mbps.
+
+Load test media giả đạt 30/30 room. CPU LiveKit mid tối đa khoảng 73\%. RAM LiveKit tối
+đa khoảng 243\,MB. Bandwidth tổng bão hòa khoảng 50--65\,Mbps. Pilot đề xuất khoảng
+1--5 cuộc gọi HD đồng thời trên cấu hình hiện tại.
+
+Triển khai production cần domain chính thức, DB/persistence, backup, chính sách ghi hình
+và retention; nâng server hoặc tối ưu bitrate/resolution khi scale.

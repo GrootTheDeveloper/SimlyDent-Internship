@@ -1,0 +1,23 @@
+Starting load test with 2 video publishers, 2 subscribers, room: ceil-24-1785985269-7387
+publishing simulcast video track - rvjwa_pub_1
+could not connect Sub 0: could not connect after timeout
+could not connect Pub 0: could not connect after timeout
+Finished connecting to room, waiting 30s
+subscribed to track rvjwa_3 TR_VCQ5FtDkhYAZ2S video 1/1
+
+Track loading:
+┌────────┬───────────────────┬───────┬───────┬─────────┬───────────┐
+│ Tester │ Track             │ Kind  │ Pkts. │ Bitrate │ Pkt. Loss │
+├────────┼───────────────────┼───────┼───────┼─────────┼───────────┤
+│        │                   │       │       │         │           │
+│ Sub 1  │ TR_VCQ5FtDkhYAZ2S │ video │ 2103  │ 1.2mbps │ 0 (0%)    │
+└────────┴───────────────────┴───────┴───────┴─────────┴───────────┘
+
+Subscriber summaries:
+┌────────┬────────┬─────────────────────────┬─────────────────┬─────────────────────────────────┐
+│ Tester │ Tracks │ Bitrate                 │ Total Pkt. Loss │ Error                           │
+├────────┼────────┼─────────────────────────┼─────────────────┼─────────────────────────────────┤
+│ Sub 0  │ 0/2    │ NaNmbps                 │  -              │ could not connect after timeout │
+│ Sub 1  │ 1/2    │ 1.2mbps                 │ 0 (0%)          │ -                               │
+│ Total  │ 1/4    │ 1.2mbps (608.1kbps avg) │ 0 (0%)          │ 1                               │
+└────────┴────────┴─────────────────────────┴─────────────────┴─────────────────────────────────┘

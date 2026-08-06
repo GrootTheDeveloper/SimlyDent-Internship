@@ -1,0 +1,980 @@
+﻿{
+    "host":  {
+                 "machine":  "GROOTTHEDEVELOP",
+                 "os":  "Microsoft Windows NT 10.0.26200.0",
+                 "atUtc":  "2026-08-05T18:21:10.5885775+00:00",
+                 "note":  "Local Docker Desktop host unless run on VPS. VPS GOLD4 = 2 vCPU / 4 GB — re-run suite there for production-ish numbers."
+             },
+    "apiExitCode":  0,
+    "mediaExitCode":  99,
+    "apiMaxFullPairs":  8,
+    "mediaMaxFullRooms":  null,
+    "apiBusyRulePass":  true,
+    "apiReport":  {
+                      "kind":  "api-load",
+                      "startedAtUtc":  "2026-08-05T18:19:45.2690059Z",
+                      "apiUrl":  "http://localhost:5080",
+                      "holdSeconds":  6,
+                      "concurrentLevels":  [
+                                               1,
+                                               2,
+                                               3,
+                                               5,
+                                               8
+                                           ],
+                      "busyRulePass":  true,
+                      "busyRuleDetail":  "status=409 body={\"error\":\"Caller or callee is busy.\"}",
+                      "maxFullSuccessPairs":  8,
+                      "levels":  [
+                                     {
+                                         "concurrentPairs":  1,
+                                         "successCount":  1,
+                                         "failCount":  0,
+                                         "successRatePercent":  100,
+                                         "wallClockMs":  6379,
+                                         "totalMs_min":  6219,
+                                         "totalMs_p50":  6219,
+                                         "totalMs_avg":  6219,
+                                         "totalMs_max":  6219,
+                                         "createMs_p50":  6,
+                                         "createMs_avg":  6,
+                                         "livekitCpuAfter":  0.05,
+                                         "backendCpuAfter":  0.05,
+                                         "dockerAfter":  [
+                                                             {
+                                                                 "Name":  "livekit-1to1-backend-1",
+                                                                 "CpuPercent":  0.05,
+                                                                 "MemUsage":  "41.29MiB / 6.698GiB",
+                                                                 "MemPercent":  0.6,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5970631+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-frontend-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                 "MemPercent":  0.16,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5986337+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-egress-1",
+                                                                 "CpuPercent":  0.08,
+                                                                 "MemUsage":  "119MiB / 6.698GiB",
+                                                                 "MemPercent":  1.73,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5991610+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-livekit-1",
+                                                                 "CpuPercent":  0.09,
+                                                                 "MemUsage":  "42.27MiB / 6.698GiB",
+                                                                 "MemPercent":  0.62,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5991610+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-redis-1",
+                                                                 "CpuPercent":  0.36,
+                                                                 "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                 "MemPercent":  0.07,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5991610+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-gateway-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                 "MemPercent":  0.17,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5991610+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-cloudflared-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "20.24MiB / 6.698GiB",
+                                                                 "MemPercent":  0.3,
+                                                                 "AtUtc":  "2026-08-05T18:18:52.5991610+00:00"
+                                                             }
+                                                         ],
+                                         "dockerBefore":  [
+                                                              {
+                                                                  "Name":  "livekit-1to1-backend-1",
+                                                                  "CpuPercent":  0.22,
+                                                                  "MemUsage":  "38.91MiB / 6.698GiB",
+                                                                  "MemPercent":  0.57,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6438919+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-frontend-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                  "MemPercent":  0.16,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-egress-1",
+                                                                  "CpuPercent":  0.1,
+                                                                  "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                  "MemPercent":  1.73,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-livekit-1",
+                                                                  "CpuPercent":  0.27,
+                                                                  "MemUsage":  "42.27MiB / 6.698GiB",
+                                                                  "MemPercent":  0.62,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-redis-1",
+                                                                  "CpuPercent":  0.42,
+                                                                  "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                  "MemPercent":  0.07,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-gateway-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                  "MemPercent":  0.17,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-cloudflared-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                  "MemPercent":  0.29,
+                                                                  "AtUtc":  "2026-08-05T18:18:43.6494066+00:00"
+                                                              }
+                                                          ]
+                                     },
+                                     {
+                                         "concurrentPairs":  2,
+                                         "successCount":  2,
+                                         "failCount":  0,
+                                         "successRatePercent":  100,
+                                         "wallClockMs":  6195,
+                                         "totalMs_min":  6131,
+                                         "totalMs_p50":  6131,
+                                         "totalMs_avg":  6156.5,
+                                         "totalMs_max":  6182,
+                                         "createMs_p50":  3,
+                                         "createMs_avg":  3,
+                                         "livekitCpuAfter":  0.07,
+                                         "backendCpuAfter":  0.07,
+                                         "dockerAfter":  [
+                                                             {
+                                                                 "Name":  "livekit-1to1-backend-1",
+                                                                 "CpuPercent":  0.07,
+                                                                 "MemUsage":  "41.9MiB / 6.698GiB",
+                                                                 "MemPercent":  0.61,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.4993032+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-frontend-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                 "MemPercent":  0.16,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5003426+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-egress-1",
+                                                                 "CpuPercent":  0.08,
+                                                                 "MemUsage":  "119MiB / 6.698GiB",
+                                                                 "MemPercent":  1.73,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5003426+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-livekit-1",
+                                                                 "CpuPercent":  0.07,
+                                                                 "MemUsage":  "42.27MiB / 6.698GiB",
+                                                                 "MemPercent":  0.62,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5003426+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-redis-1",
+                                                                 "CpuPercent":  0.35,
+                                                                 "MemUsage":  "4.891MiB / 6.698GiB",
+                                                                 "MemPercent":  0.07,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5008650+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-gateway-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                 "MemPercent":  0.17,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5008650+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-cloudflared-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "20.24MiB / 6.698GiB",
+                                                                 "MemPercent":  0.3,
+                                                                 "AtUtc":  "2026-08-05T18:19:05.5008650+00:00"
+                                                             }
+                                                         ],
+                                         "dockerBefore":  [
+                                                              {
+                                                                  "Name":  "livekit-1to1-backend-1",
+                                                                  "CpuPercent":  0.06,
+                                                                  "MemUsage":  "41.29MiB / 6.698GiB",
+                                                                  "MemPercent":  0.6,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-frontend-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                  "MemPercent":  0.16,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-egress-1",
+                                                                  "CpuPercent":  0.07,
+                                                                  "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                  "MemPercent":  1.73,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-livekit-1",
+                                                                  "CpuPercent":  0.13,
+                                                                  "MemUsage":  "42.78MiB / 6.698GiB",
+                                                                  "MemPercent":  0.62,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-redis-1",
+                                                                  "CpuPercent":  0.36,
+                                                                  "MemUsage":  "4.891MiB / 6.698GiB",
+                                                                  "MemPercent":  0.07,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-gateway-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                  "MemPercent":  0.17,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-cloudflared-1",
+                                                                  "CpuPercent":  0.04,
+                                                                  "MemUsage":  "20.24MiB / 6.698GiB",
+                                                                  "MemPercent":  0.3,
+                                                                  "AtUtc":  "2026-08-05T18:18:56.7707708+00:00"
+                                                              }
+                                                          ]
+                                     },
+                                     {
+                                         "concurrentPairs":  3,
+                                         "successCount":  3,
+                                         "failCount":  0,
+                                         "successRatePercent":  100,
+                                         "wallClockMs":  6233,
+                                         "totalMs_min":  6160,
+                                         "totalMs_p50":  6181,
+                                         "totalMs_avg":  6181,
+                                         "totalMs_max":  6202,
+                                         "createMs_p50":  3,
+                                         "createMs_avg":  3,
+                                         "livekitCpuAfter":  0.13,
+                                         "backendCpuAfter":  0.13,
+                                         "dockerAfter":  [
+                                                             {
+                                                                 "Name":  "livekit-1to1-backend-1",
+                                                                 "CpuPercent":  0.13,
+                                                                 "MemUsage":  "42.9MiB / 6.698GiB",
+                                                                 "MemPercent":  0.63,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2463674+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-frontend-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                 "MemPercent":  0.16,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-egress-1",
+                                                                 "CpuPercent":  0.15,
+                                                                 "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                 "MemPercent":  1.73,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-livekit-1",
+                                                                 "CpuPercent":  0.09,
+                                                                 "MemUsage":  "42.28MiB / 6.698GiB",
+                                                                 "MemPercent":  0.62,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-redis-1",
+                                                                 "CpuPercent":  0.32,
+                                                                 "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                 "MemPercent":  0.07,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-gateway-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                 "MemPercent":  0.17,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-cloudflared-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                 "MemPercent":  0.29,
+                                                                 "AtUtc":  "2026-08-05T18:19:17.2480100+00:00"
+                                                             }
+                                                         ],
+                                         "dockerBefore":  [
+                                                              {
+                                                                  "Name":  "livekit-1to1-backend-1",
+                                                                  "CpuPercent":  0.07,
+                                                                  "MemUsage":  "41.84MiB / 6.698GiB",
+                                                                  "MemPercent":  0.61,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-frontend-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                  "MemPercent":  0.16,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-egress-1",
+                                                                  "CpuPercent":  0.08,
+                                                                  "MemUsage":  "119.2MiB / 6.698GiB",
+                                                                  "MemPercent":  1.74,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-livekit-1",
+                                                                  "CpuPercent":  0.09,
+                                                                  "MemUsage":  "42.52MiB / 6.698GiB",
+                                                                  "MemPercent":  0.62,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-redis-1",
+                                                                  "CpuPercent":  0.34,
+                                                                  "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                  "MemPercent":  0.07,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-gateway-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                  "MemPercent":  0.17,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-cloudflared-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "20.24MiB / 6.698GiB",
+                                                                  "MemPercent":  0.3,
+                                                                  "AtUtc":  "2026-08-05T18:19:09.1340762+00:00"
+                                                              }
+                                                          ]
+                                     },
+                                     {
+                                         "concurrentPairs":  5,
+                                         "successCount":  5,
+                                         "failCount":  0,
+                                         "successRatePercent":  100,
+                                         "wallClockMs":  6314,
+                                         "totalMs_min":  6154,
+                                         "totalMs_p50":  6231,
+                                         "totalMs_avg":  6230.2,
+                                         "totalMs_max":  6280,
+                                         "createMs_p50":  43,
+                                         "createMs_avg":  28.2,
+                                         "livekitCpuAfter":  0.06,
+                                         "backendCpuAfter":  0.06,
+                                         "dockerAfter":  [
+                                                             {
+                                                                 "Name":  "livekit-1to1-backend-1",
+                                                                 "CpuPercent":  0.06,
+                                                                 "MemUsage":  "47.22MiB / 6.698GiB",
+                                                                 "MemPercent":  0.69,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4570845+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-frontend-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                 "MemPercent":  0.16,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4591692+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-egress-1",
+                                                                 "CpuPercent":  0.08,
+                                                                 "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                 "MemPercent":  1.73,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4597033+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-livekit-1",
+                                                                 "CpuPercent":  0.24,
+                                                                 "MemUsage":  "42.27MiB / 6.698GiB",
+                                                                 "MemPercent":  0.62,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4597033+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-redis-1",
+                                                                 "CpuPercent":  0.41,
+                                                                 "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                 "MemPercent":  0.07,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4597033+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-gateway-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                 "MemPercent":  0.17,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4597033+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-cloudflared-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                 "MemPercent":  0.29,
+                                                                 "AtUtc":  "2026-08-05T18:19:30.4597033+00:00"
+                                                             }
+                                                         ],
+                                         "dockerBefore":  [
+                                                              {
+                                                                  "Name":  "livekit-1to1-backend-1",
+                                                                  "CpuPercent":  0.2,
+                                                                  "MemUsage":  "42.91MiB / 6.698GiB",
+                                                                  "MemPercent":  0.63,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-frontend-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                  "MemPercent":  0.16,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-egress-1",
+                                                                  "CpuPercent":  0.08,
+                                                                  "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                  "MemPercent":  1.73,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-livekit-1",
+                                                                  "CpuPercent":  0.2,
+                                                                  "MemUsage":  "42.53MiB / 6.698GiB",
+                                                                  "MemPercent":  0.62,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-redis-1",
+                                                                  "CpuPercent":  0.39,
+                                                                  "MemUsage":  "4.891MiB / 6.698GiB",
+                                                                  "MemPercent":  0.07,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-gateway-1",
+                                                                  "CpuPercent":  0.03,
+                                                                  "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                  "MemPercent":  0.17,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-cloudflared-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                  "MemPercent":  0.29,
+                                                                  "AtUtc":  "2026-08-05T18:19:21.6406107+00:00"
+                                                              }
+                                                          ]
+                                     },
+                                     {
+                                         "concurrentPairs":  8,
+                                         "successCount":  8,
+                                         "failCount":  0,
+                                         "successRatePercent":  100,
+                                         "wallClockMs":  6311,
+                                         "totalMs_min":  6209,
+                                         "totalMs_p50":  6248,
+                                         "totalMs_avg":  6240.9,
+                                         "totalMs_max":  6264,
+                                         "createMs_p50":  3,
+                                         "createMs_avg":  13.6,
+                                         "livekitCpuAfter":  0.05,
+                                         "backendCpuAfter":  0.05,
+                                         "dockerAfter":  [
+                                                             {
+                                                                 "Name":  "livekit-1to1-backend-1",
+                                                                 "CpuPercent":  0.05,
+                                                                 "MemUsage":  "48.59MiB / 6.698GiB",
+                                                                 "MemPercent":  0.71,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2300979+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-frontend-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                 "MemPercent":  0.16,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2325597+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-egress-1",
+                                                                 "CpuPercent":  0.14,
+                                                                 "MemUsage":  "119.3MiB / 6.698GiB",
+                                                                 "MemPercent":  1.74,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2325597+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-livekit-1",
+                                                                 "CpuPercent":  0.09,
+                                                                 "MemUsage":  "42.28MiB / 6.698GiB",
+                                                                 "MemPercent":  0.62,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2330774+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-redis-1",
+                                                                 "CpuPercent":  0.35,
+                                                                 "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                 "MemPercent":  0.07,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2330774+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-gateway-1",
+                                                                 "CpuPercent":  0,
+                                                                 "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                 "MemPercent":  0.17,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2330774+00:00"
+                                                             },
+                                                             {
+                                                                 "Name":  "livekit-1to1-cloudflared-1",
+                                                                 "CpuPercent":  0.06,
+                                                                 "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                 "MemPercent":  0.29,
+                                                                 "AtUtc":  "2026-08-05T18:19:43.2330774+00:00"
+                                                             }
+                                                         ],
+                                         "dockerBefore":  [
+                                                              {
+                                                                  "Name":  "livekit-1to1-backend-1",
+                                                                  "CpuPercent":  0.07,
+                                                                  "MemUsage":  "47.17MiB / 6.698GiB",
+                                                                  "MemPercent":  0.69,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-frontend-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.04MiB / 6.698GiB",
+                                                                  "MemPercent":  0.16,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-egress-1",
+                                                                  "CpuPercent":  0.09,
+                                                                  "MemUsage":  "118.8MiB / 6.698GiB",
+                                                                  "MemPercent":  1.73,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-livekit-1",
+                                                                  "CpuPercent":  0.21,
+                                                                  "MemUsage":  "42.27MiB / 6.698GiB",
+                                                                  "MemPercent":  0.62,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-redis-1",
+                                                                  "CpuPercent":  0.39,
+                                                                  "MemUsage":  "4.641MiB / 6.698GiB",
+                                                                  "MemPercent":  0.07,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-gateway-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "11.43MiB / 6.698GiB",
+                                                                  "MemPercent":  0.17,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              },
+                                                              {
+                                                                  "Name":  "livekit-1to1-cloudflared-1",
+                                                                  "CpuPercent":  0,
+                                                                  "MemUsage":  "20.23MiB / 6.698GiB",
+                                                                  "MemPercent":  0.29,
+                                                                  "AtUtc":  "2026-08-05T18:19:34.5111111+00:00"
+                                                              }
+                                                          ]
+                                     }
+                                 ],
+                      "pairs":  [
+                                    {
+                                        "level":  1,
+                                        "pairIndex":  0,
+                                        "callerId":  "L01",
+                                        "calleeId":  "L02",
+                                        "ok":  true,
+                                        "callId":  "7979e6f0-8d14-4ef2-86f7-04e22076944a",
+                                        "loginMs":  168,
+                                        "createMs":  6,
+                                        "acceptMs":  2,
+                                        "tokenMs":  20,
+                                        "endMs":  3,
+                                        "totalMs":  6219,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  2,
+                                        "pairIndex":  0,
+                                        "callerId":  "L01",
+                                        "calleeId":  "L02",
+                                        "ok":  true,
+                                        "callId":  "28cb0dcb-9ba9-4d63-b1e8-bcee3fc67749",
+                                        "loginMs":  160,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6182,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  2,
+                                        "pairIndex":  1,
+                                        "callerId":  "L03",
+                                        "calleeId":  "L04",
+                                        "ok":  true,
+                                        "callId":  "03487920-c7cd-403d-bfc8-22e4e2ef52f0",
+                                        "loginMs":  120,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  3,
+                                        "totalMs":  6131,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  3,
+                                        "pairIndex":  0,
+                                        "callerId":  "L01",
+                                        "calleeId":  "L02",
+                                        "ok":  true,
+                                        "callId":  "7fa42f9c-bde8-4043-aa12-59592c3073d3",
+                                        "loginMs":  175,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  7,
+                                        "totalMs":  6202,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  3,
+                                        "pairIndex":  1,
+                                        "callerId":  "L03",
+                                        "calleeId":  "L04",
+                                        "ok":  true,
+                                        "callId":  "32f1231e-793d-4e73-80c8-6fed0cd15fdd",
+                                        "loginMs":  164,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6181,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  3,
+                                        "pairIndex":  2,
+                                        "callerId":  "L05",
+                                        "calleeId":  "L06",
+                                        "ok":  true,
+                                        "callId":  "d28c37a1-0bc9-45ea-b2f9-b1916677fd0c",
+                                        "loginMs":  137,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  3,
+                                        "totalMs":  6160,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  5,
+                                        "pairIndex":  0,
+                                        "callerId":  "L01",
+                                        "calleeId":  "L02",
+                                        "ok":  true,
+                                        "callId":  "fb4d3169-8f89-4b4a-9bda-f1fe011e5e19",
+                                        "loginMs":  208,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6231,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  5,
+                                        "pairIndex":  1,
+                                        "callerId":  "L03",
+                                        "calleeId":  "L04",
+                                        "ok":  true,
+                                        "callId":  "4e5c307b-5375-446a-a0cf-22ed3bef08e8",
+                                        "loginMs":  213,
+                                        "createMs":  46,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6275,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  5,
+                                        "pairIndex":  2,
+                                        "callerId":  "L05",
+                                        "calleeId":  "L06",
+                                        "ok":  true,
+                                        "callId":  "d0abd98c-ebba-44d4-950b-1e7fd190a8c3",
+                                        "loginMs":  219,
+                                        "createMs":  45,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6280,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  5,
+                                        "pairIndex":  3,
+                                        "callerId":  "L07",
+                                        "calleeId":  "L08",
+                                        "ok":  true,
+                                        "callId":  "df2ca5c3-f150-45e2-8146-bd4d814a6cf0",
+                                        "loginMs":  135,
+                                        "createMs":  4,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  3,
+                                        "totalMs":  6154,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  5,
+                                        "pairIndex":  4,
+                                        "callerId":  "L09",
+                                        "calleeId":  "L10",
+                                        "ok":  true,
+                                        "callId":  "c15ee204-e7ec-42c5-a75c-7303dc775195",
+                                        "loginMs":  149,
+                                        "createMs":  43,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6211,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  0,
+                                        "callerId":  "L01",
+                                        "calleeId":  "L02",
+                                        "ok":  true,
+                                        "callId":  "1d0f3143-fb66-4bbd-aaa6-2f329121774e",
+                                        "loginMs":  247,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6264,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  1,
+                                        "callerId":  "L03",
+                                        "calleeId":  "L04",
+                                        "ok":  true,
+                                        "callId":  "d0e2fd93-ac89-4a0a-ab13-9663d2a87a6a",
+                                        "loginMs":  244,
+                                        "createMs":  4,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6262,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  2,
+                                        "callerId":  "L05",
+                                        "calleeId":  "L06",
+                                        "ok":  true,
+                                        "callId":  "ef3c828f-1ba7-4a14-9b13-1a3ea36d157f",
+                                        "loginMs":  192,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6211,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  3,
+                                        "callerId":  "L07",
+                                        "calleeId":  "L08",
+                                        "ok":  true,
+                                        "callId":  "ee993806-f814-485e-82b3-76640271d4a8",
+                                        "loginMs":  236,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6253,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  4,
+                                        "callerId":  "L09",
+                                        "calleeId":  "L10",
+                                        "ok":  true,
+                                        "callId":  "ac08224e-24d7-410f-b441-cbcbb0d22221",
+                                        "loginMs":  191,
+                                        "createMs":  45,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6248,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  5,
+                                        "callerId":  "L11",
+                                        "calleeId":  "L12",
+                                        "ok":  true,
+                                        "callId":  "be3f7bce-0d8b-457a-ab43-a1a4bcdb8d47",
+                                        "loginMs":  201,
+                                        "createMs":  44,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6260,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  6,
+                                        "callerId":  "L13",
+                                        "calleeId":  "L14",
+                                        "ok":  true,
+                                        "callId":  "e90e00b2-43ac-4f5d-b962-b7469fd0d621",
+                                        "loginMs":  192,
+                                        "createMs":  3,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  2,
+                                        "totalMs":  6209,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    },
+                                    {
+                                        "level":  8,
+                                        "pairIndex":  7,
+                                        "callerId":  "L15",
+                                        "calleeId":  "L16",
+                                        "ok":  true,
+                                        "callId":  "2696f922-10e3-4824-adbb-710920a863b5",
+                                        "loginMs":  199,
+                                        "createMs":  4,
+                                        "acceptMs":  1,
+                                        "tokenMs":  1,
+                                        "endMs":  1,
+                                        "totalMs":  6220,
+                                        "createStatus":  201,
+                                        "acceptStatus":  200,
+                                        "tokenStatus":  200,
+                                        "endStatus":  200,
+                                        "error":  null
+                                    }
+                                ]
+                  },
+    "mediaReport":  null
+}

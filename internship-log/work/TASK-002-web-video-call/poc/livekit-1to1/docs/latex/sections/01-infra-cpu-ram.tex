@@ -1,0 +1,58 @@
+\section{Hạ tầng CPU và RAM}
+
+\subsection{Thông số máy chủ}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\bfseries\raggedright\arraybackslash}p{0.28\textwidth}|>{\raggedright\arraybackslash}X|}
+\hline
+CPU & 2 vCPU \\
+\hline
+RAM host & $\sim$3{,}9\,GiB (+ swap 2\,GiB) \\
+\hline
+OS & Ubuntu 18.04 LTS \\
+\hline
+Vai trò media & LiveKit SFU (container) \\
+\hline
+\end{tabularx}
+\caption{Cấu hình VPS.}
+\label{tab:vps-spec}
+\end{table}
+
+\noindent
+CPU container theo \texttt{docker stats}: 100\% $\approx$ một core đầy; máy 2 vCPU có
+mức bão hòa thực tế khoảng 200\% nếu một process chiếm cả hai core.
+
+\subsection{Stack khi idle}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{0.28\textwidth}|>{\raggedleft\arraybackslash}p{0.14\textwidth}|>{\raggedleft\arraybackslash}p{0.22\textwidth}|>{\raggedleft\arraybackslash}X|}
+\hline
+\bfseries Container & \bfseries CPU & \bfseries RAM & \bfseries \% RAM ($\sim$3{,}85\,GiB) \\
+\hline
+LiveKit & $\sim$0{,}3\% & $\sim$58\,MB & $\sim$1{,}5\% \\
+\hline
+Backend (.NET) & $\sim$0{,}1\% & $\sim$88\,MB & $\sim$2{,}2\% \\
+\hline
+Gateway (Caddy) & $\sim$0\% & $\sim$14\,MB & $\sim$0{,}4\% \\
+\hline
+Frontend (nginx) & $\sim$0\% & $\sim$4\,MB & $\sim$0{,}1\% \\
+\hline
+Redis & $\sim$0{,}8\% & $\sim$5\,MB & $\sim$0{,}1\% \\
+\hline
+\end{tabularx}
+\caption{Tiêu thụ khi không có tải đo.}
+\label{tab:idle-stack}
+\end{table}
+
+Host idle: used khoảng 0{,}5--0{,}6\,GB, available khoảng 3\,GB. Stack ứng dụng + LiveKit
+dưới $\sim$170\,MB RAM container.
+
+\subsection{Ghi chú đọc số liệu}
+
+CPU LiveKit trong bảng chịu tải là mẫu giữa mỗi mức (\texttt{docker stats}). RAM LiveKit
+là bộ nhớ container SFU, không gồm process \texttt{lk} load-test trên host. Load CLI chạy
+cùng VPS với SFU. Một cuộc gọi camera thật không được ghi CPU host theo giây.

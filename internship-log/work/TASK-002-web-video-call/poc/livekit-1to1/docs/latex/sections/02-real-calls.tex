@@ -1,0 +1,45 @@
+\section{Ba cuộc gọi thực tế}
+
+Telemetry server (sample khoảng 2\,s, hai phía A1 và A2). \textbf{TB} = trung vị (p50).
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|c|>{\raggedleft\arraybackslash}p{0.12\textwidth}|>{\raggedleft\arraybackslash}p{0.14\textwidth}|>{\raggedleft\arraybackslash}p{0.10\textwidth}|>{\raggedleft\arraybackslash}p{0.10\textwidth}|>{\raggedleft\arraybackslash}p{0.12\textwidth}|>{\raggedleft\arraybackslash}X|}
+\hline
+\bfseries Call & \bfseries Thời lượng & \bfseries Bitrate In TB & \bfseries RTT TB & \bfseries RTT max & \bfseries Loss TB & \bfseries FPS \\
+\hline
+1 & 10{,}5 phút & 898\,Kbps & 8\,ms & 94\,ms & 0\% & 28 \\
+\hline
+2 & 12{,}3 phút & 897\,Kbps & 7\,ms & 128\,ms & 0\% & 27 \\
+\hline
+3 & 11{,}1 phút & 962\,Kbps & 9\,ms & 123\,ms & 0\% & 29 \\
+\hline
+\end{tabularx}
+\caption{Ba cuộc gọi A1--A2. RTT TB 7--9\,ms; loss TB 0\%.}
+\label{tab:real-calls}
+\end{table}
+
+\subsection{Ổn định sau phút thứ 5}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{0.14\textwidth}|>{\raggedleft\arraybackslash}p{0.16\textwidth}|>{\raggedleft\arraybackslash}p{0.18\textwidth}|>{\raggedleft\arraybackslash}p{0.12\textwidth}|>{\raggedleft\arraybackslash}p{0.14\textwidth}|>{\raggedleft\arraybackslash}X|}
+\hline
+\bfseries Call & \bfseries Bitrate 0--2 phút & \bfseries Bitrate sau phút 5 & \bfseries RTT đầu & \bfseries RTT sau phút 5 & \bfseries Loss \\
+\hline
+10{,}5 phút & 809\,Kbps & 2\,466\,Kbps & 9\,ms & 8\,ms & 0\% \\
+\hline
+12{,}3 phút & 795\,Kbps & 2\,456\,Kbps & 8\,ms & 7\,ms & 0\% \\
+\hline
+11{,}1 phút & 809\,Kbps & 2\,424\,Kbps & 8\,ms & 8\,ms & 0\% \\
+\hline
+\end{tabularx}
+\caption{So sánh đầu cuộc gọi và sau phút thứ 5 (bitrate nhận, p50).}
+\label{tab:after-5min}
+\end{table}
+
+Ba cuộc gọi duy trì trên 10 phút. Sau phút thứ 5: không rớt media, loss không tăng, bitrate
+không suy giảm. Đường media quan sát: \texttt{protocol=tcp}, candidate \texttt{prflx$\to$host}.
+Token join LiveKit 60 phút; cuộc gọi 10--12 phút không bị cắt tại phút 5.
