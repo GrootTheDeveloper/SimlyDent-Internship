@@ -1877,6 +1877,31 @@ if (isCallRoute) {
       },
       completeRecordingsCount() {
         return (this.recordings || []).filter(r => r.recordingStatus === 'Complete').length
+      },
+      /** Group demo accounts by clinic so login stays short + scannable. */
+      loginAccountGroups() {
+        const map = new Map()
+        for (const user of this.loginAccounts || []) {
+          const key = clinicIdOf(user) || 'other'
+          if (!map.has(key)) {
+            map.set(key, {
+              clinicId: key,
+              label: clinicDisplayName(key),
+              users: []
+            })
+          }
+          map.get(key).users.push(user)
+        }
+        // Prefer clinic-a then clinic-b then others
+        const order = ['clinic-a', 'clinic-b']
+        return [...map.values()].sort((a, b) => {
+          const ia = order.indexOf(a.clinicId)
+          const ib = order.indexOf(b.clinicId)
+          if (ia === -1 && ib === -1) return a.label.localeCompare(b.label, 'vi')
+          if (ia === -1) return 1
+          if (ib === -1) return -1
+          return ia - ib
+        })
       }
     },
     async mounted() {
@@ -2477,48 +2502,62 @@ if (isCallRoute) {
               <h1>SimlyDent</h1>
             </div>
             <p class="login-lead">Tư vấn video cho phòng khám</p>
-            <p class="login-hint">Chọn tài khoản demo · mật khẩu <strong>Demo@123</strong></p>
-            <div class="demo-account-list" role="listbox" aria-label="Chọn tài khoản demo">
-              <button
-                v-for="user in loginAccounts"
-                :key="user.id"
-                type="button"
-                class="account-btn"
-                :class="{ selected: loginUserId === user.id }"
-                role="option"
-                :aria-selected="loginUserId === user.id ? 'true' : 'false'"
-                @click="selectLoginAccount(user)"
-              >
-                <div class="account-avatar">{{ userInitials(user) }}</div>
-                <div class="account-info">
-                  <span class="account-name">{{ user.displayName }}</span>
-                  <span class="account-id">{{ clinicLabel(user.clinicId || user.tenantId) }}</span>
+            <p class="login-hint">Chọn tài khoản · mật khẩu <strong>Demo@123</strong></p>
+
+            <div class="login-picker">
+              <div class="demo-account-scroll" role="listbox" aria-label="Chọn tài khoản demo">
+                <div
+                  v-for="group in loginAccountGroups"
+                  :key="group.clinicId"
+                  class="login-account-group"
+                >
+                  <div class="login-group-label">{{ group.label }}</div>
+                  <button
+                    v-for="user in group.users"
+                    :key="user.id"
+                    type="button"
+                    class="account-btn"
+                    :class="{ selected: loginUserId === user.id }"
+                    role="option"
+                    :aria-selected="loginUserId === user.id ? 'true' : 'false'"
+                    @click="selectLoginAccount(user)"
+                  >
+                    <div class="account-avatar">{{ userInitials(user) }}</div>
+                    <div class="account-info">
+                      <span class="account-name">{{ user.displayName }}</span>
+                      <span class="account-id">{{ user.id }} · {{ roleLabel(user.role) }}</span>
+                    </div>
+                    <span
+                      v-if="isManagerAccount(user)"
+                      class="account-role-chip account-role-chip--manager"
+                    >Quản lý</span>
+                  </button>
                 </div>
-                <span
-                  class="account-role-chip"
-                  :class="{ 'account-role-chip--manager': isManagerAccount(user) }"
-                >{{ roleLabel(user.role) }}</span>
+              </div>
+              <p class="login-scroll-hint">Cuộn để xem thêm tài khoản</p>
+            </div>
+
+            <div class="login-footer-actions">
+              <div class="login-password-field">
+                <label for="login-password">Mật khẩu</label>
+                <input
+                  id="login-password"
+                  v-model="loginPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  @keyup.enter="submitLogin"
+                />
+              </div>
+              <p v-if="loginError" class="login-error">{{ loginError }}</p>
+              <button
+                type="button"
+                class="start-call-btn login-submit"
+                :disabled="loginBusy || !loginUserId"
+                @click="submitLogin"
+              >
+                {{ loginBusy ? 'Đang đăng nhập…' : 'Đăng nhập' }}
               </button>
             </div>
-            <div class="login-password-field">
-              <label for="login-password">Mật khẩu</label>
-              <input
-                id="login-password"
-                v-model="loginPassword"
-                type="password"
-                autocomplete="current-password"
-                @keyup.enter="submitLogin"
-              />
-            </div>
-            <p v-if="loginError" class="login-error">{{ loginError }}</p>
-            <button
-              type="button"
-              class="start-call-btn login-submit"
-              :disabled="loginBusy || !loginUserId"
-              @click="submitLogin"
-            >
-              {{ loginBusy ? 'Đang đăng nhập…' : 'Đăng nhập' }}
-            </button>
           </div>
         </div>
 
