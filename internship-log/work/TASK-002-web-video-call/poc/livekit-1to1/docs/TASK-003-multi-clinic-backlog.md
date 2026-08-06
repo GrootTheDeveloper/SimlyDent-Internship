@@ -14,7 +14,7 @@ Mọi design/PR sau này hỏi: *có phá invariant nào không?*
 | # | Phase | Invariant |
 |---|--------|-----------|
 | I0 | Isolation | **Một clinic không bao giờ** đọc/ghi/subscribe call, media, recording, presence, queue của clinic khác. |
-| I1 | Routing | **Tại mọi thời điểm:** một call có tối đa một agent được assign; một agent có tối đa một active call (MVP capacity = 1). |
+| I1 | Routing | **Auto-dispatch:** một call ≤ 1 assigned staff; một staff ≤ 1 Ringing/InCall; chọn agent bằng longest-idle/RR trên backend. |
 | I2 | Embed | **API ≠ Widget.** Widget chỉ là client của Public Embed API. Browser **chỉ** nhận credential short-lived, scoped clinic; website clinic **không** biết routing/LiveKit secret/**không** tự chọn room. |
 | I3 | Recording | Lỗi recording / post-process / storage **không** được terminate hoặc phá control path của live call. |
 
@@ -37,23 +37,19 @@ Một hạ tầng cung cấp **video/audio call tư vấn** cho **nhiều phòng
 
 ---
 
-## 2. Quyết định kiến trúc — **cần sếp chốt** (block design)
+## 2. Quyết định kiến trúc
 
-Ba điểm ảnh hưởng mạnh; chốt trước khi implement sâu:
+| ID | Câu hỏi | Trạng thái | Quyết định / đề xuất |
+|----|---------|------------|----------------------|
+| **D1 Routing mode** | Auto-dispatch vs hunt-group claim? | **Resolved (team)** | **MVP = backend auto-dispatch** (round-robin / longest-idle trên staff `Available`). Một call **chỉ ring một staff** tại một thời điểm. Hunt-group claim **không** dùng cho MVP (UI hỗn loạn khi nhiều visitor). |
+| **D2 Recording decision** | Policy trước call vs retention sau end? | **Open (cần sếp)** | Đề xuất: policy trước/trong call; end = retention keep/delete nếu đã record |
+| **D3 Workload “50 concurrent”** | Profile nào? | **Open (cần sếp)** | Benchmark **R1/R2/R3** (mục 6) trước khi cam kết số |
 
-| ID | Câu hỏi | Option đề xuất (MVP) | Ảnh hưởng |
-|----|---------|----------------------|-----------|
-| **D1 Routing mode** | Auto-dispatch (backend gán agent) hay hunt-group claim (staff Accept, first wins)? | **Hunt-group claim** cho MVP; round-robin auto-dispatch phase sau | State machine, API Accept, UX staff |
-| **D2 Recording decision** | Chọn mode **trước/trong call**, hay end call mới quyết định **giữ/xóa**? | **Policy trước/trong call** để scale; end call = *retention* (keep/delete) nếu đã record | CPU/storage 100% call vs “lưu sau” |
-| **D3 Workload “50 concurrent”** | 50 call profile nào? | Benchmark **R1/R2/R3** (mục 6) trước khi cam kết số | Sizing VPS/worker/egress |
+### Gợi ý wording phản hồi sếp (còn D2–D3)
 
-### Gợi ý wording phản hồi sếp
-
-> Phần yêu cầu đã đúng hướng. Ba quyết định còn ảnh hưởng mạnh đến kiến trúc:  
-> (1) routing dùng **auto-assign** hay **staff claim**,  
-> (2) recording mode **chọn trước call** hay chỉ **giữ/xóa sau call**,  
-> (3) **50 concurrent recording** benchmark ở **video profile** nào.  
-> Chốt 3 câu đó → đủ rõ để thiết kế TASK-003 và implement ít lệch ý.
+> Routing MVP mình chốt **auto-dispatch + round-robin/longest-idle** (một call chỉ ring một staff; timeout/reject → staff kế; hết người → queue). Còn cần chốt:  
+> (1) recording mode **trước call** hay chỉ **giữ/xóa sau call**,  
+> (2) **50 concurrent recording** benchmark ở **video profile** nào.
 
 ---
 
@@ -99,65 +95,136 @@ Khách vào landing clinic X → bấm gọi → chỉ staff clinic X; ưu tiên
 
 ### Technical invariant (I1)
 - Staff state là **lease**, không phải boolean online.  
-- MVP: **một agent ≤ 1 active call**; **một call ≤ 1 assigned agent**.  
-- Claim/assign **atomic** trên server (critical section / compare-and-set / DB transaction).
+- **1 call → tối đa 1 assigned staff** (đang Ringing hoặc InCall).  
+- **1 staff → tối đa 1 Ringing/InCall**.  
+- Reserve/assign/release **atomic** trên server (critical section / CAS / transaction).  
+- Chọn agent **chỉ trên backend** — không round-robin index ở frontend.
 
-### 4.1 Agent state machine (tối thiểu)
+### 4.1 Agent state machine (tối thiểu 4 trạng thái)
 
 ```text
 Offline ──heartbeat/login──► Available
-Available ──reserve/invite──► Ringing
+Available ──dispatcher reserve──► Ringing   // reservedCallId set; không còn “Available”
 Ringing ──accept──► InCall
-Ringing ──reject/timeout/offline──► Available | Offline  (+ redispatch)
-InCall ──end──► Available
-* ──stale heartbeat──► Offline  (+ release reservation, redispatch visitor nếu cần)
+Ringing ──reject / ring-timeout (~15s) / offline──► Available | Offline
+                                                 └── release reservation → try next staff | re-queue
+InCall ──end──► Available ──► dispatcher lấy queue head (nếu có)
+* ──stale heartbeat──► Offline (+ release + redispatch)
 ```
 
 Optional sau: `Away` / `Paused`.
 
-**Vì sao cần `Ringing`:** nếu chỉ Available/InCall, lúc invitation đang bay agent vẫn Available → dispatcher gán call thứ hai → race.
+**Vì sao cần `Ringing`:** Call X gán A → A = Ringing; Call Y tới ngay sau → dispatcher **không** thấy A Available → chọn B. Tránh 1 staff bị gán 2 call.
 
 Lease fields (khái niệm):
 
 ```text
-state
+state                 // Offline | Available | Ringing | InCall
 connectionId
 heartbeatAt
-reservedCallId?   // set khi Ringing / InCall
+reservedCallId?       // set khi Ringing / InCall
+lastAssignedAt?       // để longest-idle / fair round-robin
 ```
 
-### 4.2 Semantics routing — chọn **một** primary mode (D1)
+### 4.2 Semantics routing — **MVP: auto-dispatch (ACD mini)** (D1 Resolved)
 
-| Mode | Flow | Phù hợp |
-|------|------|---------|
-| **Auto dispatch** | Queue → backend chọn agent → Ringing → timeout → agent khác | Call center |
-| **Hunt-group claim** | Queue → nhiều staff thấy incoming → Accept → **first atomic win** → loser `AlreadyClaimed` | Clinic nhỏ |
+**Không dùng hunt-group claim cho MVP** (nhiều visitor cùng lúc → list incoming hỗn loạn, staff “tranh” call).
 
-**MVP đề xuất:** Hunt-group claim; backend đảm bảo first accept wins. Round-robin / auto-dispatch là phase sau — **không** thiết kế API lưng chừng cả hai.
+#### Quyết định MVP
+
+> Backend **auto-dispatch** theo **round-robin / longest-idle** trên tập staff `Available`.  
+> **Một call chỉ ring đúng một staff** tại một thời điểm.  
+> Accept trong ~15s → InCall.  
+> Timeout / Reject / offline → release, staff về Available (nếu online), thử **staff kế** (không lặp lại ngay cùng người nếu còn ứng viên khác — policy chi tiết implement).  
+> Hết danh sách Available (hoặc không còn ai rảnh) → call **Queued** (không mất call) cho tới khi có agent Available hoặc visitor **Timeout**.  
+> Thử hết + hết chờ → `NoAgent` / `Timeout`.
+
+#### Luồng một visitor
+
+```text
+Visitor gọi
+   ↓
+Call → queue clinic (FIFO)
+   ↓
+Backend: staff Available?
+   ├─ không → giữ Queued (chờ agent free hoặc visitor timeout)
+   └─ có → chọn Staff A (longest-idle / RR cursor)
+          ↓
+       A = Ringing, call = Ringing (chỉ A nhận Accept UI)
+          ↓  ~15s
+       ├─ Accept → A = InCall, call = Accepted → cấp media token
+       └─ Timeout / Reject
+              ↓
+           A = Available (nếu vẫn online)
+              ↓
+           chọn Staff B (Available) → Ringing 15s
+              …
+           không còn ai → Queued lại (chờ) hoặc NoAgent/Timeout
+```
+
+#### Nhiều visitor song song (ví dụ)
+
+```text
+Staff: A,B,C Available
+Visitor V1..V5 vào gần nhau
+
+Dispatch:
+  V1 → A (Ringing)
+  V2 → B
+  V3 → C
+  V4, V5 → Queue (Waiting)
+
+B end call → B = Available → dispatcher ngay: V4 → B
+A timeout V1, lúc đó không ai rảnh → V1 trở lại Queue (không mất)
+```
+
+#### Staff console UX
+
+- **Tất cả staff** (cùng clinic) có thể thấy overview: Agents + Queue (waiting times).  
+- **Chỉ staff đang được assign** thấy popup/nút **Accept/Reject** của call đó.  
+- Không broadcast “mọi người Accept cùng lúc”.
+
+#### Thuật toán chọn staff (backend)
+
+1. **Preferred (dễ scale + công bằng):**  
+   `Available staff ORDER BY last_assigned_at ASC NULLS FIRST LIMIT 1`  
+   → người **lâu nhất chưa được assign** (longest-idle).  
+2. **Tương đương RR:** cursor/`lastAssignedAt` cập nhật mỗi lần reserve thành công.  
+3. **Không** giữ index round-robin trên frontend.
+
+| Mode (tham chiếu) | MVP? | Ghi chú |
+|-------------------|------|---------|
+| **Auto dispatch + longest-idle/RR** | **Có** | ACD mini; UI sạch |
+| Hunt-group claim | Không (MVP) | Có thể phase sau nếu clinic muốn “ai rảnh bấm trước” |
 
 ### 4.3 Queue rules (MVP — chốt cứng)
 
 | Rule | MVP default |
 |------|-------------|
 | Order | **FIFO** |
-| Staff capacity | **1** |
-| Agent ringing timeout | configurable (vd. 15s) |
+| Staff capacity | **1** (Ringing hoặc InCall) |
+| Agent ringing timeout | configurable (**~15s**) |
 | Visitor max wait | configurable (vd. 60–120s) |
-| Reject | next available / rebroadcast theo mode đã chốt |
-| Agent offline while Ringing | release + redispatch |
-| Visitor cancel | remove khỏi queue, cancel ringing |
+| Reject | release → try **next Available** staff; hết → re-queue |
+| Ring timeout | giống Reject path (không mất call) |
+| Agent offline while Ringing | release + redispatch / re-queue |
+| Visitor cancel | remove queue, cancel ringing assignment |
 | Một visitor mở 2 call | **không** (1 active visitor session) |
-| End call | agent → Available → **dispatch queue head** (nếu mode auto) hoặc staff sẵn claim call tiếp |
+| End call | agent → Available → **ngay lập tức** dispatch **queue head** nếu còn visitor chờ |
+| Không còn staff Available lúc vào | call **Queued**, không fail ngay (trừ timeout visitor) |
 
-Call / queue states (product-facing): `Queued` · `Ringing` · `InCall` · `NoAgent` · `Timeout` · `Ended` · `Cancelled`.
+Call / queue states (product-facing): `Queued` · `Ringing` · `Accepted`/`InCall` · `NoAgent` · `Timeout` · `Ended` · `Cancelled`.
 
 ### Acceptance criteria
-- [ ] Không hai staff `InCall` cùng một visitor call  
-- [ ] Không một staff nhận 2 call song song (MVP)  
-- [ ] Race 2× Accept → đúng 1 win, 1 `AlreadyClaimed`  
-- [ ] Heartbeat stale → Offline, nhả reservation, visitor được redispatch hoặc Timeout theo rule  
-- [ ] Reject / ring timeout không “mất” visitor (redispatch hoặc terminal state rõ)  
-- [ ] End call → agent Available trong SLA ngắn (vd. ≤ 2s path server)
+- [ ] Tại mọi thời điểm: 1 call ≤ 1 assigned staff; 1 staff ≤ 1 Ringing/InCall  
+- [ ] Chỉ staff được assign nhận event Accept UI; staff khác **không** Accept được call đó (403)  
+- [ ] Staff Ringing không bị gán call thứ hai  
+- [ ] Timeout/Reject 15s → staff free (nếu online) + call chuyển staff khác hoặc Queued  
+- [ ] N Available staff + N+k visitor → tối đa N call Ringing/InCall; phần dư Queued  
+- [ ] End call → queue head được dispatch trong SLA ngắn (vd. ≤ 2s path server)  
+- [ ] Heartbeat stale → Offline, nhả reservation, call redispatch/re-queue  
+- [ ] Longest-idle/RR do **backend** (cập nhật `lastAssignedAt`); không phụ thuộc client  
+- [ ] Visitor cancel / visitor timeout không để staff kẹt Ringing
 
 ---
 
@@ -441,15 +508,15 @@ PoC internship không cần full compliance; **không** hard-code path local-onl
 ```text
 1. Clinic isolation (I0 + AC cross-clinic)
       ↓
-2. Agent state + atomic claim (I1, Ringing lease)
+2. Agent state lease + Ringing (I1)
       ↓
-3. Visitor queue + redispatch / timeout rules
+3. Auto-dispatch longest-idle/RR + FIFO queue + ring timeout redispatch
       ↓
-4. Public visitor API (site_key, allowlist, rate limit)
+4. Public Embed API (site_key, allowlist, rate limit)
       ↓
-5. Visitor widget
+5. Visitor widget (iframe)
       ↓
-6. Staff console widget
+6. Staff console (overview + Accept chỉ cho assignee)
       ↓
 7. Recording policy (+ retention wording)
       ↓
@@ -465,7 +532,7 @@ PoC internship không cần full compliance; **không** hard-code path local-onl
 | Ý sếp (gần đúng) | Product | Invariant | Ghi chú siết |
 |------------------|---------|-----------|--------------|
 | 1 server nhiều PK, không nhảy PK | Multi-clinic | I0 | Authorize server-side, không chỉ column |
-| Landing → đúng staff, rảnh / sau end | Queue + agent state | I1 | `Ringing` + lease; chốt claim vs auto |
+| Landing → đúng staff, rảnh / sau end | Queue + auto-dispatch | I1 | Longest-idle/RR; 1 call ring 1 staff; claim **không** MVP |
 | “API nhúng” / nút landing + panel staff | **Public Embed API** + **Widget client** (+ Staff API JWT) | I2 | Tách API≠Widget; site_key public hẹp quyền; iframe MVP; widget sau routing |
 | 50 ghi hình; chunk; queue; audio/video option | Storage scale | I3 | ADR; capture realtime; async = post; workload R1–R3; retention vs policy |
 
@@ -475,9 +542,9 @@ PoC internship không cần full compliance; **không** hard-code path local-onl
 
 | Bước | Output |
 |------|--------|
-| Chốt D1–D3 | Ghi vào mục 2 (update “Resolved”) |
-| Design | Sequence: visitor click → queue → claim → media → end → (optional record) |
-| Implement | PR nhỏ theo thứ tự mục 7; test isolation + claim race trước widget |
+| Chốt D2–D3 | Ghi vào mục 2 (D1 đã Resolved auto-dispatch) |
+| Design | Sequence: visitor → queue → auto-assign → ring 15s → accept/media → end → dispatch next |
+| Implement | PR nhỏ theo thứ tự mục 7; test isolation + “1 staff 1 call” + ring-timeout redispatch trước widget |
 | Capacity | `evidence/capacity-runs/recording-*` + SUMMARY |
 
 ---
