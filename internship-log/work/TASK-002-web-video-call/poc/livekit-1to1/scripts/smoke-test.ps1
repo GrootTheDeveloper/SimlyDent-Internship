@@ -30,6 +30,16 @@ function Get-AccessToken {
         throw "JWT login for '$UserId' returned empty accessToken."
     }
 
+    # ClinicId must be server-bound at login (clinic-a for A*, clinic-b for B*).
+    $clinic = $login.user.clinicId
+    if ([string]::IsNullOrWhiteSpace($clinic)) { $clinic = $login.user.tenantId }
+    if ($UserId -match '^A' -and $clinic -ne 'clinic-a') {
+        throw "Expected clinic-a for $UserId, got '$clinic'."
+    }
+    if ($UserId -eq 'B1' -and $clinic -ne 'clinic-b') {
+        throw "Expected clinic-b for B1, got '$clinic'."
+    }
+
     $tokenCache[$UserId] = $login.accessToken
     return $login.accessToken
 }
@@ -121,10 +131,35 @@ if (-not $spoofPass) {
     throw "Expected spoofed X-User-Id to be rejected with 401, got $spoofStatus"
 }
 
+# Cross-clinic create blocked
 Invoke-PocRequest POST "/api/calls" "A1" @{ calleeId = "B1" } 403 | Out-Null
 
 $call = Invoke-PocRequest POST "/api/calls" "A1" @{ calleeId = "A2" } 201
 $callId = $call.id
+
+# Room must be clinic-namespaced
+$expectedRoomPrefix = "clinic:clinic-a:call:"
+if (-not $call.roomName.StartsWith($expectedRoomPrefix) -or -not $call.roomName.EndsWith(($callId -replace '-', '').ToLower())) {
+    # Guid format N is lowercase hex without dashes
+    $idN = ([guid]$callId).ToString("N")
+    if ($call.roomName -ne "${expectedRoomPrefix}${idN}") {
+        throw "Room name is not clinic-scoped. Expected '${expectedRoomPrefix}${idN}', got '$($call.roomName)'."
+    }
+}
+$results.Add([PSCustomObject]@{
+    Test = "LiveKit room clinic namespace"
+    Expected = "clinic:clinic-a:call:{id}"
+    Actual = $call.roomName
+    Result = "PASS"
+})
+
+# CallView clinicId present (tenantId may still alias)
+$callClinic = $call.clinicId
+if ([string]::IsNullOrWhiteSpace($callClinic)) { $callClinic = $call.tenantId }
+if ($callClinic -ne 'clinic-a') {
+    throw "Call clinicId expected clinic-a, got '$callClinic'."
+}
+
 Invoke-PocRequest GET "/api/calls/active" "A2" $null 200 | Out-Null
 Invoke-PocRequest POST "/api/calls/$callId/token" "A1" $null 409 | Out-Null
 Invoke-PocRequest POST "/api/calls/$callId/recording/start" "A1" $null 409 | Out-Null
@@ -139,8 +174,8 @@ if ($jwtParts.Count -ne 3) { throw "LiveKit token is not a three-part JWT." }
 $payloadText = $jwtParts[1].Replace('-', '+').Replace('_', '/')
 while ($payloadText.Length % 4) { $payloadText += '=' }
 $payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payloadText)) | ConvertFrom-Json
-if (-not $payload.video.roomJoin -or $payload.video.room -ne $call.roomName -or $payload.sub -ne "tenant-a:A1") {
-    throw "LiveKit grants do not match the accepted call."
+if (-not $payload.video.roomJoin -or $payload.video.room -ne $call.roomName -or $payload.sub -ne "clinic-a:A1") {
+    throw "LiveKit grants do not match the accepted call. sub=$($payload.sub) room=$($payload.video.room)"
 }
 $results.Add([PSCustomObject]@{ Test = "LiveKit room/identity grants"; Expected = "scoped"; Actual = "scoped"; Result = "PASS" })
 
@@ -221,4 +256,4 @@ Invoke-PocRequest POST "/api/calls/$($busyCall.id)/end" "A2" $null 200 | Out-Nul
 
 $results | Format-Table -AutoSize
 if ($results.Result -contains "FAIL") { exit 1 }
-Write-Host "Smoke test passed: $($results.Count) checks (JWT Bearer auth)."
+Write-Host "Smoke test passed: $($results.Count) checks (JWT Bearer auth + clinic isolation basics)."
