@@ -45,8 +45,12 @@ public sealed class CallEndService(
             var localPath = egress.GetLocalEgressPath(fileName);
             var recId = recordingId ?? Guid.NewGuid().ToString("N");
             var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
-            if (File.Exists(localPath))
-                await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
+            // Complete only after a real object exists in storage (never key without archive).
+            if (!File.Exists(localPath))
+                throw new InvalidOperationException("Egress completed but the recording file was not found.");
+            await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
+            if (!await storage.ExistsAsync(key, cancellationToken))
+                throw new InvalidOperationException("Archive to storage failed (object missing after save).");
 
             lock (call.SyncRoot)
             {
@@ -61,9 +65,11 @@ public sealed class CallEndService(
         }
         catch (Exception ex)
         {
+            // Call remains Ended (dispatcher already transitioned). Recording fails separately.
             lock (call.SyncRoot)
             {
                 call.RecordingStatus = "Failed";
+                call.RecordingStorageKey = null;
                 call.UpdatedAt = DateTimeOffset.UtcNow;
             }
 

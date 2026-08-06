@@ -813,8 +813,12 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
         await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
         var localPath = egress.GetLocalEgressPath(fileName);
         var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
-        if (File.Exists(localPath))
-            await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
+        // Complete only when archive succeeds — never set storage key without object.
+        if (!File.Exists(localPath))
+            throw new InvalidOperationException("Egress completed but the recording file was not found.");
+        await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
+        if (!await storage.ExistsAsync(key, cancellationToken))
+            throw new InvalidOperationException("Archive to storage failed (object missing after save).");
         lock (call.SyncRoot)
         {
             call.RecordingId = recId;
@@ -832,13 +836,84 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
         lock (call.SyncRoot)
         {
             call.RecordingStatus = "Failed";
+            call.RecordingStorageKey = null;
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingFinalizeFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
+        // Live call remains Accepted/endable — recording failure ≠ call failure.
         return Results.Json(new { error = $"Không thể dừng ghi: {ex.Message}", call = call.ToView() }, statusCode: 503);
     }
+}).RequireAuthorization();
+
+/// <summary>
+/// PoC/test hook: plant a Complete clinic-scoped recording object without Egress finalize.
+/// Manager same clinic only. Used to prove download/delete/retention on real storage path.
+/// </summary>
+app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    ConcurrentDictionary<Guid, CallSession> calls,
+    IRecordingStorage storage,
+    RecordingPolicyRegistry policies,
+    RecordingAuditService audit,
+    CallDispatcher dispatcher,
+    PlantRecordingRequest? body,
+    CancellationToken cancellationToken) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
+    if (call is null) return Results.NotFound();
+
+    lock (call.SyncRoot)
+    {
+        if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
+            return Results.Conflict(new { error = "Cannot plant over an active recording." });
+    }
+
+    var recId = Guid.NewGuid().ToString("N");
+    var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
+    var tmp = Path.Combine(Path.GetTempPath(), $"plant-{recId}.mp4");
+    await File.WriteAllBytesAsync(tmp, System.Text.Encoding.UTF8.GetBytes(
+        "simlydent-poc-planted-recording\n" + call.Id.ToString("N") + "\n"), cancellationToken);
+    try
+    {
+        await storage.SaveFromLocalFileAsync(key, tmp, cancellationToken);
+    }
+    finally
+    {
+        try { File.Delete(tmp); } catch { /* ignore */ }
+    }
+
+    if (!await storage.ExistsAsync(key, cancellationToken))
+        return Results.Json(new { error = "Plant failed: object missing after save." }, statusCode: 503);
+
+    var ageDays = body?.AgeDays ?? 0;
+    var updatedAt = ageDays > 0
+        ? DateTimeOffset.UtcNow.AddDays(-ageDays)
+        : DateTimeOffset.UtcNow;
+
+    lock (call.SyncRoot)
+    {
+        call.RecordingMode = call.RecordingMode == RecordingMode.None ? RecordingMode.Video : call.RecordingMode;
+        call.RecordingId = recId;
+        call.RecordingStorageKey = key;
+        call.RecordingStatus = "Complete";
+        call.UpdatedAt = updatedAt;
+    }
+
+    audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+        "RecordingStopped", "Ok", "plant-complete");
+    await dispatcher.NotifyCallAsync(call);
+    var policy = policies.Get(call.ClinicId);
+    return Results.Ok(new
+    {
+        storageKey = key,
+        recording = RecordingAuthorization.BuildView(call, current, policy)
+    });
 }).RequireAuthorization();
 
 app.MapGet("/api/calls/{id:guid}/recording/file", async (
@@ -1076,3 +1151,6 @@ file sealed record EmbedSessionResponse(
     string ClinicId,
     string SiteId,
     string SiteKey);
+
+/// <summary>Optional body for plant-complete test hook (AgeDays backdates UpdatedAt for retention).</summary>
+file sealed record PlantRecordingRequest(int AgeDays = 0);

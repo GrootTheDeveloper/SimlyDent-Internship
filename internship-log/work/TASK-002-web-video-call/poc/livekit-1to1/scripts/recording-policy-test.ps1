@@ -170,27 +170,76 @@ $startOk = Invoke-Api -Method POST -Path "/api/calls/$callId/recording/start" -T
 $gatePassed = $startOk.Status -in @(200, 503)
 Add-Result "start after Video/Audio+consent reaches egress (200 or 503)" $gatePassed "status=$($startOk.Status) body=$($startOk.Body)"
 if ($startOk.Status -eq 503) {
-    # Call must still be endable
     $still = Invoke-Api -Method GET -Path "/api/calls/$callId" -Token $a1.accessToken
     Add-Result "call still readable after egress fail" ($still.Status -eq 200) "status=$($still.Status)"
 }
+if ($startOk.Status -eq 200 -and $startOk.Json.recordingStatus -eq "Recording") {
+    $stopTry = Invoke-Api -Method POST -Path "/api/calls/$callId/recording/stop" -Token $a1.accessToken
+    # Stop may 503 without file; must not leave Complete without object (I3: call still endable).
+    Add-Result "stop after start is 200 or 503" ($stopTry.Status -in @(200, 503)) "status=$($stopTry.Status)"
+    if ($stopTry.Status -eq 200) {
+        Add-Result "stop Complete only with canDownload for manager path later" ($stopTry.Json.recordingStatus -eq "Complete") "status=$($stopTry.Json.recordingStatus)"
+    }
+}
 
-# Manager cannot start
+# Manager cannot start (not participant)
 $mgrStart = Invoke-Api -Method POST -Path "/api/calls/$callId/recording/start" -Token $aMgr.accessToken
 Add-Result "Manager start 403 or 404" ($mgrStart.Status -in @(403, 404)) "status=$($mgrStart.Status)"
 
-# End call
+# End call (must succeed even if recording Failed)
 $end = Invoke-Api -Method POST -Path "/api/calls/$callId/end" -Token $a1.accessToken
 Add-Result "end call" ($end.Status -eq 200) "status=$($end.Status)"
 
-# Manager not reserved by queue dispatch: enqueue VA with only A-MGR "ready" (already 403)
-# Ensure A1/A2 offline-ish and only Manager "online" — hard offline. Simpler: A-MGR not in agents snapshot as Available staff.
-$agents = Invoke-Api -Method GET -Path "/api/agents" -Token $a1.accessToken
-$mgrInAgents = @($agents.Json.users | Where-Object { $_.userId -eq "A-MGR" -or $_.UserId -eq "A-MGR" })
-# Presence snapshot uses users list with Staff only — Manager excluded from agent pool view
-Add-Result "agents snapshot is staff-focused" ($agents.Status -eq 200)
+# --- Manager allow-path: plant Complete object under clinic-scoped key (real storage) ---
+$plant = Invoke-Api -Method POST -Path "/api/calls/$callId/recording/plant-complete" -Token $aMgr.accessToken -Body @{ ageDays = 0 }
+Add-Result "Manager plant-complete 200" ($plant.Status -eq 200) "status=$($plant.Status) body=$($plant.Body)"
+$storageKey = $plant.Json.storageKey
+Add-Result "storage key clinic-scoped" ($storageKey -match '^clinic/clinic-a/calls/') "key=$storageKey"
+Add-Result "plant canDownload true" ($plant.Json.recording.canDownload -eq $true) "canDownload=$($plant.Json.recording.canDownload)"
+Add-Result "plant status Complete" ($plant.Json.recording.recordingStatus -eq "Complete") "status=$($plant.Json.recording.recordingStatus)"
 
-# Dispatch exclusion: longest-idle uses Staff only (code path). Soft check via queue enqueue with A1 ready.
+# A-MGR download real bytes
+$mgrDl = Invoke-Api -Method GET -Path "/api/calls/$callId/recording/file" -Token $aMgr.accessToken
+Add-Result "A-MGR download 200" ($mgrDl.Status -eq 200) "status=$($mgrDl.Status)"
+Add-Result "A-MGR download has bytes" ($mgrDl.Body.Length -gt 20) "len=$($mgrDl.Body.Length)"
+
+# Staff / Visitor / cross-clinic Manager still denied after Complete
+$staffDl2 = Invoke-Api -Method GET -Path "/api/calls/$callId/recording/file" -Token $a1.accessToken
+Add-Result "Staff download after Complete 404" ($staffDl2.Status -eq 404) "status=$($staffDl2.Status)"
+$vaDl = Invoke-Api -Method GET -Path "/api/calls/$callId/recording/file" -Token $va.accessToken
+Add-Result "Visitor download 403 or 404" ($vaDl.Status -in @(403, 404)) "status=$($vaDl.Status)"
+$bMgrDl2 = Invoke-Api -Method GET -Path "/api/calls/$callId/recording/file" -Token $bMgr.accessToken
+Add-Result "B-MGR download Complete A 404" ($bMgrDl2.Status -eq 404) "status=$($bMgrDl2.Status)"
+
+# Manager delete + audit
+$del = Invoke-Api -Method DELETE -Path "/api/calls/$callId/recording" -Token $aMgr.accessToken
+Add-Result "A-MGR delete 200" ($del.Status -eq 200) "status=$($del.Status)"
+$del2 = Invoke-Api -Method DELETE -Path "/api/calls/$callId/recording" -Token $aMgr.accessToken
+Add-Result "A-MGR delete idempotent 200" ($del2.Status -eq 200) "status=$($del2.Status)"
+$audit = Invoke-Api -Method GET -Path "/api/recording/audit" -Token $aMgr.accessToken
+Add-Result "audit list Manager" ($audit.Status -eq 200) "status=$($audit.Status)"
+$auditActions = @($audit.Json | ForEach-Object { $_.action })
+Add-Result "audit has RecordingDownloaded" ($auditActions -contains "RecordingDownloaded") "actions=$($auditActions -join ',')"
+Add-Result "audit has RecordingDeleted" ($auditActions -contains "RecordingDeleted") "actions=$($auditActions -join ',')"
+
+# Retention: plant aged Complete then run cleanup
+$plantOld = Invoke-Api -Method POST -Path "/api/calls/$callId/recording/plant-complete" -Token $aMgr.accessToken -Body @{ ageDays = 400 }
+Add-Result "plant aged Complete" ($plantOld.Status -eq 200 -and $plantOld.Json.recording.recordingStatus -eq "Complete") "status=$($plantOld.Status)"
+$ret = Invoke-Api -Method POST -Path "/api/admin/recording/retention-run" -Token $aMgr.accessToken
+Add-Result "retention-run Manager" ($ret.Status -eq 200) "status=$($ret.Status) body=$($ret.Body)"
+Add-Result "retention deleted >= 1" ([int]$ret.Json.deleted -ge 1) "deleted=$($ret.Json.deleted)"
+$afterRet = Invoke-Api -Method GET -Path "/api/calls/$callId/recording" -Token $aMgr.accessToken
+Add-Result "after retention status Deleted" ($afterRet.Json.recordingStatus -eq "Deleted") "status=$($afterRet.Json.recordingStatus)"
+$audit2 = Invoke-Api -Method GET -Path "/api/recording/audit" -Token $aMgr.accessToken
+$auditActions2 = @($audit2.Json | ForEach-Object { $_.action })
+Add-Result "audit has RecordingExpired" ($auditActions2 -contains "RecordingExpired") "actions=$($auditActions2 -join ',')"
+
+$retStaff = Invoke-Api -Method POST -Path "/api/admin/recording/retention-run" -Token $a1.accessToken
+Add-Result "retention-run Staff 403" ($retStaff.Status -eq 403) "status=$($retStaff.Status)"
+
+# Dispatch exclusion
+$agents = Invoke-Api -Method GET -Path "/api/agents" -Token $a1.accessToken
+Add-Result "agents snapshot HTTP" ($agents.Status -eq 200)
 $rA1 = Invoke-Api -Method POST -Path "/api/agents/ready" -Token $a1.accessToken
 $enq = Invoke-Api -Method POST -Path "/api/queue/calls" -Token $va.accessToken
 Add-Result "VA enqueue" ($enq.Status -eq 201) "status=$($enq.Status)"

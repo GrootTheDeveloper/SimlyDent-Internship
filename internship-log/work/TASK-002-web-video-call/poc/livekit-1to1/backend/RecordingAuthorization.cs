@@ -94,9 +94,9 @@ public static class RecordingAuthorization
             {
                 canDownload = call.RecordingStatus == "Complete"
                               && !string.IsNullOrWhiteSpace(call.RecordingStorageKey);
-                canDelete = call.RecordingStatus is "Complete" or "Failed"
-                            && !string.IsNullOrWhiteSpace(call.RecordingStorageKey)
-                            || call.RecordingStatus == "Deleted";
+                canDelete = call.RecordingStatus == "Deleted"
+                            || (call.RecordingStatus is "Complete" or "Failed"
+                                && !string.IsNullOrWhiteSpace(call.RecordingStorageKey));
             }
         }
 
