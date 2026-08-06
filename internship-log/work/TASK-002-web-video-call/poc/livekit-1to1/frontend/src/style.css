@@ -400,16 +400,86 @@ svg {
   color: #65676b;
 }
 
-/* ---- PR-D: queue panel ---- */
+/* ---- PR-D: queue dock (bottom-left, collapsible) ---- */
+.queue-dock {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.queue-dock > * {
+  pointer-events: auto;
+}
+.queue-dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #101828;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.queue-dock-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+}
+.queue-dock-icon { font-size: 15px; line-height: 1; }
+.queue-dock-label { white-space: nowrap; }
+.queue-dock-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e4e7ec;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.queue-dock-badge.hot {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+.queue-dock-mine {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b86e00;
+  background: #fff4e0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.queue-dock-chevron {
+  color: #667085;
+  font-size: 12px;
+  margin-left: 2px;
+}
+
 .queue-panel {
-  width: min(100%, 520px);
-  margin: 0 auto 18px;
+  width: min(360px, calc(100vw - 32px));
   text-align: left;
   background: #fff;
   border: 1px solid var(--color-border, #e4e6eb);
   border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16);
   overflow: hidden;
+}
+.queue-panel--dock {
+  margin: 0;
 }
 .queue-panel-header {
   display: flex;
@@ -425,17 +495,31 @@ svg {
   font-weight: 700;
   color: var(--color-text, #050505);
 }
-.queue-panel-count {
-  font-size: 12px;
-  font-weight: 650;
-  color: #0d9488;
-  background: #ccfbf1;
-  padding: 2px 8px;
-  border-radius: 999px;
+.queue-panel-close {
+  border: 0;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  line-height: 1;
+}
+.queue-panel-close:hover {
+  background: #f2f4f7;
+  color: #101828;
 }
 .queue-panel-list {
-  max-height: min(40vh, 280px);
+  max-height: min(42vh, 320px);
   overflow: auto;
+}
+@media (max-width: 768px) {
+  .queue-dock {
+    left: 12px;
+    bottom: 12px;
+    /* Stay above mobile thumbs; leave room for browser chrome */
+    max-width: calc(100vw - 24px);
+  }
 }
 .queue-row {
   display: flex;

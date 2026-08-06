@@ -1640,6 +1640,8 @@ if (isCallRoute) {
       /** userId -> agent state string (Available/Ringing/InCall/Offline) */
       agentStateMap: {},
       queueItems: [],
+      /** Staff queue dock bottom-left; collapsed by default. */
+      queuePanelOpen: false,
       heartbeatTimer: null,
       showOtherClinics: false,
       guestAvatarUrl: GUEST_AVATAR_URL
@@ -1698,6 +1700,9 @@ if (isCallRoute) {
       },
       selfAgentBadgeLabel() {
         return agentBadgeLabel(this.selfAgentState)
+      },
+      queueMineCount() {
+        return (this.queueItems || []).filter(i => this.isQueueAssignedToMe(i)).length
       }
     },
     async mounted() {
@@ -1815,6 +1820,7 @@ if (isCallRoute) {
         this.onlineMap = {}
         this.agentStateMap = {}
         this.queueItems = []
+        this.queuePanelOpen = false
         this.identities = []
         history.replaceState(null, '', location.pathname)
       },
@@ -2333,36 +2339,6 @@ if (isCallRoute) {
                 <button @click="reopenCallWindow">Mở lại cửa sổ</button>
               </div>
 
-              <!-- PR-D: Staff queue awareness panel (Accept remains assigned popup only) -->
-              <div v-if="!isVisitor" class="queue-panel" aria-label="Hàng đợi tư vấn">
-                <div class="queue-panel-header">
-                  <span class="queue-panel-title">Hàng đợi tư vấn</span>
-                  <span class="queue-panel-count">{{ queueItems.length }}</span>
-                </div>
-                <div v-if="!queueItems.length" class="queue-empty">Không có khách trong hàng đợi.</div>
-                <div v-else class="queue-panel-list">
-                  <div v-for="item in queueItems" :key="item.id" class="queue-row">
-                    <div class="queue-row-avatar">
-                      <img :src="guestAvatarUrl" alt="" />
-                    </div>
-                    <div class="queue-row-body">
-                      <div class="queue-row-name">{{ formatQueueLabel(item) }}</div>
-                      <div class="queue-row-meta">
-                        {{ queueStatusVi(item.status) }}
-                        · chờ {{ formatWaitSeconds(item.waitingSeconds) }}
-                        · {{ item.assignedStaffId ? ('gán ' + item.assignedStaffId) : 'Chưa gán' }}
-                      </div>
-                    </div>
-                    <div class="queue-row-tags">
-                      <span
-                        :class="['queue-tag', item.status === 'Ringing' ? 'queue-tag--ringing' : 'queue-tag--queued']"
-                      >{{ item.status }}</span>
-                      <span v-if="isQueueAssignedToMe(item)" class="queue-tag queue-tag--mine">Gán cho bạn</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <!-- Visitor queue entry (Phase 1 demo VA) -->
               <div v-if="isVisitor" class="idle-placeholder">
                 <div class="hero-avatar-large">VA</div>
@@ -2387,7 +2363,7 @@ if (isCallRoute) {
                   <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
                 </p>
                 <p class="queue-hint">
-                  Khách website vào <strong>Hàng đợi tư vấn</strong> phía trên.
+                  Khách website hiện ở <strong>Hàng đợi</strong> (góc dưới trái).
                   Chỉ Accept khi được gán (popup reo).
                 </p>
                 <button
@@ -2454,6 +2430,56 @@ if (isCallRoute) {
             </div>
           </aside>
         </main>
+
+        <!-- PR-D: Staff queue dock — bottom-left, collapsed by default -->
+        <div v-if="!isVisitor" class="queue-dock" :class="{ open: queuePanelOpen }">
+          <button
+            type="button"
+            class="queue-dock-toggle"
+            :aria-expanded="queuePanelOpen ? 'true' : 'false'"
+            aria-controls="queue-dock-panel"
+            @click="queuePanelOpen = !queuePanelOpen"
+          >
+            <span class="queue-dock-icon" aria-hidden="true">📋</span>
+            <span class="queue-dock-label">Hàng đợi</span>
+            <span class="queue-dock-badge" :class="{ hot: queueItems.length > 0 }">{{ queueItems.length }}</span>
+            <span v-if="queueMineCount > 0" class="queue-dock-mine">{{ queueMineCount }} gán bạn</span>
+            <span class="queue-dock-chevron">{{ queuePanelOpen ? '▾' : '▴' }}</span>
+          </button>
+          <div
+            v-show="queuePanelOpen"
+            id="queue-dock-panel"
+            class="queue-panel queue-panel--dock"
+            aria-label="Hàng đợi tư vấn"
+          >
+            <div class="queue-panel-header">
+              <span class="queue-panel-title">Hàng đợi tư vấn</span>
+              <button type="button" class="queue-panel-close" @click="queuePanelOpen = false" aria-label="Thu gọn">✕</button>
+            </div>
+            <div v-if="!queueItems.length" class="queue-empty">Không có khách trong hàng đợi.</div>
+            <div v-else class="queue-panel-list">
+              <div v-for="item in queueItems" :key="item.id" class="queue-row">
+                <div class="queue-row-avatar">
+                  <img :src="guestAvatarUrl" alt="" />
+                </div>
+                <div class="queue-row-body">
+                  <div class="queue-row-name">{{ formatQueueLabel(item) }}</div>
+                  <div class="queue-row-meta">
+                    {{ queueStatusVi(item.status) }}
+                    · chờ {{ formatWaitSeconds(item.waitingSeconds) }}
+                    · {{ item.assignedStaffId ? ('gán ' + item.assignedStaffId) : 'Chưa gán' }}
+                  </div>
+                </div>
+                <div class="queue-row-tags">
+                  <span
+                    :class="['queue-tag', item.status === 'Ringing' ? 'queue-tag--ringing' : 'queue-tag--queued']"
+                  >{{ item.status }}</span>
+                  <span v-if="isQueueAssignedToMe(item)" class="queue-tag queue-tag--mine">Gán cho bạn</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- POPUPS ON MAIN PAGE -->
         <!-- 1. Incoming Call Popup -->
