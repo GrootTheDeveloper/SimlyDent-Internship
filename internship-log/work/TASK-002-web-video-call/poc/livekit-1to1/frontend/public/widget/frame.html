@@ -18,7 +18,7 @@
 
     <main class="main">
       <div id="idlePane" class="pane">
-        <p class="lead">Bấm gọi để kết nối với nhân viên phòng khám. Camera chỉ bật sau khi được chấp nhận.</p>
+        <p class="lead">Bấm gọi để xếp hàng với nhân viên. Camera chỉ bật sau khi bạn bấm Tham gia.</p>
         <button type="button" id="btnCall" class="primary">Gọi tư vấn</button>
       </div>
 
@@ -27,6 +27,14 @@
         <p id="waitText" class="lead">Đang xếp hàng…</p>
         <p id="waitMeta" class="meta"></p>
         <button type="button" id="btnCancel" class="secondary">Hủy cuộc gọi</button>
+      </div>
+
+      <!-- Staff Accepted — visitor must confirm before getUserMedia -->
+      <div id="readyPane" class="pane hidden">
+        <p class="lead">Nhân viên đã sẵn sàng. Bấm Tham gia để bật camera/micro và vào cuộc gọi.</p>
+        <p id="readyMeta" class="meta">Chưa xin quyền thiết bị.</p>
+        <button type="button" id="btnJoin" class="primary">Tham gia cuộc gọi</button>
+        <button type="button" id="btnEndFromReady" class="secondary">Kết thúc</button>
       </div>
 
       <div id="mediaPane" class="pane media hidden">
@@ -42,6 +50,23 @@
         </div>
       </div>
 
+      <!-- Permission / media error while call still Accepted -->
+      <div id="permPane" class="pane hidden">
+        <p id="permText" class="lead error">Không thể bật camera/micro.</p>
+        <p class="meta">Cuộc gọi vẫn đang mở với nhân viên. Thử lại hoặc kết thúc.</p>
+        <button type="button" id="btnRetryMedia" class="primary">Thử lại camera/mic</button>
+        <button type="button" id="btnEndFromPerm" class="secondary">Kết thúc cuộc gọi</button>
+      </div>
+
+      <!-- Transient media disconnect — still polling backend -->
+      <div id="reconnectPane" class="pane hidden">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="lead">Mất kết nối media. Đang giữ cuộc gọi và thử nối lại…</p>
+        <p id="reconnectMeta" class="meta"></p>
+        <button type="button" id="btnReconnect" class="primary">Thử nối lại ngay</button>
+        <button type="button" id="btnEndFromReconnect" class="secondary">Kết thúc</button>
+      </div>
+
       <div id="endedPane" class="pane hidden">
         <p id="endedText" class="lead">Cuộc gọi đã kết thúc.</p>
         <button type="button" id="btnAgain" class="primary">Gọi lại</button>
@@ -54,8 +79,7 @@
     </main>
   </div>
 
-  <!-- LiveKit UMD for PoC; no bundler inside the iframe. -->
-  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.21.0/dist/livekit-client.umd.min.js"></script>
+  <!-- LiveKit loaded lazily on Join — not at page open -->
   <script src="./frame.js"></script>
 </body>
 </html>

@@ -55,6 +55,11 @@ public sealed class CallSession
     public CallOrigin Origin { get; init; } = CallOrigin.Direct;
     /// <summary>Staff currently reserved/assigned (Ringing or InCall). Null when Queued.</summary>
     public string? AssignedStaffId { get; set; }
+    /// <summary>
+    /// Bumped on every assignment / release so Reject/timeout cannot act on a stale reservation
+    /// after redispatch assigned a different staff (or the same staff a new epoch later).
+    /// </summary>
+    public int AssignmentEpoch { get; set; }
     /// <summary>Backend-generated LiveKit room: clinic:{{clinicId}}:call:{{callId}}.</summary>
     public required string RoomName { get; init; }
     public CallStatus Status { get; set; } = CallStatus.Ringing;

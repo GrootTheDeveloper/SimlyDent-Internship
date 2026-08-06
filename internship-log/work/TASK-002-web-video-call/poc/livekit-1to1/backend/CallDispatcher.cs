@@ -120,36 +120,47 @@ public sealed class CallDispatcher(
             return closed;
         }
 
-        // One active queue/call per visitor (B1).
-        var existing = calls.Values.FirstOrDefault(c =>
-            c.BelongsToClinic(visitor.ClinicId)
-            && c.Origin == CallOrigin.Queue
-            && c.CallerId == visitor.Id
-            && c.IsActive);
-        if (existing is not null)
+        // Atomic: 1 session/visitor ≤ 1 active queue call (check + create under clinic lock).
+        CallSession call;
+        var created = false;
+        lock (ClinicLock(visitor.ClinicId))
         {
-            lock (existing.SyncRoot)
-                existing.VisitorLastSeenAt = DateTimeOffset.UtcNow;
-            return existing;
+            var existing = calls.Values.FirstOrDefault(c =>
+                c.BelongsToClinic(visitor.ClinicId)
+                && c.Origin == CallOrigin.Queue
+                && string.Equals(c.CallerId, visitor.Id, StringComparison.OrdinalIgnoreCase)
+                && c.IsActive);
+            if (existing is not null)
+            {
+                lock (existing.SyncRoot)
+                    existing.VisitorLastSeenAt = DateTimeOffset.UtcNow;
+                call = existing;
+            }
+            else
+            {
+                var id = Guid.NewGuid();
+                call = new CallSession
+                {
+                    Id = id,
+                    ClinicId = visitor.ClinicId,
+                    CallerId = visitor.Id,
+                    CalleeId = "",
+                    Origin = CallOrigin.Queue,
+                    RoomName = CallSession.BuildRoomName(visitor.ClinicId, id),
+                    Status = CallStatus.Queued,
+                    VisitorLastSeenAt = DateTimeOffset.UtcNow
+                };
+                calls[id] = call;
+                created = true;
+            }
         }
 
-        var id = Guid.NewGuid();
-        var call = new CallSession
+        if (created)
         {
-            Id = id,
-            ClinicId = visitor.ClinicId,
-            CallerId = visitor.Id,
-            CalleeId = "",
-            Origin = CallOrigin.Queue,
-            RoomName = CallSession.BuildRoomName(visitor.ClinicId, id),
-            Status = CallStatus.Queued,
-            VisitorLastSeenAt = DateTimeOffset.UtcNow
-        };
-        calls[id] = call;
-
-        await TryDispatchClinicAsync(visitor.ClinicId, ct);
-        await BroadcastQueueAsync(visitor.ClinicId);
-        await NotifyCallAsync(call);
+            await TryDispatchClinicAsync(visitor.ClinicId, ct);
+            await BroadcastQueueAsync(visitor.ClinicId);
+            await NotifyCallAsync(call);
+        }
         return call;
     }
 
@@ -167,6 +178,7 @@ public sealed class CallDispatcher(
                 call.Status = CallStatus.Ringing;
                 call.CalleeId = staffUserId;
                 call.AssignedStaffId = staffUserId;
+                call.AssignmentEpoch++;
                 call.RingingStartedAt = DateTimeOffset.UtcNow;
                 call.UpdatedAt = DateTimeOffset.UtcNow;
                 call.TriedStaffIds.Add(staffUserId);
@@ -207,6 +219,7 @@ public sealed class CallDispatcher(
                     next.Status = CallStatus.Ringing;
                     next.CalleeId = staffId;
                     next.AssignedStaffId = staffId;
+                    next.AssignmentEpoch++;
                     next.RingingStartedAt = DateTimeOffset.UtcNow;
                     next.UpdatedAt = DateTimeOffset.UtcNow;
                     next.TriedStaffIds.Add(staffId);
@@ -283,7 +296,9 @@ public sealed class CallDispatcher(
     public async Task OnRingingReleasedAsync(
         CallSession call,
         CallStatus terminalIfDirect,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? expectedStaffId = null,
+        int? expectedEpoch = null)
     {
         var redispatch = false;
         var notify = false;
@@ -297,11 +312,17 @@ public sealed class CallDispatcher(
                     return; // lost race to Accept/Cancel — do not touch assignment
 
                 staffId = call.AssignedStaffId ?? call.CalleeId;
+                if (!string.IsNullOrEmpty(expectedStaffId)
+                    && !string.Equals(staffId, expectedStaffId, StringComparison.OrdinalIgnoreCase))
+                    return; // assignment already moved (e.g. redispatch)
+                if (expectedEpoch is int epoch && call.AssignmentEpoch != epoch)
+                    return; // stale reject/timeout for a prior reservation
 
                 if (call.Origin == CallOrigin.Direct)
                 {
                     call.Status = terminalIfDirect;
                     call.AssignedStaffId = null;
+                    call.AssignmentEpoch++;
                     call.UpdatedAt = DateTimeOffset.UtcNow;
                     notify = true;
                 }
@@ -313,6 +334,7 @@ public sealed class CallDispatcher(
                         call.Status = CallStatus.Timeout;
                         call.AssignedStaffId = null;
                         call.CalleeId = "";
+                        call.AssignmentEpoch++;
                         call.UpdatedAt = now;
                         notify = true;
                     }
@@ -322,6 +344,7 @@ public sealed class CallDispatcher(
                         call.AssignedStaffId = null;
                         call.CalleeId = "";
                         call.RingingStartedAt = null;
+                        call.AssignmentEpoch++;
                         call.UpdatedAt = now;
                         notify = true;
                         redispatch = true;
@@ -344,6 +367,9 @@ public sealed class CallDispatcher(
         }
     }
 
+    /// <summary>
+    /// Atomic Reject: validate assigned staff + epoch and release under the same clinic/call locks.
+    /// </summary>
     public async Task<CallTransitionResult> TryRejectAsync(Guid callId, TestIdentity staff)
     {
         if (!calls.TryGetValue(callId, out var call))
@@ -351,31 +377,81 @@ public sealed class CallDispatcher(
         if (!call.BelongsToClinic(staff.ClinicId))
             return CallTransitionResult.NotFound();
 
+        string? releaseStaffId = null;
+        var redispatch = false;
+        CallTransitionResult result;
+
         lock (ClinicLock(call.ClinicId))
         {
             lock (call.SyncRoot)
             {
-                if (call.Status != CallStatus.Ringing)
-                    return CallTransitionResult.Conflict(call, "Call is no longer ringing.");
-                if (!string.Equals(
-                        call.AssignedStaffId ?? call.CalleeId,
-                        staff.Id,
-                        StringComparison.OrdinalIgnoreCase))
-                    return CallTransitionResult.Forbidden("Only the assigned staff may reject this call.");
+                if (call.Status == CallStatus.Accepted)
+                {
+                    result = CallTransitionResult.Conflict(call, "Call was accepted concurrently.");
+                }
+                else if (call.Status != CallStatus.Ringing)
+                {
+                    result = CallTransitionResult.Conflict(call, "Call is no longer ringing.");
+                }
+                else if (!string.Equals(
+                             call.AssignedStaffId ?? call.CalleeId,
+                             staff.Id,
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    result = CallTransitionResult.Forbidden("Only the assigned staff may reject this call.");
+                }
+                else
+                {
+                    releaseStaffId = call.AssignedStaffId ?? call.CalleeId;
+                    if (call.Origin == CallOrigin.Direct)
+                    {
+                        call.Status = CallStatus.Rejected;
+                        call.AssignedStaffId = null;
+                        call.AssignmentEpoch++;
+                        call.UpdatedAt = DateTimeOffset.UtcNow;
+                    }
+                    else
+                    {
+                        var now = DateTimeOffset.UtcNow;
+                        if (now - call.CreatedAt >= _visitorTimeout)
+                        {
+                            call.Status = CallStatus.Timeout;
+                            call.AssignedStaffId = null;
+                            call.CalleeId = "";
+                            call.AssignmentEpoch++;
+                            call.UpdatedAt = now;
+                        }
+                        else
+                        {
+                            call.Status = CallStatus.Queued;
+                            call.AssignedStaffId = null;
+                            call.CalleeId = "";
+                            call.RingingStartedAt = null;
+                            call.AssignmentEpoch++;
+                            call.UpdatedAt = now;
+                            redispatch = true;
+                        }
+                    }
+                    result = CallTransitionResult.Ok(call);
+                }
             }
+
+            if (result.Kind == CallTransitionKind.Ok && !string.IsNullOrEmpty(releaseStaffId))
+                agents.TryRelease(call.ClinicId, releaseStaffId, call.Id);
         }
 
-        // Re-enter via release path (takes locks again) — status still Ringing if we won.
-        await OnRingingReleasedAsync(
-            call,
-            call.Origin == CallOrigin.Direct ? CallStatus.Rejected : CallStatus.Rejected);
-        // If Accept won between checks, OnRingingReleased no-ops; surface current state.
-        lock (call.SyncRoot)
+        if (result.Kind == CallTransitionKind.Ok)
         {
-            if (call.Status == CallStatus.Accepted)
-                return CallTransitionResult.Conflict(call, "Call was accepted concurrently.");
+            await NotifyCallAsync(call);
+            if (redispatch)
+                await TryDispatchClinicAsync(call.ClinicId);
+            else
+            {
+                await BroadcastQueueAsync(call.ClinicId);
+                await BroadcastAgentsAsync(call.ClinicId);
+            }
         }
-        return CallTransitionResult.Ok(call);
+        return result;
     }
 
     public async Task<CallTransitionResult> TryCancelAsync(Guid callId, TestIdentity actor)
@@ -401,6 +477,7 @@ public sealed class CallDispatcher(
                 staffId = call.AssignedStaffId ?? call.CalleeId;
                 call.Status = CallStatus.Cancelled;
                 call.AssignedStaffId = null;
+                call.AssignmentEpoch++;
                 call.UpdatedAt = DateTimeOffset.UtcNow;
             }
 

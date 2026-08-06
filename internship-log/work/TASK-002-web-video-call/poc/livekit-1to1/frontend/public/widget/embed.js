@@ -11,7 +11,7 @@
  *     async></script>
  *
  * Session is created from the **parent** page so Origin is the clinic website.
- * UI + media run in a same-origin-to-API iframe with allow="camera; microphone".
+ * Page load: floating button only. Iframe (+ LiveKit later) created on first open.
  */
 (function () {
   'use strict';
@@ -49,6 +49,7 @@
   var iframe = null;
   var panel = null;
   var launcher = null;
+  var frameMounted = false;
   var sessionCache = null; // { accessToken, expiresAt, sessionId, clinicId }
 
   function storageKey(part) {
@@ -119,31 +120,34 @@
     launcher.innerHTML = '📞';
     launcher.addEventListener('click', togglePanel);
 
+    // Panel shell only — iframe mounted lazily on first open (point 10).
     panel = document.createElement('div');
     panel.id = NS + '-panel';
     panel.className = position.indexOf('left') >= 0 ? 'bottom-left' : 'bottom-right';
 
+    document.body.appendChild(panel);
+    document.body.appendChild(launcher);
+    window.addEventListener('message', onMessage);
+  }
+
+  function ensureFrame() {
+    if (frameMounted && iframe) return;
     iframe = document.createElement('iframe');
     iframe.title = clinicName + ' video call';
     iframe.allow = 'camera; microphone; autoplay; display-capture';
-    // Intentionally no restrictive sandbox that would block getUserMedia / scripts.
     iframe.setAttribute('allowfullscreen', '');
     iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     iframe.src = FRAME_URL + '?siteKey=' + encodeURIComponent(siteKey);
-
     panel.appendChild(iframe);
-    document.body.appendChild(panel);
-    document.body.appendChild(launcher);
-
-    window.addEventListener('message', onMessage);
+    frameMounted = true;
   }
 
   function togglePanel() {
     open = !open;
     if (open) {
+      ensureFrame();
       panel.classList.add('open');
       launcher.innerHTML = '✕';
-      // Re-push init after open in case iframe was ready early.
       setTimeout(sendInit, 50);
     } else {
       panel.classList.remove('open');

@@ -2,9 +2,21 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using LiveKitPoc.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Trust reverse proxy (Caddy) so RemoteIpAddress reflects client — rate limit must not read spoofable XFF alone.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Docker/Caddy sits in front; clear defaults so headers are not dropped in compose.
+#pragma warning disable CS0618
+    options.KnownNetworks.Clear();
+#pragma warning restore CS0618
+    options.KnownProxies.Clear();
+});
 
 // Register embed site registry early so CORS can use allowed origins union.
 builder.Services.AddSingleton<ClinicSiteRegistry>();
@@ -40,6 +52,7 @@ builder.Services.AddSingleton<LiveKitTokenService>();
 builder.Services.AddSingleton<CallQualityStore>();
 builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
 builder.Services.AddSingleton<CallDispatcher>();
+builder.Services.AddSingleton<CallEndService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
 builder.Services.AddHttpClient<LiveKitEgressService>();
 builder.Services.AddSignalR();
@@ -80,6 +93,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+app.UseForwardedHeaders();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -199,7 +213,8 @@ app.MapPost("/embed/calls/{id:guid}/end", async (
     Guid id,
     ClaimsPrincipal principal,
     ConcurrentDictionary<Guid, CallSession> calls,
-    CallDispatcher dispatcher) =>
+    CallEndService endService,
+    CancellationToken cancellationToken) =>
 {
     var session = EmbedAuthTokenService.TryReadSession(principal);
     if (session is null) return Results.Unauthorized();
@@ -208,7 +223,8 @@ app.MapPost("/embed/calls/{id:guid}/end", async (
     if (owned is null) return Results.NotFound();
 
     ClinicAuthorization.TouchVisitorSeen(owned);
-    var result = await dispatcher.TryEndAsync(id, CallActor.FromEmbed(session).AsIdentity());
+    var result = await endService.EndWithRecordingAsync(
+        id, CallActor.FromEmbed(session).AsIdentity(), cancellationToken);
     return result.Kind switch
     {
         CallTransitionKind.Ok => Results.Ok(EmbedCallView.From(result.Call!)),
@@ -518,58 +534,20 @@ app.MapPost("/api/calls/{id:guid}/end", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    ConcurrentDictionary<Guid, CallSession> calls,
-    CallDispatcher dispatcher,
-    LiveKitEgressService egress,
+    CallEndService endService,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
 
-    // Capture recording egress under same ownership; transition is atomic in dispatcher.
-    string? egressId = null;
-    string? recordingFile = null;
-    if (calls.TryGetValue(id, out var pre)
-        && pre.BelongsToClinic(current.ClinicId)
-        && pre.Contains(current.Id))
+    var result = await endService.EndWithRecordingAsync(id, current, cancellationToken);
+    return result.Kind switch
     {
-        lock (pre.SyncRoot)
-        {
-            if (pre.Status == CallStatus.Accepted && pre.RecordingStatus == "Recording")
-            {
-                egressId = pre.RecordingEgressId;
-                recordingFile = pre.RecordingFileName;
-            }
-        }
-    }
-
-    var result = await dispatcher.TryEndAsync(id, current);
-    if (result.Kind == CallTransitionKind.NotFound) return Results.NotFound();
-    if (result.Kind == CallTransitionKind.Forbidden) return Results.StatusCode(403);
-    if (result.Kind == CallTransitionKind.Conflict)
-        return Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() });
-
-    var call = result.Call!;
-    if (egressId is not null && recordingFile is not null)
-    {
-        lock (call.SyncRoot)
-        {
-            if (call.RecordingStatus is not ("Stopping" or "Complete" or "Failed"))
-                call.RecordingStatus = "Stopping";
-        }
-        try
-        {
-            await egress.StopRecordingAsync(egressId, recordingFile, cancellationToken);
-            lock (call.SyncRoot) call.RecordingStatus = "Complete";
-        }
-        catch
-        {
-            lock (call.SyncRoot) call.RecordingStatus = "Failed";
-        }
-        call.UpdatedAt = DateTimeOffset.UtcNow;
-        await dispatcher.NotifyCallAsync(call);
-    }
-    return Results.Ok(call.ToView());
+        CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
 }).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/token", (

@@ -1,16 +1,19 @@
 /**
- * Visitor call UI inside iframe (Phase 2 PR-C).
- * Parent creates session (clinic Origin); this frame owns call poll + media after Accept.
+ * Visitor call UI (Phase 2 PR-C lifecycle fix).
+ * - Cancel/End clear local state only after backend terminal status.
+ * - Media disconnect → reconnect pane + keep polling (not auto-Ended).
+ * - After Accept → Ready pane; Join starts getUserMedia + LiveKit.
+ * - LiveKit SDK loaded lazily on first Join.
  */
 (function () {
   'use strict';
 
   var NS = 'simlydent-embed';
+  var LIVEKIT_CDN = 'https://cdn.jsdelivr.net/npm/livekit-client@2.21.0/dist/livekit-client.umd.min.js';
   var parentOrigin = '*';
   var apiBase = '';
   var siteKey = '';
   var clinicName = 'Tư vấn video';
-  var accent = '#0d9488';
   var accessToken = '';
   var sessionId = '';
   var callId = '';
@@ -20,28 +23,43 @@
   var micEnabled = true;
   var camEnabled = true;
   var joining = false;
-  var uiState = 'idle'; // idle | waiting | media | ended | error
+  var intentionalLeave = false;
+  var livekitLoadPromise = null;
+  /** idle | waiting | ready | media | reconnect | perm | ended | error */
+  var uiState = 'idle';
+  var lastServerStatus = '';
 
   var $ = function (id) { return document.getElementById(id); };
-
   var els = {
     clinicName: $('clinicName'),
     statusLine: $('statusLine'),
     idlePane: $('idlePane'),
     waitPane: $('waitPane'),
+    readyPane: $('readyPane'),
     mediaPane: $('mediaPane'),
+    permPane: $('permPane'),
+    reconnectPane: $('reconnectPane'),
     endedPane: $('endedPane'),
     errorPane: $('errorPane'),
     waitText: $('waitText'),
     waitMeta: $('waitMeta'),
+    readyMeta: $('readyMeta'),
+    reconnectMeta: $('reconnectMeta'),
     endedText: $('endedText'),
     errorText: $('errorText'),
+    permText: $('permText'),
     mediaHint: $('mediaHint'),
     remoteVideo: $('remoteVideo'),
     localVideo: $('localVideo'),
     btnCall: $('btnCall'),
     btnCancel: $('btnCancel'),
+    btnJoin: $('btnJoin'),
     btnEnd: $('btnEnd'),
+    btnEndFromReady: $('btnEndFromReady'),
+    btnEndFromPerm: $('btnEndFromPerm'),
+    btnEndFromReconnect: $('btnEndFromReconnect'),
+    btnRetryMedia: $('btnRetryMedia'),
+    btnReconnect: $('btnReconnect'),
     btnAgain: $('btnAgain'),
     btnRetry: $('btnRetry'),
     btnClose: $('btnClose'),
@@ -54,13 +72,12 @@
   }
 
   function saveCallState() {
-    if (!siteKey) return;
+    if (!siteKey || !callId) return;
     try {
       sessionStorage.setItem(storageKey('call'), JSON.stringify({
         accessToken: accessToken,
         sessionId: sessionId,
-        callId: callId,
-        expiresHint: Date.now() + 120 * 60 * 1000
+        callId: callId
       }));
     } catch { /* ignore */ }
   }
@@ -72,8 +89,7 @@
   function loadCallState() {
     try {
       var raw = sessionStorage.getItem(storageKey('call'));
-      if (!raw) return null;
-      return JSON.parse(raw);
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
@@ -86,20 +102,30 @@
 
   function showPane(name) {
     uiState = name;
-    els.idlePane.classList.toggle('hidden', name !== 'idle');
-    els.waitPane.classList.toggle('hidden', name !== 'waiting');
-    els.mediaPane.classList.toggle('hidden', name !== 'media');
-    els.endedPane.classList.toggle('hidden', name !== 'ended');
-    els.errorPane.classList.toggle('hidden', name !== 'error');
+    var map = {
+      idle: els.idlePane,
+      waiting: els.waitPane,
+      ready: els.readyPane,
+      media: els.mediaPane,
+      reconnect: els.reconnectPane,
+      perm: els.permPane,
+      ended: els.endedPane,
+      error: els.errorPane
+    };
+    Object.keys(map).forEach(function (k) {
+      if (map[k]) map[k].classList.toggle('hidden', k !== name);
+    });
   }
 
   function setStatus(text) {
     els.statusLine.textContent = text || '';
   }
 
-  function setError(message) {
+  function setHardError(message) {
     stopPoll();
-    disconnectMedia();
+    disconnectMedia({ silent: true });
+    clearCallState();
+    callId = '';
     els.errorText.textContent = message || 'Có lỗi xảy ra.';
     showPane('error');
     setStatus('Lỗi');
@@ -107,20 +133,14 @@
   }
 
   function setAccent(color) {
-    if (!color) return;
-    accent = color;
-    document.documentElement.style.setProperty('--accent', color);
+    if (color) document.documentElement.style.setProperty('--accent', color);
   }
 
   async function api(path, options) {
     options = options || {};
-    var headers = Object.assign({
-      Accept: 'application/json'
-    }, options.headers || {});
+    var headers = Object.assign({ Accept: 'application/json' }, options.headers || {});
     if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
-    if (options.body && !headers['Content-Type']) {
-      headers['Content-Type'] = 'application/json';
-    }
+    if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     var res = await fetch(apiBase + path, {
       method: options.method || 'GET',
       headers: headers,
@@ -187,6 +207,24 @@
     }, 1500);
   }
 
+  function isTerminal(status) {
+    return status === 'Cancelled' || status === 'Rejected' || status === 'Timeout'
+      || status === 'NoAgent' || status === 'Closed' || status === 'Ended';
+  }
+
+  function applyTerminal(status) {
+    intentionalLeave = true;
+    stopPoll();
+    disconnectMedia({ silent: true });
+    clearCallState();
+    callId = '';
+    lastServerStatus = status;
+    els.endedText.textContent = endedMessage(status);
+    showPane('ended');
+    setStatus('Kết thúc');
+    postParent({ type: 'state', state: status });
+  }
+
   async function startCall() {
     els.btnCall.disabled = true;
     try {
@@ -196,12 +234,13 @@
         throw new Error((res.body && res.body.error) || ('Create call failed (' + res.status + ')'));
       }
       callId = res.body.id;
+      lastServerStatus = res.body.status;
       saveCallState();
       showWaiting(res.body);
       startPoll();
       postParent({ type: 'state', state: res.body.status || 'Queued' });
     } catch (err) {
-      setError(err.message || String(err));
+      setHardError(err.message || String(err));
     } finally {
       els.btnCall.disabled = false;
     }
@@ -221,6 +260,13 @@
     els.waitMeta.textContent = wait > 0 ? ('Đã chờ ~' + wait + 's') : 'Vui lòng giữ tab này mở';
   }
 
+  function showReady() {
+    showPane('ready');
+    setStatus('Sẵn sàng tham gia');
+    els.readyMeta.textContent = 'Nhân viên đã Accept — bấm Tham gia khi bạn sẵn sàng.';
+    postParent({ type: 'state', state: 'Accepted' });
+  }
+
   async function refreshCall() {
     if (!callId || !accessToken) return;
     var res = await api('/embed/calls/' + callId);
@@ -230,40 +276,39 @@
       res = await api('/embed/calls/' + callId);
     }
     if (res.status === 404) {
-      clearCallState();
-      callId = '';
-      stopPoll();
-      setError('Cuộc gọi không còn tồn tại (hết hạn hoặc đã dọn).');
+      applyTerminal('Ended');
+      els.endedText.textContent = 'Cuộc gọi không còn tồn tại (hết hạn hoặc đã dọn).';
       return;
     }
     if (!res.ok) return;
 
     var status = res.body.status;
+    lastServerStatus = status;
     postParent({ type: 'state', state: status });
 
     if (status === 'Queued' || status === 'Ringing') {
-      showWaiting(res.body);
+      if (uiState !== 'waiting') showWaiting(res.body);
+      else showWaiting(res.body);
       return;
     }
+
     if (status === 'Accepted') {
-      if (uiState !== 'media' && !joining && !room) {
-        await joinMedia();
-      } else if (uiState === 'media') {
-        // Heartbeat only while connected.
+      // Keep heartbeat. Do NOT auto joinMedia.
+      if (uiState === 'media' && room) {
         setStatus('Đang tư vấn');
+        return;
       }
+      if (uiState === 'reconnect') {
+        els.reconnectMeta.textContent = 'Backend vẫn Accepted — thử nối lại media.';
+        return;
+      }
+      if (uiState === 'perm') return;
+      if (uiState !== 'ready' && uiState !== 'media') showReady();
       return;
     }
-    if (status === 'Cancelled' || status === 'Rejected' || status === 'Timeout' ||
-        status === 'NoAgent' || status === 'Closed' || status === 'Ended') {
-      stopPoll();
-      disconnectMedia();
-      clearCallState();
-      callId = '';
-      els.endedText.textContent = endedMessage(status);
-      showPane('ended');
-      setStatus('Kết thúc');
-      postParent({ type: 'state', state: status });
+
+    if (isTerminal(status)) {
+      applyTerminal(status);
     }
   }
 
@@ -279,20 +324,42 @@
     }
   }
 
+  function loadLivekit() {
+    if (window.LivekitClient && window.LivekitClient.Room) {
+      return Promise.resolve(window.LivekitClient);
+    }
+    if (livekitLoadPromise) return livekitLoadPromise;
+    livekitLoadPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = LIVEKIT_CDN;
+      s.async = true;
+      s.onload = function () {
+        var lk = window.LivekitClient || window.LiveKit || window.livekit;
+        if (lk && lk.Room) resolve(lk);
+        else reject(new Error('LiveKit client failed to initialize.'));
+      };
+      s.onerror = function () {
+        livekitLoadPromise = null;
+        reject(new Error('Không tải được LiveKit SDK.'));
+      };
+      document.head.appendChild(s);
+    });
+    return livekitLoadPromise;
+  }
+
   async function joinMedia() {
     if (joining || room) return;
+    if (!callId) return;
     joining = true;
+    intentionalLeave = false;
     showPane('media');
     setStatus('Đang kết nối');
     els.mediaHint.classList.remove('hidden');
-    els.mediaHint.textContent = 'Đang xin quyền camera / micro…';
+    els.mediaHint.textContent = 'Đang tải media SDK…';
 
     try {
-      // getUserMedia only after Accept (via createLocalTracks).
-      var LivekitClient = window.LivekitClient || window.LiveKit || window.livekit;
-      if (!LivekitClient || !LivekitClient.Room) {
-        throw new Error('LiveKit client failed to load. Check CDN / network.');
-      }
+      var LivekitClient = await loadLivekit();
+      els.mediaHint.textContent = 'Đang xin quyền camera / micro…';
 
       var tok = await api('/embed/calls/' + callId + '/token', { method: 'POST', body: '{}' });
       if (!tok.ok) {
@@ -315,9 +382,7 @@
       });
 
       var localVideoTrack = localTracks.find(function (t) { return t.kind === 'video'; });
-      if (localVideoTrack) {
-        localVideoTrack.attach(els.localVideo);
-      }
+      if (localVideoTrack) localVideoTrack.attach(els.localVideo);
 
       els.mediaHint.textContent = 'Đang vào phòng media…';
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
@@ -337,7 +402,7 @@
         document.body.appendChild(audioEl);
       });
       room.on(LivekitClient.RoomEvent.Disconnected, function () {
-        finishEnded('Ended');
+        onMediaDisconnected();
       });
 
       await room.connect(tok.body.url, tok.body.token);
@@ -348,17 +413,35 @@
       setStatus('Đang tư vấn');
       els.mediaHint.classList.add('hidden');
       postParent({ type: 'state', state: 'Connected' });
-      // Keep polling as in-call heartbeat (VisitorLastSeenAt).
       if (!pollTimer) startPoll();
+      saveCallState();
     } catch (err) {
       console.error(err);
-      setError(err.message || String(err));
+      disconnectMedia({ silent: true });
+      // Keep call Accepted — offer retry / end (permission or join failure).
+      els.permText.textContent = err.message || String(err);
+      showPane('perm');
+      setStatus('Cần camera/mic');
+      if (!pollTimer) startPoll();
     } finally {
       joining = false;
     }
   }
 
-  function disconnectMedia() {
+  function onMediaDisconnected() {
+    if (intentionalLeave) return;
+    room = null;
+    // Do not clear callId — 90s in-call stale / reconnect policy.
+    showPane('reconnect');
+    setStatus('Mất media');
+    els.reconnectMeta.textContent = 'Giữ cuộc gọi, tiếp tục poll backend. Bấm nối lại khi mạng ổn định.';
+    postParent({ type: 'state', state: 'Reconnect' });
+    if (!pollTimer) startPoll();
+  }
+
+  function disconnectMedia(opts) {
+    opts = opts || {};
+    if (!opts.silent) intentionalLeave = true;
     try {
       if (room) room.disconnect();
     } catch { /* ignore */ }
@@ -373,56 +456,86 @@
     } catch { /* ignore */ }
   }
 
+  /**
+   * Cancel only clears local state when backend confirms terminal (Cancelled)
+   * or when still Queued/Ringing response. 409 Accepted → show ready / keep call.
+   */
   async function cancelCall() {
-    stopPoll();
-    if (callId && accessToken) {
-      try {
-        await api('/embed/calls/' + callId + '/cancel', { method: 'POST', body: '{}' });
-      } catch { /* ignore */ }
+    if (!callId) {
+      showPane('idle');
+      return;
     }
-    clearCallState();
-    callId = '';
-    disconnectMedia();
-    els.endedText.textContent = 'Bạn đã hủy cuộc gọi.';
-    showPane('ended');
-    setStatus('Đã hủy');
-    postParent({ type: 'state', state: 'Cancelled' });
+    els.btnCancel.disabled = true;
+    try {
+      var res = await api('/embed/calls/' + callId + '/cancel', { method: 'POST', body: '{}' });
+      if (res.ok && res.body && isTerminal(res.body.status)) {
+        applyTerminal(res.body.status);
+        return;
+      }
+      if (res.status === 409) {
+        // Staff may have Accepted concurrently.
+        lastServerStatus = (res.body && res.body.status) || lastServerStatus;
+        if (lastServerStatus === 'Accepted' || (res.body && res.body.status === 'Accepted')) {
+          showReady();
+          if (!pollTimer) startPoll();
+          els.waitMeta && (els.readyMeta.textContent = 'Không hủy được — nhân viên đã nhận cuộc gọi.');
+          return;
+        }
+        // Re-poll truth
+        await refreshCall();
+        return;
+      }
+      if (!res.ok) {
+        els.waitMeta.textContent = (res.body && res.body.error) || ('Hủy thất bại (' + res.status + ')');
+        return;
+      }
+    } catch (err) {
+      els.waitMeta.textContent = err.message || String(err);
+    } finally {
+      els.btnCancel.disabled = false;
+    }
   }
 
+  /**
+   * End only finishes locally after backend Ended (or already terminal).
+   */
   async function endCall() {
-    stopPoll();
-    disconnectMedia();
-    if (callId && accessToken) {
-      try {
-        await api('/embed/calls/' + callId + '/end', { method: 'POST', body: '{}' });
-      } catch { /* ignore */ }
+    if (!callId) {
+      applyTerminal('Ended');
+      return;
     }
-    finishEnded('Ended');
-  }
-
-  function finishEnded(status) {
-    stopPoll();
-    disconnectMedia();
-    clearCallState();
-    callId = '';
-    els.endedText.textContent = endedMessage(status);
-    showPane('ended');
-    setStatus('Kết thúc');
-    postParent({ type: 'state', state: status });
+    intentionalLeave = true;
+    disconnectMedia({ silent: true });
+    try {
+      var res = await api('/embed/calls/' + callId + '/end', { method: 'POST', body: '{}' });
+      if (res.ok && res.body && isTerminal(res.body.status)) {
+        applyTerminal(res.body.status);
+        return;
+      }
+      if (res.status === 409) {
+        // Not Accepted yet — try cancel path
+        var c = await api('/embed/calls/' + callId + '/cancel', { method: 'POST', body: '{}' });
+        if (c.ok && c.body && isTerminal(c.body.status)) {
+          applyTerminal(c.body.status);
+          return;
+        }
+      }
+      // Keep call; re-sync
+      intentionalLeave = false;
+      if (!pollTimer) startPoll();
+      await refreshCall();
+      els.readyMeta && (els.readyMeta.textContent = (res.body && res.body.error) || 'Kết thúc chưa xác nhận — đang đồng bộ…');
+    } catch (err) {
+      intentionalLeave = false;
+      if (!pollTimer) startPoll();
+      console.warn(err);
+    }
   }
 
   function toggleMic() {
     micEnabled = !micEnabled;
-    localTracks.forEach(function (t) {
-      if (t.kind === 'audio') {
-        try { t.mute = !micEnabled ? true : false; } catch { /* ignore */ }
-        try { if (typeof t.setEnabled === 'function') t.setEnabled(micEnabled); } catch { /* ignore */ }
-      }
-    });
     if (room && room.localParticipant) {
-      try {
-        room.localParticipant.setMicrophoneEnabled(micEnabled);
-      } catch { /* ignore */ }
+      try { room.localParticipant.setMicrophoneEnabled(micEnabled); } catch { /* ignore */ }
     }
     els.btnMic.classList.toggle('off', !micEnabled);
     els.btnMic.textContent = micEnabled ? 'Mic' : 'Mic off';
@@ -431,24 +544,19 @@
   function toggleCam() {
     camEnabled = !camEnabled;
     if (room && room.localParticipant) {
-      try {
-        room.localParticipant.setCameraEnabled(camEnabled);
-      } catch { /* ignore */ }
+      try { room.localParticipant.setCameraEnabled(camEnabled); } catch { /* ignore */ }
     }
-    localTracks.forEach(function (t) {
-      if (t.kind === 'video' && typeof t.setEnabled === 'function') {
-        try { t.setEnabled(camEnabled); } catch { /* ignore */ }
-      }
-    });
     els.btnCam.classList.toggle('off', !camEnabled);
     els.btnCam.textContent = camEnabled ? 'Cam' : 'Cam off';
   }
 
   function resetIdle() {
+    intentionalLeave = true;
     stopPoll();
-    disconnectMedia();
+    disconnectMedia({ silent: true });
     callId = '';
     clearCallState();
+    lastServerStatus = '';
     showPane('idle');
     setStatus('Sẵn sàng');
     postParent({ type: 'state', state: 'Idle' });
@@ -466,10 +574,7 @@
       await refreshCall();
       return true;
     } catch {
-      clearCallState();
-      callId = '';
-      accessToken = saved.accessToken; // keep token if still good
-      showPane('idle');
+      // Keep token; drop call only if poll proves gone (refreshCall handles 404).
       return false;
     }
   }
@@ -477,7 +582,6 @@
   function onParentMessage(event) {
     var data = event.data;
     if (!data || data.ns !== NS) return;
-
     if (data.type === 'init') {
       parentOrigin = event.origin || parentOrigin;
       siteKey = data.siteKey || siteKey;
@@ -486,36 +590,33 @@
       els.clinicName.textContent = clinicName;
       setAccent(data.color);
       if (data.session) applySession(data.session);
-      // Resume after reload if we still own an active call.
       tryResume();
       return;
     }
-    if (data.type === 'session' && data.session) {
-      applySession(data.session);
-    }
+    if (data.type === 'session' && data.session) applySession(data.session);
   }
 
-  // Wire UI
   els.btnCall.addEventListener('click', startCall);
   els.btnCancel.addEventListener('click', cancelCall);
+  els.btnJoin.addEventListener('click', joinMedia);
+  els.btnRetryMedia.addEventListener('click', joinMedia);
+  els.btnReconnect.addEventListener('click', joinMedia);
   els.btnEnd.addEventListener('click', endCall);
+  els.btnEndFromReady.addEventListener('click', endCall);
+  els.btnEndFromPerm.addEventListener('click', endCall);
+  els.btnEndFromReconnect.addEventListener('click', endCall);
   els.btnAgain.addEventListener('click', resetIdle);
   els.btnRetry.addEventListener('click', resetIdle);
-  els.btnClose.addEventListener('click', function () {
-    postParent({ type: 'close' });
-  });
+  els.btnClose.addEventListener('click', function () { postParent({ type: 'close' }); });
   els.btnMic.addEventListener('click', toggleMic);
   els.btnCam.addEventListener('click', toggleCam);
 
   window.addEventListener('message', onParentMessage);
-
-  // Parse siteKey from query for early storage keying.
   try {
     var params = new URLSearchParams(window.location.search);
     siteKey = params.get('siteKey') || siteKey;
   } catch { /* ignore */ }
 
-  // Tell parent we are ready (and compute expected parent origin later from init).
   postParent({ type: 'ready' });
   showPane('idle');
   setStatus('Sẵn sàng');

@@ -5,12 +5,14 @@ namespace LiveKitPoc.Api;
 
 /// <summary>
 /// Simple in-memory sliding window rate limiter for embed bootstrap/calls (PoC).
+/// Buckets older than 2 windows are pruned opportunistically.
 /// </summary>
 public sealed class EmbedRateLimiter
 {
     private readonly ConcurrentDictionary<string, Window> _windows = new(StringComparer.Ordinal);
     private readonly int _maxPerWindow;
     private readonly TimeSpan _window;
+    private int _acquireCount;
 
     public EmbedRateLimiter(IConfiguration configuration)
     {
@@ -23,6 +25,9 @@ public sealed class EmbedRateLimiter
     public bool TryAcquire(string key)
     {
         var now = DateTimeOffset.UtcNow;
+        if (Interlocked.Increment(ref _acquireCount) % 64 == 0)
+            Prune(now);
+
         var bucket = _windows.GetOrAdd(key, _ => new Window());
         lock (bucket.Sync)
         {
@@ -38,23 +43,39 @@ public sealed class EmbedRateLimiter
         }
     }
 
+    private void Prune(DateTimeOffset now)
+    {
+        var staleBefore = now - _window - _window;
+        foreach (var kv in _windows)
+        {
+            lock (kv.Value.Sync)
+            {
+                if (kv.Value.StartedAt < staleBefore && kv.Value.Count == 0)
+                    _windows.TryRemove(kv.Key, out _);
+                else if (kv.Value.StartedAt < staleBefore)
+                    _windows.TryRemove(kv.Key, out _);
+            }
+        }
+    }
+
     /// <summary>
-    /// Client IP from reverse proxy. Trusts X-Forwarded-For / X-Real-IP first hop only (PoC).
+    /// Prefer connection remote IP after ASP.NET Forwarded Headers middleware
+    /// (trusted proxy only). Falls back to X-Real-IP / raw connection.
     /// </summary>
     public static string GetClientIp(HttpContext http)
     {
-        var forwarded = http.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(forwarded))
+        var remote = http.Connection.RemoteIpAddress;
+        if (remote is not null)
         {
-            // Caddy appends; leftmost is original client when Caddy is the only trusted proxy.
-            var first = forwarded.Split(',')[0].Trim();
-            if (IPAddress.TryParse(first, out _))
-                return first;
+            if (remote.IsIPv4MappedToIPv6)
+                remote = remote.MapToIPv4();
+            return remote.ToString();
         }
+        // Fallback if forwarded headers not configured.
         var realIp = http.Request.Headers["X-Real-IP"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(realIp) && IPAddress.TryParse(realIp.Trim(), out _))
             return realIp.Trim();
-        return http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return "unknown";
     }
 
     private sealed class Window

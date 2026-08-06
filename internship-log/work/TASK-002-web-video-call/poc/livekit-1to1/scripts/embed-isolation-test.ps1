@@ -89,11 +89,15 @@ Add-Result "two clinic-a sessions" (
     $sessA1.sessionId -ne $sessA2.sessionId -and $sessA1.clinicId -eq "clinic-a"
 ) "s1=$($sessA1.sessionId) s2=$($sessA2.sessionId)"
 
-# Staff token
-$login = Invoke-Api -Method POST -Path "/api/auth/login" -Body @{ userId = "A1"; password = $DemoPassword }
-Add-Result "staff A1 login" ($login.Status -eq 200) "status=$($login.Status)"
-$staffTok = $login.Json.accessToken
-$null = Invoke-Api -Method POST -Path "/api/agents/ready" -Token $staffTok
+# Staff tokens (any clinic-a agent may be assigned — longest-idle)
+$staffToks = @{}
+foreach ($uid in @("A1", "A2", "A3")) {
+    $login = Invoke-Api -Method POST -Path "/api/auth/login" -Body @{ userId = $uid; password = $DemoPassword }
+    Add-Result "staff $uid login" ($login.Status -eq 200) "status=$($login.Status)"
+    $staffToks[$uid] = $login.Json.accessToken
+    $null = Invoke-Api -Method POST -Path "/api/agents/ready" -Token $staffToks[$uid]
+}
+$staffTok = $staffToks["A1"]
 
 # Staff JWT cannot use embed call API
 $staffOnEmbed = Invoke-Api -Method POST -Path "/embed/calls" -Token $staffTok
@@ -165,8 +169,10 @@ $created = Invoke-Api -Method POST -Path "/embed/calls" -Token $tokHappy
 Add-Result "happy create" ($created.Status -in @(200, 201)) "status=$($created.Status)"
 $happyId = [Guid]$created.Json.id
 
-# Ensure A1 ready and wait for Ringing
-$null = Invoke-Api -Method POST -Path "/api/agents/ready" -Token $staffTok
+# Ensure staff ready and wait for Ringing
+foreach ($uid in @("A1", "A2", "A3")) {
+    $null = Invoke-Api -Method POST -Path "/api/agents/ready" -Token $staffToks[$uid]
+}
 $ringing = $false
 for ($i = 0; $i -lt 20; $i++) {
     $p = Invoke-Api -Method GET -Path "/embed/calls/$happyId" -Token $tokHappy
@@ -177,7 +183,15 @@ for ($i = 0; $i -lt 20; $i++) {
 Add-Result "dispatched to Ringing (or Accepted)" $ringing "last=$($p.Json.status)"
 
 if ($p.Json.status -ne "Accepted") {
-    $acc = Invoke-Api -Method POST -Path "/api/calls/$happyId/accept" -Token $staffTok
+    $acc = $null
+    foreach ($uid in @("A1", "A2", "A3")) {
+        $try = Invoke-Api -Method POST -Path "/api/calls/$happyId/accept" -Token $staffToks[$uid]
+        if ($try.Status -eq 200 -and $try.Json.status -eq "Accepted") {
+            $acc = $try
+            break
+        }
+        if ($null -eq $acc) { $acc = $try }
+    }
     Add-Result "staff accept" ($acc.Status -eq 200 -and $acc.Json.status -eq "Accepted") "status=$($acc.Status) body=$($acc.Body)"
 } else {
     Add-Result "staff accept already done" $true
