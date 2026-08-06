@@ -132,7 +132,18 @@ jobs:
             # shellcheck disable=SC1091
             source .env
             set +a
-            echo "==> Smoke https://${DOMAIN}/api/identities"
-            curl -fsS --retry 8 --retry-delay 3 "https://${DOMAIN}/api/identities" | head -c 500
+            # JWT-required APIs: login first (demo password), then Bearer.
+            echo "==> Smoke login + /api/identities"
+            TOKEN="$(
+              curl -fsS --retry 8 --retry-delay 3 \
+                -X POST "https://${DOMAIN}/api/auth/login" \
+                -H "Content-Type: application/json" \
+                -d '{"userId":"A1","password":"Demo@123"}' \
+                | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])'
+            )"
+            test -n "$TOKEN"
+            curl -fsS --retry 5 --retry-delay 2 \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "https://${DOMAIN}/api/identities" | head -c 500
             echo
             echo "==> Deploy OK"
