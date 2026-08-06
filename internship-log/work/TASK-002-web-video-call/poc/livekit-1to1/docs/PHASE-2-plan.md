@@ -1,9 +1,27 @@
 # Phase 2 plan — Public Embed API + Visitor Widget
 
-**Status:** Plan only (not implemented)  
-**Depends on:** Phase 0 isolation ✅ · Phase 1 agent/queue/dispatch ✅  
+**Status:** Plan approved; **PR-0 + PR-0b implemented** (staff guardrails + atomic transitions). PR-A+ pending.  
+**Depends on:** Phase 0 isolation ✅ · Phase 1 agent/queue/dispatch ✅ · PR-0/0b ✅  
 **Baseline PoC:** `poc/livekit-1to1/`  
 **Backlog source:** [TASK-003-multi-clinic-backlog.md](./TASK-003-multi-clinic-backlog.md) §5  
+**Full execution order:** PR-0 → PR-0b → PR-A → PR-B → PR-C → PR-D → PR-E  
+
+### Five MVP invariants
+
+1. Clinic A never leaks to Clinic B.  
+2. Visitor X never accesses Visitor Y’s call (same clinic).  
+3. One call ≤ one assigned staff.  
+4. One staff ≤ one Ringing/InCall.  
+5. Visitor disappear eventually frees queue/staff capacity.
+
+### PR-0 / PR-0b (done)
+
+| Item | Behavior |
+|------|----------|
+| Staff-only overview | `GET /api/identities|presence|agents|queue`, `POST /api/agents/ready|heartbeat` → **403** for non-staff |
+| SignalR | Staff join `clinic:{id}`; visitors only personal group |
+| Atomic accept/reject/cancel/end | Clinic + call locks; timeout no-ops if already Accepted |
+| End/cancel | Idempotent second call → 200 with terminal status |
 
 ---
 

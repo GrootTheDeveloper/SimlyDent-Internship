@@ -4,8 +4,37 @@ using Microsoft.AspNetCore.SignalR;
 namespace LiveKitPoc.Api;
 
 /// <summary>
+/// Result of an atomic call/agent transition.
+/// </summary>
+public enum CallTransitionKind
+{
+    Ok,
+    Conflict,
+    Forbidden,
+    NotFound
+}
+
+public readonly record struct CallTransitionResult(
+    CallTransitionKind Kind,
+    CallSession? Call,
+    string? Error)
+{
+    public static CallTransitionResult Ok(CallSession call) =>
+        new(CallTransitionKind.Ok, call, null);
+
+    public static CallTransitionResult Conflict(CallSession? call, string error) =>
+        new(CallTransitionKind.Conflict, call, error);
+
+    public static CallTransitionResult Forbidden(string error) =>
+        new(CallTransitionKind.Forbidden, null, error);
+
+    public static CallTransitionResult NotFound() =>
+        new(CallTransitionKind.NotFound, null, null);
+}
+
+/// <summary>
 /// Clinic FIFO queue + longest-idle auto-dispatch (TASK-003 Phase 1).
-/// Selection is always server-side; never trusts client routing indexes.
+/// Accept / timeout / reject / cancel / end are atomic under clinic + call locks.
 /// </summary>
 public sealed class CallDispatcher(
     ConcurrentDictionary<Guid, CallSession> calls,
@@ -27,7 +56,6 @@ public sealed class CallDispatcher(
             int.TryParse(configuration["VISITOR_TIMEOUT_SECONDS"], out var v) ? v : 120,
             30, 3600));
 
-    // Working hours stub: always open for Phase 1 PoC unless explicitly disabled.
     private readonly bool _alwaysOpen =
         !string.Equals(configuration["CLINIC_FORCE_CLOSED"], "1", StringComparison.OrdinalIgnoreCase);
 
@@ -39,10 +67,6 @@ public sealed class CallDispatcher(
 
     public bool IsClinicOpen(string clinicId) => _alwaysOpen;
 
-    /// <summary>
-    /// Enqueue a queue-origin call and attempt immediate dispatch.
-    /// Caller must already be authenticated and clinic-scoped.
-    /// </summary>
     public async Task<CallSession> EnqueueAsync(TestIdentity visitor, CancellationToken ct = default)
     {
         if (visitor.Role != IdentityRoles.Visitor && visitor.Role != IdentityRoles.Staff)
@@ -59,7 +83,8 @@ public sealed class CallDispatcher(
                 CalleeId = "",
                 Origin = CallOrigin.Queue,
                 RoomName = CallSession.BuildRoomName(visitor.ClinicId, closedId),
-                Status = CallStatus.Closed
+                Status = CallStatus.Closed,
+                VisitorLastSeenAt = DateTimeOffset.UtcNow
             };
             calls[closedId] = closed;
             await NotifyCallAsync(closed);
@@ -67,14 +92,18 @@ public sealed class CallDispatcher(
             return closed;
         }
 
-        // One active queue/call per visitor.
+        // One active queue/call per visitor (B1).
         var existing = calls.Values.FirstOrDefault(c =>
             c.BelongsToClinic(visitor.ClinicId)
             && c.Origin == CallOrigin.Queue
             && c.CallerId == visitor.Id
             && c.IsActive);
         if (existing is not null)
+        {
+            lock (existing.SyncRoot)
+                existing.VisitorLastSeenAt = DateTimeOffset.UtcNow;
             return existing;
+        }
 
         var id = Guid.NewGuid();
         var call = new CallSession
@@ -85,7 +114,8 @@ public sealed class CallDispatcher(
             CalleeId = "",
             Origin = CallOrigin.Queue,
             RoomName = CallSession.BuildRoomName(visitor.ClinicId, id),
-            Status = CallStatus.Queued
+            Status = CallStatus.Queued,
+            VisitorLastSeenAt = DateTimeOffset.UtcNow
         };
         calls[id] = call;
 
@@ -95,37 +125,32 @@ public sealed class CallDispatcher(
         return call;
     }
 
-    /// <summary>
-    /// Direct staff→staff: prefer agent lease reserve.
-    /// If staff is busy (Ringing/InCall) → fail.
-    /// If staff offline/Available race → still ring the call (HTTP smoke / offline callee UX)
-    /// without blocking the classic 1:1 path.
-    /// </summary>
     public bool TryAssignDirect(CallSession call, string staffUserId)
     {
-        if (agents.IsBusy(call.ClinicId, staffUserId))
-            return false;
-
-        // Best-effort lease; not required for offline direct ring.
-        agents.TryReserve(call.ClinicId, staffUserId, call.Id);
-
-        lock (call.SyncRoot)
+        lock (ClinicLock(call.ClinicId))
         {
-            call.Status = CallStatus.Ringing;
-            call.CalleeId = staffUserId;
-            call.AssignedStaffId = staffUserId;
-            call.RingingStartedAt = DateTimeOffset.UtcNow;
-            call.UpdatedAt = DateTimeOffset.UtcNow;
-            call.TriedStaffIds.Add(staffUserId);
+            if (agents.IsBusy(call.ClinicId, staffUserId))
+                return false;
+
+            agents.TryReserve(call.ClinicId, staffUserId, call.Id);
+
+            lock (call.SyncRoot)
+            {
+                call.Status = CallStatus.Ringing;
+                call.CalleeId = staffUserId;
+                call.AssignedStaffId = staffUserId;
+                call.RingingStartedAt = DateTimeOffset.UtcNow;
+                call.UpdatedAt = DateTimeOffset.UtcNow;
+                call.TriedStaffIds.Add(staffUserId);
+            }
+            return true;
         }
-        return true;
     }
 
     public async Task TryDispatchClinicAsync(string clinicId, CancellationToken ct = default)
     {
         lock (ClinicLock(clinicId))
         {
-            // Drain: assign each Queued call while Available staff exist.
             while (true)
             {
                 var next = calls.Values
@@ -142,7 +167,6 @@ public sealed class CallDispatcher(
                     if (next.Status != CallStatus.Queued) break;
                     staffId = agents.TryReserveLongestIdle(
                         clinicId, next.Id, next.TriedStaffIds, identities);
-                    // All candidates already tried and free again → reset cycle.
                     if (staffId is null && next.TriedStaffIds.Count > 0)
                     {
                         next.TriedStaffIds.Clear();
@@ -150,7 +174,7 @@ public sealed class CallDispatcher(
                             clinicId, next.Id, next.TriedStaffIds, identities);
                     }
                     if (staffId is null)
-                        break; // no Available staff — remain Queued
+                        break;
 
                     next.Status = CallStatus.Ringing;
                     next.CalleeId = staffId;
@@ -162,7 +186,6 @@ public sealed class CallDispatcher(
             }
         }
 
-        // Notify outside clinic lock.
         foreach (var call in calls.Values.Where(c =>
                      c.BelongsToClinic(clinicId) && c.IsActive))
         {
@@ -172,83 +195,119 @@ public sealed class CallDispatcher(
         await BroadcastAgentsAsync(clinicId);
     }
 
-    public async Task OnAcceptAsync(CallSession call, TestIdentity staff)
+    /// <summary>
+    /// Atomic Accept: clinic lock → call lock → lease. Lost races return Conflict.
+    /// </summary>
+    public async Task<CallTransitionResult> TryAcceptAsync(Guid callId, TestIdentity staff)
     {
-        // force: allows accept after offline direct-ring (no prior lease).
-        if (!agents.TryMarkInCall(call.ClinicId, staff.Id, call.Id, force: true))
-            throw new InvalidOperationException("Staff is busy on another call.");
-        lock (call.SyncRoot)
+        if (!calls.TryGetValue(callId, out var call))
+            return CallTransitionResult.NotFound();
+        if (!call.BelongsToClinic(staff.ClinicId))
+            return CallTransitionResult.NotFound();
+
+        CallTransitionResult result;
+        lock (ClinicLock(call.ClinicId))
         {
-            call.Status = CallStatus.Accepted;
-            call.AcceptedBy = staff.Id;
-            call.AssignedStaffId = staff.Id;
-            call.CalleeId = staff.Id;
-            call.UpdatedAt = DateTimeOffset.UtcNow;
+            lock (call.SyncRoot)
+            {
+                if (call.Status != CallStatus.Ringing)
+                {
+                    // Double accept / race with timeout → Conflict (not silent success).
+                    result = CallTransitionResult.Conflict(
+                        call, $"Call is no longer ringing (status={call.Status}).");
+                }
+                else if (!string.Equals(
+                             call.AssignedStaffId ?? call.CalleeId,
+                             staff.Id,
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    result = CallTransitionResult.Forbidden("Only the assigned staff may accept this call.");
+                }
+                else if (!agents.TryMarkInCall(call.ClinicId, staff.Id, call.Id, force: true))
+                {
+                    result = CallTransitionResult.Conflict(call, "Staff is busy on another call.");
+                }
+                else
+                {
+                    call.Status = CallStatus.Accepted;
+                    call.AcceptedBy = staff.Id;
+                    call.AssignedStaffId = staff.Id;
+                    call.CalleeId = staff.Id;
+                    call.UpdatedAt = DateTimeOffset.UtcNow;
+                    result = CallTransitionResult.Ok(call);
+                }
+            }
         }
-        await NotifyCallAsync(call);
-        await BroadcastAgentsAsync(call.ClinicId);
-        await BroadcastQueueAsync(call.ClinicId);
+
+        if (result.Kind == CallTransitionKind.Ok && result.Call is not null)
+        {
+            await NotifyCallAsync(result.Call);
+            await BroadcastAgentsAsync(result.Call.ClinicId);
+            await BroadcastQueueAsync(result.Call.ClinicId);
+        }
+        return result;
     }
 
     /// <summary>
-    /// Reject / ring-timeout / agent offline while Ringing.
-    /// Direct → terminal Rejected/Cancelled path handled by caller for Rejected.
-    /// Queue → release staff and redispatch or re-queue.
+    /// Atomic release of Ringing (reject / timeout / agent drop).
+    /// No-op if call already left Ringing (e.g. accepted first).
     /// </summary>
     public async Task OnRingingReleasedAsync(
         CallSession call,
         CallStatus terminalIfDirect,
         CancellationToken ct = default)
     {
-        string? staffId;
-        lock (call.SyncRoot)
-        {
-            staffId = call.AssignedStaffId ?? call.CalleeId;
-        }
+        var redispatch = false;
+        var notify = false;
 
-        if (!string.IsNullOrEmpty(staffId))
-            agents.TryRelease(call.ClinicId, staffId, call.Id);
-
-        if (call.Origin == CallOrigin.Direct)
+        lock (ClinicLock(call.ClinicId))
         {
+            string? staffId = null;
             lock (call.SyncRoot)
             {
-                if (call.Status == CallStatus.Ringing)
+                if (call.Status != CallStatus.Ringing)
+                    return; // lost race to Accept/Cancel — do not touch assignment
+
+                staffId = call.AssignedStaffId ?? call.CalleeId;
+
+                if (call.Origin == CallOrigin.Direct)
                 {
                     call.Status = terminalIfDirect;
                     call.AssignedStaffId = null;
                     call.UpdatedAt = DateTimeOffset.UtcNow;
+                    notify = true;
+                }
+                else
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    if (now - call.CreatedAt >= _visitorTimeout)
+                    {
+                        call.Status = CallStatus.Timeout;
+                        call.AssignedStaffId = null;
+                        call.CalleeId = "";
+                        call.UpdatedAt = now;
+                        notify = true;
+                    }
+                    else
+                    {
+                        call.Status = CallStatus.Queued;
+                        call.AssignedStaffId = null;
+                        call.CalleeId = "";
+                        call.RingingStartedAt = null;
+                        call.UpdatedAt = now;
+                        notify = true;
+                        redispatch = true;
+                    }
                 }
             }
-            await NotifyCallAsync(call);
-            await BroadcastAgentsAsync(call.ClinicId);
-            return;
+
+            if (!string.IsNullOrEmpty(staffId))
+                agents.TryRelease(call.ClinicId, staffId, call.Id);
         }
 
-        // Queue: re-queue if still within visitor timeout, else NoAgent/Timeout.
-        var now = DateTimeOffset.UtcNow;
-        lock (call.SyncRoot)
-        {
-            if (call.Status != CallStatus.Ringing) return;
-            if (now - call.CreatedAt >= _visitorTimeout)
-            {
-                call.Status = CallStatus.Timeout;
-                call.AssignedStaffId = null;
-                call.CalleeId = "";
-                call.UpdatedAt = now;
-            }
-            else
-            {
-                call.Status = CallStatus.Queued;
-                call.AssignedStaffId = null;
-                call.CalleeId = "";
-                call.RingingStartedAt = null;
-                call.UpdatedAt = now;
-            }
-        }
-
+        if (!notify) return;
         await NotifyCallAsync(call);
-        if (call.Status == CallStatus.Queued)
+        if (redispatch)
             await TryDispatchClinicAsync(call.ClinicId, ct);
         else
         {
@@ -257,50 +316,119 @@ public sealed class CallDispatcher(
         }
     }
 
-    public async Task OnEndAsync(CallSession call, CancellationToken ct = default)
+    public async Task<CallTransitionResult> TryRejectAsync(Guid callId, TestIdentity staff)
     {
-        string? staffId;
+        if (!calls.TryGetValue(callId, out var call))
+            return CallTransitionResult.NotFound();
+        if (!call.BelongsToClinic(staff.ClinicId))
+            return CallTransitionResult.NotFound();
+
+        lock (ClinicLock(call.ClinicId))
+        {
+            lock (call.SyncRoot)
+            {
+                if (call.Status != CallStatus.Ringing)
+                    return CallTransitionResult.Conflict(call, "Call is no longer ringing.");
+                if (!string.Equals(
+                        call.AssignedStaffId ?? call.CalleeId,
+                        staff.Id,
+                        StringComparison.OrdinalIgnoreCase))
+                    return CallTransitionResult.Forbidden("Only the assigned staff may reject this call.");
+            }
+        }
+
+        // Re-enter via release path (takes locks again) — status still Ringing if we won.
+        await OnRingingReleasedAsync(
+            call,
+            call.Origin == CallOrigin.Direct ? CallStatus.Rejected : CallStatus.Rejected);
+        // If Accept won between checks, OnRingingReleased no-ops; surface current state.
         lock (call.SyncRoot)
         {
-            staffId = call.AssignedStaffId ?? call.CalleeId;
+            if (call.Status == CallStatus.Accepted)
+                return CallTransitionResult.Conflict(call, "Call was accepted concurrently.");
         }
-        if (!string.IsNullOrEmpty(staffId))
-            agents.TryRelease(call.ClinicId, staffId, call.Id);
-
-        await NotifyCallAsync(call);
-        await BroadcastAgentsAsync(call.ClinicId);
-        // Immediately pull queue head for this clinic.
-        await TryDispatchClinicAsync(call.ClinicId, ct);
+        return CallTransitionResult.Ok(call);
     }
 
-    public async Task OnCancelAsync(CallSession call, CancellationToken ct = default)
+    public async Task<CallTransitionResult> TryCancelAsync(Guid callId, TestIdentity actor)
     {
-        string? staffId;
-        lock (call.SyncRoot)
+        if (!calls.TryGetValue(callId, out var call))
+            return CallTransitionResult.NotFound();
+        if (!call.BelongsToClinic(actor.ClinicId) || !call.Contains(actor.Id))
+            return CallTransitionResult.NotFound();
+        if (!string.Equals(call.CallerId, actor.Id, StringComparison.OrdinalIgnoreCase))
+            return CallTransitionResult.Forbidden("Only the caller may cancel.");
+
+        string? staffId = null;
+        lock (ClinicLock(call.ClinicId))
         {
-            staffId = call.AssignedStaffId ?? call.CalleeId;
-            if (call.Status is CallStatus.Queued or CallStatus.Ringing)
+            lock (call.SyncRoot)
             {
+                // Idempotent: already cancelled.
+                if (call.Status == CallStatus.Cancelled)
+                    return CallTransitionResult.Ok(call);
+                if (call.Status is not (CallStatus.Ringing or CallStatus.Queued))
+                    return CallTransitionResult.Conflict(call, $"Cannot cancel in status {call.Status}.");
+
+                staffId = call.AssignedStaffId ?? call.CalleeId;
                 call.Status = CallStatus.Cancelled;
                 call.AssignedStaffId = null;
                 call.UpdatedAt = DateTimeOffset.UtcNow;
             }
+
+            if (!string.IsNullOrEmpty(staffId))
+                agents.TryRelease(call.ClinicId, staffId, call.Id);
         }
-        if (!string.IsNullOrEmpty(staffId))
-            agents.TryRelease(call.ClinicId, staffId, call.Id);
 
         await NotifyCallAsync(call);
         await BroadcastQueueAsync(call.ClinicId);
         await BroadcastAgentsAsync(call.ClinicId);
-        await TryDispatchClinicAsync(call.ClinicId, ct);
+        await TryDispatchClinicAsync(call.ClinicId);
+        return CallTransitionResult.Ok(call);
     }
 
-    /// <summary>Background sweep: ring timeouts, visitor timeouts, stale agents.</summary>
+    /// <summary>
+    /// End Accepted call. Idempotent if already Ended.
+    /// </summary>
+    public async Task<CallTransitionResult> TryEndAsync(Guid callId, TestIdentity actor)
+    {
+        if (!calls.TryGetValue(callId, out var call))
+            return CallTransitionResult.NotFound();
+        if (!call.BelongsToClinic(actor.ClinicId) || !call.Contains(actor.Id))
+            return CallTransitionResult.NotFound();
+
+        string? staffId = null;
+        string? egressId = null;
+        lock (ClinicLock(call.ClinicId))
+        {
+            lock (call.SyncRoot)
+            {
+                if (call.Status == CallStatus.Ended)
+                    return CallTransitionResult.Ok(call);
+                if (call.Status != CallStatus.Accepted)
+                    return CallTransitionResult.Conflict(call, $"Cannot end in status {call.Status}.");
+
+                staffId = call.AssignedStaffId ?? call.CalleeId;
+                call.Status = CallStatus.Ended;
+                call.UpdatedAt = DateTimeOffset.UtcNow;
+                egressId = call.RecordingStatus == "Recording" ? call.RecordingEgressId : null;
+                if (egressId is not null) call.RecordingStatus = "Stopping";
+            }
+
+            if (!string.IsNullOrEmpty(staffId))
+                agents.TryRelease(call.ClinicId, staffId, call.Id);
+        }
+
+        await NotifyCallAsync(call);
+        await BroadcastAgentsAsync(call.ClinicId);
+        await TryDispatchClinicAsync(call.ClinicId);
+        return CallTransitionResult.Ok(call);
+    }
+
     public async Task SweepAsync(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
 
-        // Stale heartbeats → Offline + release.
         foreach (var (clinicId, userId, callId) in agents.SweepStale())
         {
             if (!calls.TryGetValue(callId, out var call)) continue;
@@ -312,22 +440,23 @@ public sealed class CallDispatcher(
         {
             if (ct.IsCancellationRequested) break;
 
-            // Visitor timeout while Queued.
             if (call.Origin == CallOrigin.Queue && call.Status == CallStatus.Queued
                 && now - call.CreatedAt >= _visitorTimeout)
             {
-                lock (call.SyncRoot)
+                lock (ClinicLock(call.ClinicId))
                 {
-                    if (call.Status != CallStatus.Queued) continue;
-                    call.Status = CallStatus.Timeout;
-                    call.UpdatedAt = now;
+                    lock (call.SyncRoot)
+                    {
+                        if (call.Status != CallStatus.Queued) continue;
+                        call.Status = CallStatus.Timeout;
+                        call.UpdatedAt = now;
+                    }
                 }
                 await NotifyCallAsync(call);
                 await BroadcastQueueAsync(call.ClinicId);
                 continue;
             }
 
-            // Ring timeout.
             if (call.Status == CallStatus.Ringing
                 && call.RingingStartedAt is DateTimeOffset started
                 && now - started >= _ringTimeout)

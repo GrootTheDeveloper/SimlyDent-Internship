@@ -247,7 +247,14 @@ if ($qualityJson.report.sampleCount -lt 1 -or $qualityJson.samples.Count -lt 1) 
 $results.Add([PSCustomObject]@{ Test = "Quality telemetry JSON export"; Expected = "report + samples"; Actual = "report + samples"; Result = "PASS" })
 
 Invoke-PocRequest POST "/api/calls/$callId/end" "A1" $null 200 | Out-Null
-Invoke-PocRequest POST "/api/calls/$callId/end" "A1" $null 409 | Out-Null
+# End is retry-safe/idempotent (second end returns 200 with Ended, not 409).
+Invoke-PocRequest POST "/api/calls/$callId/end" "A1" $null 200 | Out-Null
+$results.Add([PSCustomObject]@{
+    Test = "POST /api/calls/{id}/end idempotent"
+    Expected = 200
+    Actual = 200
+    Result = "PASS"
+})
 
 $busyCall = Invoke-PocRequest POST "/api/calls" "A2" @{ calleeId = "A3" } 201
 Invoke-PocRequest POST "/api/calls/$($busyCall.id)/accept" "A3" $null 200 | Out-Null

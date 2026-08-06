@@ -61,6 +61,8 @@ public sealed class CallSession
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? RingingStartedAt { get; set; }
+    /// <summary>Updated by embed poll (Phase 2); also usable for demo queue visitors.</summary>
+    public DateTimeOffset? VisitorLastSeenAt { get; set; }
     public string? AcceptedBy { get; set; }
     /// <summary>Staff already tried for this queue call (avoid immediate re-ring same agent).</summary>
     public HashSet<string> TriedStaffIds { get; } = new(StringComparer.OrdinalIgnoreCase);

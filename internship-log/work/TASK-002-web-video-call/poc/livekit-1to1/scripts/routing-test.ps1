@@ -121,6 +121,18 @@ Add-Result "Presence has agent state" ($states -contains "Available") "states=$(
 $presUserIds = @($pres.Json.users | ForEach-Object { $_.userId })
 Add-Result "Presence staff only (no VA)" (-not ($presUserIds -contains "VA")) "users=$($presUserIds -join ',')"
 
+# PR-0: visitor cannot read clinic overview
+$vaPres = Invoke-Api GET "/api/presence" "VA"
+Add-Result "VA GET /api/presence 403" ($vaPres.Status -eq 403) "status=$($vaPres.Status)"
+$vaAgents = Invoke-Api GET "/api/agents" "VA"
+Add-Result "VA GET /api/agents 403" ($vaAgents.Status -eq 403) "status=$($vaAgents.Status)"
+$vaQueue = Invoke-Api GET "/api/queue" "VA"
+Add-Result "VA GET /api/queue 403" ($vaQueue.Status -eq 403) "status=$($vaQueue.Status)"
+$vaIds = Invoke-Api GET "/api/identities" "VA"
+Add-Result "VA GET /api/identities 403" ($vaIds.Status -eq 403) "status=$($vaIds.Status)"
+$vaReady = Invoke-Api POST "/api/agents/ready" "VA"
+Add-Result "VA POST /api/agents/ready 403" ($vaReady.Status -eq 403) "status=$($vaReady.Status)"
+
 $agents = Invoke-Api GET "/api/agents" "A1"
 Add-Result "GET /api/agents" ($agents.Status -eq 200) "status=$($agents.Status)"
 
@@ -159,6 +171,12 @@ Add-Result "Visitor token before accept 409" ($tokEarly.Status -eq 409) "status=
 
 $acc = Invoke-Api POST "/api/calls/$($call.id)/accept" $assigned
 Add-Result "Assigned accept → Accepted" ($acc.Status -eq 200 -and $acc.Json.status -eq "Accepted") "status=$($acc.Json.status)"
+$acc2 = Invoke-Api POST "/api/calls/$($call.id)/accept" $assigned
+Add-Result "Double accept → 409" ($acc2.Status -eq 409) "status=$($acc2.Status)"
+
+# Cancel already-ended should conflict; cancel while accepted forbidden path uses end
+$cancelAfterAcc = Invoke-Api POST "/api/calls/$($call.id)/cancel" "VA"
+Add-Result "Cancel after Accepted → 409" ($cancelAfterAcc.Status -eq 409) "status=$($cancelAfterAcc.Status)"
 
 $tokVa = Invoke-Api POST "/api/calls/$($call.id)/token" "VA"
 Add-Result "Visitor media token after accept" ($tokVa.Status -eq 200 -and $tokVa.Json.token) "status=$($tokVa.Status)"
@@ -174,6 +192,25 @@ Add-Result "Queue media token exact room" ($payload.video.room -eq $call.roomNam
 
 $end = Invoke-Api POST "/api/calls/$($call.id)/end" $assigned
 Add-Result "End queue call" ($end.Status -eq 200 -and $end.Json.status -eq "Ended") "status=$($end.Json.status)"
+$end2 = Invoke-Api POST "/api/calls/$($call.id)/end" $assigned
+Add-Result "End idempotent second call" ($end2.Status -eq 200 -and $end2.Json.status -eq "Ended") "status=$($end2.Json.status)"
+
+# ---------------------------------------------------------------------------
+# 2b. Accept vs cancel race (best-effort sequential: cancel wins first)
+# ---------------------------------------------------------------------------
+Invoke-Api POST "/api/agents/ready" "A1" | Out-Null
+Invoke-Api POST "/api/agents/ready" "A2" | Out-Null
+$race = Invoke-Api POST "/api/queue/calls" "VA"
+$raceStaff = Get-Assigned $race.Json
+$raceCancel = Invoke-Api POST "/api/calls/$($race.Json.id)/cancel" "VA"
+Add-Result "Race setup cancel" ($raceCancel.Status -eq 200) "status=$($raceCancel.Json.status)"
+$raceAcc = Invoke-Api POST "/api/calls/$($race.Json.id)/accept" $raceStaff
+Add-Result "Accept after cancel → not Accepted" (
+    $raceAcc.Status -in @(403, 404, 409) -or ($raceAcc.Json.status -ne "Accepted")
+) "status=$($raceAcc.Status) bodyStatus=$($raceAcc.Json.status)"
+# cancel idempotent
+$raceCancel2 = Invoke-Api POST "/api/calls/$($race.Json.id)/cancel" "VA"
+Add-Result "Cancel idempotent" ($raceCancel2.Status -eq 200 -and $raceCancel2.Json.status -eq "Cancelled") "status=$($raceCancel2.Json.status)"
 
 # ---------------------------------------------------------------------------
 # 3. One active call per visitor

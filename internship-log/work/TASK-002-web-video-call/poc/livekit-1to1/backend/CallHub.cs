@@ -7,15 +7,14 @@ namespace LiveKitPoc.Api;
 
 /// <summary>
 /// SignalR hub for call invitations, agent presence, and queue overview.
-/// Group membership is derived solely from JWT → IdentityRegistry (server-owned ClinicId).
+/// Staff join clinic-wide groups; visitors only join personal groups (no clinic overview).
 /// </summary>
 [Authorize]
 public sealed class CallHub(
     IdentityRegistry identities,
     AgentRegistry agents,
     CallDispatcher dispatcher,
-    ConcurrentDictionary<Guid, CallSession> calls,
-    IHubContext<CallHub> hubContext) : Hub
+    ConcurrentDictionary<Guid, CallSession> calls) : Hub
 {
     public const string PresenceEvent = "PresenceUpdated";
 
@@ -34,12 +33,14 @@ public sealed class CallHub(
         Context.Items["clinicId"] = identity.ClinicId;
         Context.Items["role"] = identity.Role;
 
+        // Personal group for call invites (caller/callee/assigned).
         await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(identity.ClinicId, identity.Id));
-        await Groups.AddToGroupAsync(Context.ConnectionId, ClinicGroup(identity.ClinicId));
 
         if (identity.Role == IdentityRoles.Staff)
         {
-            // Resume InCall if staff still on an Accepted call (refresh mid-call).
+            // Clinic-wide overview: queue + presence — staff only.
+            await Groups.AddToGroupAsync(Context.ConnectionId, ClinicGroup(identity.ClinicId));
+
             Guid? activeInCall = null;
             foreach (var call in calls.Values)
             {
@@ -55,16 +56,15 @@ public sealed class CallHub(
             await dispatcher.BroadcastAgentsAsync(identity.ClinicId);
             if (activeInCall is null)
                 await dispatcher.TryDispatchClinicAsync(identity.ClinicId);
-        }
-        else
-        {
-            // Clients.Caller is on Hub (this), not IHubContext.
+
+            // Snapshot to this connection (also broadcast to clinic).
             await Clients.Caller.SendAsync(
                 PresenceEvent,
                 agents.SnapshotForClinic(identities, identity.ClinicId));
+            await Clients.Caller.SendAsync("QueueUpdated", dispatcher.QueueSnapshot(identity.ClinicId));
         }
+        // Visitors: no clinic group, no QueueUpdated / clinic PresenceUpdated.
 
-        await Clients.Caller.SendAsync("QueueUpdated", dispatcher.QueueSnapshot(identity.ClinicId));
         await base.OnConnectedAsync();
     }
 

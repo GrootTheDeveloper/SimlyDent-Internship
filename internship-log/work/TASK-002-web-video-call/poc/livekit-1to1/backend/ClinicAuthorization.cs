@@ -78,4 +78,20 @@ public static class ClinicAuthorization
 
     public static bool SameClinic(TestIdentity a, TestIdentity b) =>
         string.Equals(a.ClinicId, b.ClinicId, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsStaff(TestIdentity? user) =>
+        user is not null
+        && string.Equals(user.Role, IdentityRoles.Staff, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Clinic overview endpoints (queue/agents/presence/directory) are staff-only.
+    /// Returns null when OK; otherwise an IResult to return immediately.
+    /// </summary>
+    public static IResult? RequireStaff(TestIdentity? user)
+    {
+        if (user is null) return Results.Unauthorized();
+        if (!IsStaff(user))
+            return Results.Json(new { error = "Staff role required." }, statusCode: 403);
+        return null;
+    }
 }

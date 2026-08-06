@@ -75,9 +75,9 @@ app.MapGet("/api/auth/me", (ClaimsPrincipal principal, IdentityRegistry identiti
 app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry registry) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, registry);
-    if (current is null) return Results.Unauthorized();
-    // Staff directory only (visitors never listed as callees).
-    var peers = registry.DirectoryForClinic(current.ClinicId, includeLoadUsers: false)
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    var peers = registry.DirectoryForClinic(current!.ClinicId, includeLoadUsers: false)
         .Select(ToUserDto);
     return Results.Ok(peers);
 }).RequireAuthorization();
@@ -88,8 +88,9 @@ app.MapGet("/api/presence", (
     AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    return Results.Ok(agents.SnapshotForClinic(identities, current.ClinicId));
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    return Results.Ok(agents.SnapshotForClinic(identities, current!.ClinicId));
 }).RequireAuthorization();
 
 app.MapGet("/api/agents", (
@@ -98,8 +99,9 @@ app.MapGet("/api/agents", (
     AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    return Results.Ok(agents.SnapshotForClinic(identities, current.ClinicId));
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    return Results.Ok(agents.SnapshotForClinic(identities, current!.ClinicId));
 }).RequireAuthorization();
 
 app.MapGet("/api/queue", (
@@ -108,8 +110,9 @@ app.MapGet("/api/queue", (
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    return Results.Ok(dispatcher.QueueSnapshot(current.ClinicId));
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    return Results.Ok(dispatcher.QueueSnapshot(current!.ClinicId));
 }).RequireAuthorization();
 
 app.MapPost("/api/agents/heartbeat", (
@@ -118,10 +121,9 @@ app.MapPost("/api/agents/heartbeat", (
     AgentRegistry agents) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    if (current.Role != IdentityRoles.Staff)
-        return Results.Json(new { error = "Only staff have agent leases." }, statusCode: 403);
-    return Results.Ok(agents.Heartbeat(current.ClinicId, current.Id));
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    return Results.Ok(agents.Heartbeat(current!.ClinicId, current.Id));
 }).RequireAuthorization();
 
 /// <summary>Staff ready for auto-dispatch (SignalR connect also does this).</summary>
@@ -132,10 +134,9 @@ app.MapPost("/api/agents/ready", async (
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
-    if (current is null) return Results.Unauthorized();
-    if (current.Role != IdentityRoles.Staff)
-        return Results.Json(new { error = "Only staff can become Available." }, statusCode: 403);
-    var view = agents.MarkReady(current.ClinicId, current.Id);
+    var denied = ClinicAuthorization.RequireStaff(current);
+    if (denied is not null) return denied;
+    var view = agents.MarkReady(current!.ClinicId, current.Id);
     await dispatcher.BroadcastAgentsAsync(current.ClinicId);
     await dispatcher.TryDispatchClinicAsync(current.ClinicId);
     return Results.Ok(view);
@@ -253,83 +254,61 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    ConcurrentDictionary<Guid, CallSession> calls,
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    if (current.Role != IdentityRoles.Staff)
+    if (!ClinicAuthorization.IsStaff(current))
         return Results.StatusCode(403);
 
-    // Only the currently assigned staff may accept (not every clinic staff).
-    var call = ClinicAuthorization.TryGetClinicCall(calls, id, current);
-    if (call is null) return Results.NotFound();
-    if (!string.Equals(call.AssignedStaffId ?? call.CalleeId, current.Id, StringComparison.OrdinalIgnoreCase))
-        return Results.StatusCode(403);
-
-    lock (call.SyncRoot)
+    var result = await dispatcher.TryAcceptAsync(id, current);
+    return result.Kind switch
     {
-        if (call.Status != CallStatus.Ringing)
-            return Results.Conflict(new { error = "Call is no longer ringing.", status = call.Status.ToString() });
-    }
-
-    try
-    {
-        await dispatcher.OnAcceptAsync(call, current);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.Conflict(new { error = ex.Message });
-    }
-    return Results.Ok(call.ToView());
+        CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
 }).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/reject", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    ConcurrentDictionary<Guid, CallSession> calls,
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.TryGetClinicCall(calls, id, current);
-    if (call is null) return Results.NotFound();
-    if (!string.Equals(call.AssignedStaffId ?? call.CalleeId, current.Id, StringComparison.OrdinalIgnoreCase))
+    if (!ClinicAuthorization.IsStaff(current))
         return Results.StatusCode(403);
 
-    lock (call.SyncRoot)
+    var result = await dispatcher.TryRejectAsync(id, current);
+    return result.Kind switch
     {
-        if (call.Status != CallStatus.Ringing)
-            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
-    }
-
-    await dispatcher.OnRingingReleasedAsync(call, CallStatus.Rejected);
-    return Results.Ok(call.ToView());
+        CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
 }).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/cancel", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    ConcurrentDictionary<Guid, CallSession> calls,
     CallDispatcher dispatcher) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
-    if (call is null) return Results.NotFound();
-    if (call.CallerId != current.Id)
-        return Results.StatusCode(403);
 
-    lock (call.SyncRoot)
+    var result = await dispatcher.TryCancelAsync(id, current);
+    return result.Kind switch
     {
-        if (call.Status is not (CallStatus.Ringing or CallStatus.Queued))
-            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
-    }
-
-    await dispatcher.OnCancelAsync(call);
-    return Results.Ok(call.ToView());
+        CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
+        CallTransitionKind.NotFound => Results.NotFound(),
+        CallTransitionKind.Forbidden => Results.StatusCode(403),
+        _ => Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() })
+    };
 }).RequireAuthorization();
 
 app.MapPost("/api/calls/{id:guid}/end", async (
@@ -343,27 +322,41 @@ app.MapPost("/api/calls/{id:guid}/end", async (
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
-    if (call is null) return Results.NotFound();
 
-    string? egressId;
-    lock (call.SyncRoot)
+    // Capture recording egress under same ownership; transition is atomic in dispatcher.
+    string? egressId = null;
+    string? recordingFile = null;
+    if (calls.TryGetValue(id, out var pre)
+        && pre.BelongsToClinic(current.ClinicId)
+        && pre.Contains(current.Id))
     {
-        if (call.Status != CallStatus.Accepted)
-            return Results.Conflict(new { error = "Invalid call transition.", status = call.Status.ToString() });
-        call.Status = CallStatus.Ended;
-        call.UpdatedAt = DateTimeOffset.UtcNow;
-        egressId = call.RecordingStatus == "Recording" ? call.RecordingEgressId : null;
-        if (egressId is not null) call.RecordingStatus = "Stopping";
+        lock (pre.SyncRoot)
+        {
+            if (pre.Status == CallStatus.Accepted && pre.RecordingStatus == "Recording")
+            {
+                egressId = pre.RecordingEgressId;
+                recordingFile = pre.RecordingFileName;
+            }
+        }
     }
 
-    await dispatcher.OnEndAsync(call, cancellationToken);
+    var result = await dispatcher.TryEndAsync(id, current);
+    if (result.Kind == CallTransitionKind.NotFound) return Results.NotFound();
+    if (result.Kind == CallTransitionKind.Forbidden) return Results.StatusCode(403);
+    if (result.Kind == CallTransitionKind.Conflict)
+        return Results.Conflict(new { error = result.Error, status = result.Call?.Status.ToString() });
 
-    if (egressId is not null)
+    var call = result.Call!;
+    if (egressId is not null && recordingFile is not null)
     {
+        lock (call.SyncRoot)
+        {
+            if (call.RecordingStatus is not ("Stopping" or "Complete" or "Failed"))
+                call.RecordingStatus = "Stopping";
+        }
         try
         {
-            await egress.StopRecordingAsync(egressId, call.RecordingFileName!, cancellationToken);
+            await egress.StopRecordingAsync(egressId, recordingFile, cancellationToken);
             lock (call.SyncRoot) call.RecordingStatus = "Complete";
         }
         catch
