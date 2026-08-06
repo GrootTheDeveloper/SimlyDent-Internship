@@ -1223,8 +1223,45 @@ if (isCallRoute) {
           link.download = `call-${this.callId}-quality.${format}`
           link.click()
           URL.revokeObjectURL(url)
+          return true
         } catch (err) {
           this.error = err.message
+          return false
+        }
+      },
+      /**
+       * Flush telemetry, download CSV report, then hang up.
+       * Use after a timed real-device test so metrics are not lost.
+       */
+      async endCallAndExport() {
+        if (this._endingCall) return
+        try {
+          await this.flushQualityLog()
+          // Prefer CSV for spreadsheets; fall back quietly if no samples yet
+          const ok = await this.downloadQualityLog('csv')
+          if (!ok) {
+            // Still allow hangup; user may export later via API if samples arrive late
+            console.warn('Quality CSV export skipped or failed before hangup')
+          }
+        } catch (e) {
+          console.warn(e)
+        }
+        await this.endCall()
+      },
+      copyCallId() {
+        const id = this.callId || this.call?.id
+        if (!id) return
+        const text = String(id)
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.error = ''
+            // brief non-blocking hint via title swap
+            console.info('Call ID copied:', text)
+          }).catch(() => {
+            window.prompt('Copy Call ID:', text)
+          })
+        } else {
+          window.prompt('Copy Call ID:', text)
         }
       },
       async toggleRecording() {
@@ -1396,7 +1433,11 @@ if (isCallRoute) {
             <div ref="remoteAudio"></div>
 
             <section v-if="showQualityPanel" class="quality-panel" aria-label="Chất lượng cuộc gọi">
-              <div class="quality-panel-title">Chất lượng thực tế</div>
+              <div class="quality-panel-title">Chất lượng thực tế <span class="quality-auto-hint">(tự đo mỗi 2s)</span></div>
+              <p class="quality-call-id" title="Dùng với scripts/export-quality.ps1">
+                Call ID:
+                <button type="button" class="quality-call-id-btn" @click="copyCallId">{{ callId }}</button>
+              </p>
               <dl>
                 <div><dt>Nhận</dt><dd>{{ qualityStats.incomingResolution }} · {{ qualityStats.incomingFps }} fps</dd></div>
                 <div><dt>Tốc độ nhận</dt><dd>{{ qualityStats.incomingBitrateKbps }} kbps</dd></div>
@@ -1408,8 +1449,9 @@ if (isCallRoute) {
                 <div><dt>Giới hạn</dt><dd>{{ qualityStats.qualityLimitationReason }}</dd></div>
               </dl>
               <div class="quality-export-actions">
-                <button @click="downloadQualityLog('json')">Tải JSON</button>
-                <button @click="downloadQualityLog('csv')">Tải CSV</button>
+                <button type="button" class="quality-export-primary" @click="downloadQualityLog('csv')" title="Xuất báo cáo đã ghi trong call">Tải báo cáo CSV</button>
+                <button type="button" @click="downloadQualityLog('json')">JSON</button>
+                <button type="button" class="quality-export-end" @click="endCallAndExport" title="Flush metric, tải CSV, rồi kết thúc">Kết thúc + tải</button>
               </div>
             </section>
 
@@ -1652,10 +1694,15 @@ if (isCallRoute) {
           } else if (call.status === 'Rejected') {
             this.popupState = 'rejected'
           } else if (call.status === 'Cancelled' || call.status === 'Ended') {
-            // Keep toast, but allow selecting users again immediately
+            // Keep toast briefly, but allow selecting users again immediately
             this.popupState = 'ended'
-            // Soft-clear after showing toast — call object kept for peerName in modal
             // selectUser uses isCallActive (terminal statuses are not active)
+            if (this._endedToastTimer) clearTimeout(this._endedToastTimer)
+            this._endedToastTimer = setTimeout(() => {
+              if (this.popupState === 'ended' && !this.isCallActive) {
+                this.clearCallUiState({ showEndedToast: false })
+              }
+            }, 2500)
           }
         })
 

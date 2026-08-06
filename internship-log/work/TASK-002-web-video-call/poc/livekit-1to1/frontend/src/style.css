@@ -1029,6 +1029,43 @@ svg {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.quality-export-actions button.quality-export-primary {
+  grid-column: 1 / -1;
+  background: rgba(24, 119, 242, 0.9);
+  border-color: rgba(24, 119, 242, 1);
+}
+
+.quality-export-actions button.quality-export-end {
+  grid-column: 1 / -1;
+  background: rgba(250, 56, 62, 0.85);
+  border-color: rgba(250, 56, 62, 0.95);
+}
+
+.quality-auto-hint {
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.quality-call-id {
+  margin: 0 0 8px;
+  font-size: 11px;
+  opacity: 0.85;
+  word-break: break-all;
+}
+
+.quality-call-id-btn {
+  display: inline;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #8ab4f8;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 /*
  * Local PiP: no fixed grey box. Wrapper hugs the <video>; border/radius/shadow
  * sit on the frame itself so portrait/landscape never leave empty padding.

@@ -122,8 +122,8 @@ docker compose -f docker-compose.vps.yml logs -f gateway livekit backend
 
 Trình duyệt (hai máy / hai mạng):
 
-1. `https://DOMAIN/?user=A1`
-2. `https://DOMAIN/?user=A2`
+1. `https://DOMAIN/` — đăng nhập A1 (`Demo@123`)
+2. `https://DOMAIN/` — đăng nhập A2 (`Demo@123`)
 3. A1 gọi A2 → chấp nhận → cấp camera/mic  
 
 ## 7. Checklist khi “vào được UI nhưng không có hình/tiếng”
@@ -137,10 +137,10 @@ Trình duyệt (hai máy / hai mạng):
 
 ## 8. Bảo mật PoC (chưa production)
 
-- Auth vẫn là header `X-User-Id` (demo). **Không** để internet mở lâu mà không reverse proxy auth / VPN / IP allowlist nếu có data nhạy cảm.  
-- Đổi `LIVEKIT_API_SECRET` mạnh; không commit `.env`.  
+- Auth API/UI đã dùng **JWT** (login `Demo@123` → Bearer; xem §12). Vẫn là secret/password demo — **không** để internet mở lâu không VPN/IP allowlist/WAF nếu có data nhạy cảm.  
+- Đổi `LIVEKIT_API_SECRET` và `JWT_SECRET` mạnh; không commit `.env`.  
 - Recording chỉ bật khi cần (`--profile recording`).  
-- Production: auth JWT thật, HTTPS HSTS, rate limit, PostgreSQL, TURN secret rotate, backup.
+- Production: IdP/SSO hoặc refresh HttpOnly, HTTPS HSTS, rate limit, PostgreSQL, TURN secret rotate, backup.
 
 ## 9. Lệnh dừng / cập nhật
 
@@ -171,7 +171,7 @@ Local LAN PoC vẫn dùng `scripts/start.ps1` + `docker-compose.yml` như cũ.
 2. **Domain** trỏ A → IP VPS  
 3. Mở port **80, 443, 7881, 3478, 50000–50050/udp**  
 4. Điền `.env` rồi `./scripts/start-vps.sh`  
-5. Hai máy (khác Wi‑Fi/4G) mở `https://DOMAIN/?user=A1` và `A2`
+5. Hai máy (khác Wi‑Fi/4G) mở `https://DOMAIN/`, đăng nhập A1 / A2 (`Demo@123`)
 
 ## 12. Auth thực tế (JWT) + Presence
 

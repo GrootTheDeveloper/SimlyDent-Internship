@@ -1,9 +1,43 @@
 param(
-    [string]$ApiUrl = "http://localhost:5080"
+    [string]$ApiUrl = "http://localhost:5080",
+    [string]$DemoPassword = "Demo@123"
 )
 
 $ErrorActionPreference = "Stop"
 $results = [System.Collections.Generic.List[object]]::new()
+$tokenCache = @{}
+
+function Get-AccessToken {
+    param([string]$UserId)
+
+    if ($tokenCache.ContainsKey($UserId)) {
+        return $tokenCache[$UserId]
+    }
+
+    $loginBody = @{ userId = $UserId; password = $DemoPassword } | ConvertTo-Json -Compress
+    try {
+        $login = Invoke-RestMethod `
+            -Method Post `
+            -Uri "$ApiUrl/api/auth/login" `
+            -ContentType "application/json" `
+            -Body $loginBody
+    }
+    catch {
+        throw "JWT login failed for user '$UserId': $($_.Exception.Message)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($login.accessToken)) {
+        throw "JWT login for '$UserId' returned empty accessToken."
+    }
+
+    $tokenCache[$UserId] = $login.accessToken
+    return $login.accessToken
+}
+
+function Get-AuthHeaders {
+    param([string]$UserId)
+    return @{ Authorization = "Bearer $(Get-AccessToken -UserId $UserId)" }
+}
 
 function Invoke-PocRequest {
     param(
@@ -11,14 +45,17 @@ function Invoke-PocRequest {
         [string]$Path,
         [string]$UserId,
         [object]$Body,
-        [int]$ExpectedStatus
+        [int]$ExpectedStatus,
+        [switch]$NoAuth
     )
 
     $parameters = @{
         Method = $Method
         Uri = "$ApiUrl$Path"
-        Headers = @{ "X-User-Id" = $UserId }
         UseBasicParsing = $true
+    }
+    if (-not $NoAuth) {
+        $parameters.Headers = Get-AuthHeaders -UserId $UserId
     }
     if ($null -ne $Body) {
         $parameters.ContentType = "application/json"
@@ -36,9 +73,11 @@ function Invoke-PocRequest {
         $reader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
         try { $content = $reader.ReadToEnd() } finally { $reader.Dispose() }
     }
+
+    $labelUser = if ($NoAuth) { "anonymous" } else { $UserId }
     $passed = $statusCode -eq $ExpectedStatus
     $results.Add([PSCustomObject]@{
-        Test = "$Method $Path as $UserId"
+        Test = "$Method $Path as $labelUser"
         Expected = $ExpectedStatus
         Actual = $statusCode
         Result = if ($passed) { "PASS" } else { "FAIL" }
@@ -52,6 +91,35 @@ function Invoke-PocRequest {
 
 $health = Invoke-WebRequest -Uri "$ApiUrl/health" -UseBasicParsing
 if ($health.StatusCode -ne 200) { throw "Backend is not healthy." }
+
+# Unauthenticated call must not succeed (JWT required)
+Invoke-PocRequest POST "/api/calls" "A1" @{ calleeId = "A2" } 401 -NoAuth | Out-Null
+
+# Spoofable header alone must not authorize (empty Authorization)
+try {
+    $spoof = Invoke-WebRequest `
+        -Method Post `
+        -Uri "$ApiUrl/api/calls" `
+        -Headers @{ "X-User-Id" = "A1" } `
+        -ContentType "application/json" `
+        -Body '{"calleeId":"A2"}' `
+        -UseBasicParsing
+    $spoofStatus = [int]$spoof.StatusCode
+}
+catch {
+    if ($null -eq $_.Exception.Response) { throw }
+    $spoofStatus = [int]$_.Exception.Response.StatusCode
+}
+$spoofPass = $spoofStatus -eq 401
+$results.Add([PSCustomObject]@{
+    Test = "POST /api/calls with only X-User-Id (no Bearer)"
+    Expected = 401
+    Actual = $spoofStatus
+    Result = if ($spoofPass) { "PASS" } else { "FAIL" }
+})
+if (-not $spoofPass) {
+    throw "Expected spoofed X-User-Id to be rejected with 401, got $spoofStatus"
+}
 
 Invoke-PocRequest POST "/api/calls" "A1" @{ calleeId = "B1" } 403 | Out-Null
 
@@ -74,7 +142,7 @@ $payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payloadT
 if (-not $payload.video.roomJoin -or $payload.video.room -ne $call.roomName -or $payload.sub -ne "tenant-a:A1") {
     throw "LiveKit grants do not match the accepted call."
 }
-$results.Add([PSCustomObject]@{ Test = "JWT room/identity grants"; Expected = "scoped"; Actual = "scoped"; Result = "PASS" })
+$results.Add([PSCustomObject]@{ Test = "LiveKit room/identity grants"; Expected = "scoped"; Actual = "scoped"; Result = "PASS" })
 
 $qualityBatch = @{
     clientSessionId = "smoke-client"
@@ -130,7 +198,7 @@ $results.Add([PSCustomObject]@{ Test = "Quality telemetry summary"; Expected = "
 
 $qualityCsv = Invoke-WebRequest `
     -Uri "$ApiUrl/api/calls/$callId/quality/export?format=csv" `
-    -Headers @{ "X-User-Id" = "A1" } `
+    -Headers (Get-AuthHeaders -UserId "A1") `
     -UseBasicParsing
 if ($qualityCsv.StatusCode -ne 200 -or $qualityCsv.Content -notmatch "incoming" -or $qualityCsv.Content -notmatch "outgoing") {
     throw "Quality CSV export did not contain both media directions."
@@ -153,4 +221,4 @@ Invoke-PocRequest POST "/api/calls/$($busyCall.id)/end" "A2" $null 200 | Out-Nul
 
 $results | Format-Table -AutoSize
 if ($results.Result -contains "FAIL") { exit 1 }
-Write-Host "Smoke test passed: $($results.Count) checks."
+Write-Host "Smoke test passed: $($results.Count) checks (JWT Bearer auth)."

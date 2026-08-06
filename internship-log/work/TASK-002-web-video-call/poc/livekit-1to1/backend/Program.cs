@@ -50,7 +50,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 // ---- Auth (real-world shape: password verify → JWT access token) ----
 app.MapGet("/api/auth/accounts", (IdentityRegistry registry) =>
-    Results.Ok(registry.All.Select(u => new
+    // Login picker: real demo clinics only (not synthetic Lxx load users).
+    Results.Ok(registry.Directory(includeLoadUsers: false).Select(u => new
     {
         u.Id,
         u.TenantId,
@@ -85,7 +86,8 @@ app.MapGet("/api/identities", (ClaimsPrincipal principal, IdentityRegistry regis
     var current = CurrentIdentity(principal, registry);
     if (current is null) return Results.Unauthorized();
     // Same clinic only — production directory is scoped by org/tenant.
-    var peers = registry.All
+    // Synthetic load-test users (Lxx) are omitted so the messenger UI stays clean.
+    var peers = registry.Directory(includeLoadUsers: false)
         .Where(u => string.Equals(u.TenantId, current.TenantId, StringComparison.OrdinalIgnoreCase))
         .Select(u => new AuthUserDto(u.Id, u.TenantId, u.DisplayName));
     return Results.Ok(peers);
@@ -120,12 +122,13 @@ app.MapPost("/api/calls", async (
     var busy = calls.Values.Any(call =>
     {
         if (!call.IsActive) return false;
-        var timeout = call.Status == CallStatus.Ringing ? TimeSpan.FromSeconds(45) : TimeSpan.FromMinutes(2);
-        if (now - call.UpdatedAt > timeout)
+        // Only auto-expire abandoned ringing invites. Accepted media calls stay busy
+        // until hangup (long clinical calls must not be killed by a 2-minute UpdatedAt scan).
+        if (call.Status == CallStatus.Ringing && now - call.UpdatedAt > TimeSpan.FromSeconds(45))
         {
             lock (call.SyncRoot)
             {
-                if (call.IsActive)
+                if (call.Status == CallStatus.Ringing)
                 {
                     call.Status = CallStatus.Ended;
                     call.UpdatedAt = now;
@@ -266,7 +269,12 @@ app.MapPost("/api/calls/{id:guid}/token", (
         if (call.Status != CallStatus.Accepted)
             return Results.Conflict(new { error = "Media token is available only after accept." });
     }
-    var (token, expiresAt) = tokens.CreateJoinToken(current, call.RoomName, TimeSpan.FromMinutes(5));
+    // Long enough for 15–30 min clinical demos; previously 5 min cut media mid-call.
+    var mediaTtlMinutes = int.TryParse(
+        Environment.GetEnvironmentVariable("LIVEKIT_JOIN_TOKEN_MINUTES"), out var ttl)
+        ? Math.Clamp(ttl, 5, 180)
+        : 60;
+    var (token, expiresAt) = tokens.CreateJoinToken(current, call.RoomName, TimeSpan.FromMinutes(mediaTtlMinutes));
     return Results.Ok(new TokenResponse(LiveKitWebSocketUrl(request), token, expiresAt));
 }).RequireAuthorization();
 

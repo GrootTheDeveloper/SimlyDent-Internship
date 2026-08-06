@@ -24,10 +24,37 @@ public sealed class IdentityRegistry
         Add("A2", "tenant-a", "Trần Thu Hà");
         Add("A3", "tenant-a", "Lê Quốc Bảo");
         Add("B1", "tenant-b", "Phạm Ngọc Lan");
+
+        // Synthetic identities for concurrent API/capacity tests (hidden from default directory).
+        // L01..L40 → up to 20 simultaneous 1:1 pairs in tenant-a.
+        var loadCount = 40;
+        if (int.TryParse(Environment.GetEnvironmentVariable("LOAD_TEST_USER_COUNT"), out var configured)
+            && configured >= 0)
+        {
+            loadCount = Math.Min(configured, 200);
+        }
+        for (var i = 1; i <= loadCount; i++)
+        {
+            var id = $"L{i:D2}";
+            Add(id, "tenant-a", $"Load User {i:D2}");
+        }
     }
 
     public IReadOnlyCollection<TestIdentity> All =>
         _users.Values.Select(u => u.Identity).ToArray();
+
+    /// <summary>Clinic directory for UI. Excludes synthetic load-test users (Lxx) by default.</summary>
+    public IReadOnlyCollection<TestIdentity> Directory(bool includeLoadUsers = false) =>
+        _users.Values
+            .Select(u => u.Identity)
+            .Where(u => includeLoadUsers || !IsLoadTestUser(u.Id))
+            .ToArray();
+
+    public static bool IsLoadTestUser(string? id) =>
+        id is not null
+        && id.Length >= 3
+        && (id[0] is 'L' or 'l')
+        && char.IsDigit(id[1]);
 
     public TestIdentity? Find(string? id) =>
         id is not null && _users.TryGetValue(id, out var row) ? row.Identity : null;

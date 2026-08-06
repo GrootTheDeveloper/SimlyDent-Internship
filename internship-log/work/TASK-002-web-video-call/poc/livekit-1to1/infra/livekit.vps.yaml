@@ -25,3 +25,5 @@ room:
   departure_timeout: 20
 logging:
   level: info
+# Scrape from host/ops only; do not expose 6789 on public firewall unless locked down.
+prometheus_port: 6789

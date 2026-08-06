@@ -50,7 +50,7 @@ chmod +x scripts/start-vps.sh
 ```
 
 Cần domain trỏ A-record tới VPS và mở port `80,443,7881,3478,50000-50050/udp`.  
-Hai máy mở `https://DOMAIN/?user=A1` và `https://DOMAIN/?user=A2`.
+Hai máy mở `https://DOMAIN/`, đăng nhập A1 / A2 với mật khẩu demo `Demo@123`.
 
 ## Chạy PoC (local / cùng LAN)
 
@@ -68,12 +68,13 @@ Nếu Docker CLI trên Windows không nhận subcommand `compose`:
 
 Script tự dùng `docker-compose.exe` tại đường dẫn Docker Desktop chuẩn nếu Docker CLI không nhận subcommand `compose`.
 
-Mở hai tab:
+Mở hai tab: `http://localhost:5173/`
 
-- Caller A1: `http://localhost:5173/?user=A1`
-- Callee A2: `http://localhost:5173/?user=A2`
+1. Đăng nhập **A1** và **A2** (mật khẩu demo mọi user: `Demo@123`) — API trả JWT access token, SPA lưu session và gửi `Authorization: Bearer …`.
+2. Cả hai phải hiện **online** (SignalR hub sau login).
+3. Chọn A2 tại tab A1 và bấm **Bắt đầu gọi**. Tab A2 nhận invitation, bấm **Chấp nhận**, cấp quyền camera/microphone, sau đó hai phía join cùng LiveKit room.
 
-Chọn A2 tại tab A1 và bấm **Bắt đầu gọi**. Tab A2 nhận invitation, bấm **Chấp nhận**, cấp quyền camera/microphone, sau đó hai phía join cùng LiveKit room. Các identity A1/A2/A3 thuộc `tenant-a`; B1 thuộc `tenant-b` để kiểm tra isolation.
+Các identity A1/A2/A3 thuộc `tenant-a`; B1 thuộc `tenant-b` để kiểm tra isolation. Không còn giả danh bằng header `X-User-Id`.
 
 Nếu browser không hiện prompt, mở biểu tượng quyền site cạnh thanh địa chỉ, đặt Camera và Microphone thành **Allow**, sau đó reload cả hai tab. UI hiển thị **Đang xin quyền camera và microphone…** trong khi chờ browser trả kết quả và có nút **Thử lại** khi quyền bị từ chối.
 
@@ -156,8 +157,9 @@ CA nội bộ và cổng tải CA không dùng cho production. Môi trường pr
 .\scripts\smoke-test.ps1
 ```
 
-Smoke test kiểm tra:
+Smoke test đăng nhập JWT (`Demo@123`) rồi kiểm tra:
 
+- gọi API không Bearer / chỉ `X-User-Id` bị từ chối (401);
 - A1 không thể tạo call tới B1 khác tenant;
 - B1 không thể đọc metadata call của tenant A;
 - token không được cấp khi call còn `Ringing`;
@@ -175,6 +177,29 @@ Kiểm thử ghi hình end-to-end dùng LiveKit CLI phát video mẫu 720p, sau 
 ```
 
 Script cần `lk` trong `PATH` hoặc truyền đường dẫn bằng `-LiveKitCli`. Bài test không dùng camera/microphone thật.
+
+### Load / capacity (tự động)
+
+```powershell
+.\scripts\run-capacity-suite.ps1
+```
+
+Đo **API concurrent pairs** (JWT create/accept/token/end) và **media rooms** (LiveKit CLI + Prometheus Mbps/loss). Báo cáo: `evidence/capacity-runs/suite-*/SUMMARY.md`.
+
+```powershell
+# Lặp 4 lần để lấy p50/avg (không kết luận từ 1 run)
+.\scripts\run-repeated-media-load.ps1 -Repetitions 4 -ConcurrentRooms "1,3,5"
+```
+
+- Capacity auto: [docs/capacity-load-testing.md](docs/capacity-load-testing.md)  
+- **Test browser thật × 3–4 lần:** [docs/real-world-test-protocol.md](docs/real-world-test-protocol.md)
+
+Trong cuộc gọi thật, mở badge chất lượng → **Tải báo cáo CSV** hoặc **Kết thúc + tải**. Xuất lại từ API:
+
+```powershell
+.\scripts\export-quality.ps1 -CallId "<uuid>" -UserId A1
+.\scripts\aggregate-quality-exports.ps1 -InputDir .\evidence\perf-real\exports
+```
 
 ## Quy tắc state và token
 
@@ -196,7 +221,7 @@ Lệnh này xóa container/network của PoC; source và image build cache vẫn
 
 ## Giới hạn đã biết
 
-- `X-User-Id` mô phỏng principal đã xác thực. Production phải thay bằng authentication middleware và lấy user/tenant từ claims phía server.
+- Auth PoC đã là **JWT access token** (login + `PasswordHasher`, claims user/tenant). Vẫn còn khoảng production: refresh token HttpOnly, rotate `JWT_SECRET`, rate limit, IdP/SSO thật.
 - State lưu trong memory; restart backend làm mất call. Production cần PostgreSQL và optimistic/atomic transition.
 - Cấu hình là single-node; HTTPS qua LAN dùng CA nội bộ và Quick Tunnel chỉ phục vụ demo. Chưa có TLS/domain production, external IP discovery, TURN hay forced-relay evidence.
 - LiveKit quảng bá IP LAN cho media; thiết bị khác mạng có thể mở UI qua tunnel nhưng không được coi là media-qualified.
@@ -204,6 +229,8 @@ Lệnh này xóa container/network của PoC; source và image build cache vẫn
 - Browser media cần kiểm thử thủ công trên hai thiết bị/network; smoke test không tự cấp quyền camera/microphone.
 - Laptop và iPhone đã kết nối cùng phòng và phát media trong mạng Mobile Hotspot; laptop đã nhận video từ iPhone. A/V hai chiều sau bản sửa cần một lần nghiệm thu cuối.
 - Vue 2 đã EOL. `npm audit` ngày 2026-08-05 còn một advisory mức thấp ở Vue 2; bản sửa yêu cầu nâng major lên Vue 3.
-- Ghi hình hiện lưu MP4 trên ổ đĩa host, chưa có object storage, retention job, mã hóa riêng hoặc cơ chế xin chấp thuận của người còn lại.
+- Ghi hình hiện lưu MP4 trên ổ đĩa host, chưa có object storage, retention job, mã hóa riêng hoặc cơ chế xin chấp thuận của người còn lại. Kế hoạch phát triển: [docs/recording-storage-development-plan.md](docs/recording-storage-development-plan.md).
+- Kế hoạch đo hiệu năng cuộc gọi kéo dài (~5 phút) và metric: [docs/performance-test-plan.md](docs/performance-test-plan.md).
+- Inventory nợ kỹ thuật còn lại: [evidence/2026-08-06-residual-debt-inventory.md](evidence/2026-08-06-residual-debt-inventory.md).
 
 Kết quả lần chạy hiện tại nằm tại [evidence/2026-08-05-local-run.md](evidence/2026-08-05-local-run.md).

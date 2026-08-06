@@ -1,7 +1,8 @@
 param(
     [string]$ApiUrl = "http://localhost:5080",
     [string]$LiveKitUrl = "ws://localhost:7880",
-    [string]$LiveKitCli
+    [string]$LiveKitCli,
+    [string]$DemoPassword = "Demo@123"
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,8 +25,23 @@ if (-not (Test-Path -LiteralPath $LiveKitCli)) {
     throw "LiveKit CLI was not found. Install lk or pass -LiveKitCli."
 }
 
-$headersA1 = @{ "X-User-Id" = "A1" }
-$headersA2 = @{ "X-User-Id" = "A2" }
+function Get-AccessToken {
+    param([string]$UserId)
+    $login = Invoke-RestMethod `
+        -Method Post `
+        -Uri "$ApiUrl/api/auth/login" `
+        -ContentType "application/json" `
+        -Body (@{ userId = $UserId; password = $DemoPassword } | ConvertTo-Json -Compress)
+    if ([string]::IsNullOrWhiteSpace($login.accessToken)) {
+        throw "JWT login for '$UserId' returned empty accessToken."
+    }
+    return $login.accessToken
+}
+
+$headersA1 = @{ Authorization = "Bearer $(Get-AccessToken -UserId 'A1')" }
+$headersA2 = @{ Authorization = "Bearer $(Get-AccessToken -UserId 'A2')" }
+$headersB1 = @{ Authorization = "Bearer $(Get-AccessToken -UserId 'B1')" }
+
 $call = Invoke-RestMethod `
     -Method Post `
     -Uri "$ApiUrl/api/calls" `
@@ -84,7 +100,7 @@ try {
     try {
         Invoke-WebRequest `
             -Uri "$ApiUrl/api/calls/$($call.id)/recording/file" `
-            -Headers @{ "X-User-Id" = "B1" } `
+            -Headers $headersB1 `
             -UseBasicParsing | Out-Null
         throw "A cross-tenant user downloaded the recording."
     }
@@ -94,7 +110,7 @@ try {
         }
     }
 
-    Write-Host "Recording E2E passed: $($file.Name), $($file.Length) bytes; cross-tenant download blocked."
+    Write-Host "Recording E2E passed: $($file.Name), $($file.Length) bytes; cross-tenant download blocked (JWT)."
 }
 finally {
     if ($publisher -and -not $publisher.HasExited) {

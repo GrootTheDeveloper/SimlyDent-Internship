@@ -13,3 +13,5 @@ room:
   departure_timeout: 20
 logging:
   level: info
+# Capacity / media-load tests scrape http://localhost:6789/metrics
+prometheus_port: 6789
