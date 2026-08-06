@@ -257,19 +257,21 @@
     var status = (call && call.status) || 'Queued';
     if (status === 'Ringing') {
       els.waitText.textContent = 'Đang gọi nhân viên…';
-      setStatus('Đang reo');
+      setStatus('Đang đổ chuông');
     } else {
-      els.waitText.textContent = 'Đang xếp hàng…';
-      setStatus('Chờ phục vụ');
+      els.waitText.textContent = 'Đang chờ nhân viên…';
+      setStatus('Đang chờ');
     }
     var wait = call && typeof call.waitingSeconds === 'number' ? call.waitingSeconds : 0;
-    els.waitMeta.textContent = wait > 0 ? ('Đã chờ ~' + wait + 's') : 'Vui lòng giữ tab này mở';
+    els.waitMeta.textContent = wait > 0
+      ? ('Đã chờ khoảng ' + wait + ' giây')
+      : 'Vui lòng giữ cửa sổ này mở';
   }
 
   function showReady() {
     showPane('ready');
     setStatus('Sẵn sàng tham gia');
-    els.readyMeta.textContent = 'Nhân viên đã Accept — bấm Tham gia khi bạn sẵn sàng.';
+    els.readyMeta.textContent = 'Nhân viên đã nhận — bấm Tham gia khi bạn sẵn sàng.';
     postParent({ type: 'state', state: 'Accepted' });
   }
 
@@ -283,7 +285,7 @@
     }
     if (res.status === 404) {
       applyTerminal('Ended');
-      els.endedText.textContent = 'Cuộc gọi không còn tồn tại (hết hạn hoặc đã dọn).';
+      els.endedText.textContent = 'Cuộc gọi đã hết hạn hoặc đã kết thúc.';
       return;
     }
     if (!res.ok) return;
@@ -305,7 +307,7 @@
         return;
       }
       if (uiState === 'reconnect') {
-        els.reconnectMeta.textContent = 'Backend vẫn Accepted — thử nối lại media.';
+        els.reconnectMeta.textContent = 'Cuộc gọi vẫn đang mở — thử nối lại hình ảnh / âm thanh.';
         return;
       }
       if (uiState === 'perm') return;
@@ -321,12 +323,12 @@
   function endedMessage(status) {
     switch (status) {
       case 'Cancelled': return 'Bạn đã hủy cuộc gọi.';
-      case 'Rejected': return 'Nhân viên chưa thể nhận. Vui lòng gọi lại sau.';
-      case 'Timeout': return 'Hết thời gian chờ. Vui lòng gọi lại.';
-      case 'NoAgent': return 'Hiện không có nhân viên sẵn sàng.';
-      case 'Closed': return 'Phòng khám đang đóng cửa.';
-      case 'Ended': return 'Cuộc gọi đã kết thúc.';
-      default: return 'Cuộc gọi đã kết thúc (' + status + ').';
+      case 'Rejected': return 'Nhân viên không thể nhận lúc này. Vui lòng gọi lại sau.';
+      case 'Timeout': return 'Hết thời gian chờ. Vui lòng gọi lại sau.';
+      case 'NoAgent': return 'Hiện chưa có nhân viên sẵn sàng. Vui lòng gọi lại sau.';
+      case 'Closed': return 'Phòng khám đang ngoài giờ. Vui lòng gọi lại sau.';
+      case 'Ended': return 'Cuộc gọi đã kết thúc. Cảm ơn bạn.';
+      default: return 'Cuộc gọi đã kết thúc.';
     }
   }
 
@@ -342,11 +344,11 @@
       s.onload = function () {
         var lk = window.LivekitClient || window.LiveKit || window.livekit;
         if (lk && lk.Room) resolve(lk);
-        else reject(new Error('LiveKit client failed to initialize.'));
+        else reject(new Error('Không khởi tạo được kết nối video.'));
       };
       s.onerror = function () {
         livekitLoadPromise = null;
-        reject(new Error('Không tải được LiveKit SDK.'));
+        reject(new Error('Không tải được thành phần video. Kiểm tra mạng và thử lại.'));
       };
       document.head.appendChild(s);
     });
@@ -383,11 +385,11 @@
       els.btnRetryDevices.classList.toggle('hidden', hasLocalVideo && hasLocalAudio);
     }
     if (!hasLocalVideo && !hasLocalAudio) {
-      setDeviceBanner('Không có mic/cam — đang chỉ nhận (receive-only). Bấm Thử mic/cam khi sẵn sàng.');
+      setDeviceBanner('Chưa bật micro/camera — bạn vẫn nghe và xem được. Bấm «Thử lại micro/camera» khi sẵn sàng.');
     } else if (!hasLocalVideo) {
-      setDeviceBanner('Không có camera — dùng ảnh khách. Mic ' + (hasLocalAudio ? 'đã bật' : 'tắt') + '.');
+      setDeviceBanner('Chưa bật camera — đang dùng ảnh đại diện. Micro ' + (hasLocalAudio ? 'đang bật' : 'đang tắt') + '.');
     } else if (!hasLocalAudio) {
-      setDeviceBanner('Không có mic — chỉ gửi hình. Bấm Thử mic/cam để xin lại.');
+      setDeviceBanner('Chưa bật micro — chỉ gửi hình. Bấm «Thử lại micro/camera» để xin lại quyền.');
     } else {
       setDeviceBanner('');
     }
@@ -451,7 +453,7 @@
       var acquired = await acquireLocalTracks(LivekitClient);
       var next = acquired.tracks || [];
       if (!next.length) {
-        setDeviceBanner('Vẫn chưa lấy được mic/cam. Kiểm tra quyền trình duyệt rồi thử lại.');
+        setDeviceBanner('Vẫn chưa bật được micro/camera. Kiểm tra quyền trình duyệt rồi thử lại.');
         return;
       }
 
@@ -477,7 +479,7 @@
       setStatus('Đang tư vấn');
     } catch (err) {
       console.warn(err);
-      setDeviceBanner(err.message || 'Thử lại thiết bị thất bại.');
+      setDeviceBanner(err.message || 'Không bật lại được micro/camera. Vui lòng thử lại.');
     } finally {
       retryingDevices = false;
       if (els.btnRetryDevices) els.btnRetryDevices.disabled = false;
@@ -496,23 +498,23 @@
     showPane('media');
     setStatus('Đang kết nối');
     els.mediaHint.classList.remove('hidden');
-    els.mediaHint.textContent = 'Đang tải media SDK…';
+    els.mediaHint.textContent = 'Đang chuẩn bị…';
     setDeviceBanner('');
 
     try {
       var LivekitClient = await loadLivekit();
-      els.mediaHint.textContent = 'Đang xin quyền thiết bị (camera tùy chọn)…';
+      els.mediaHint.textContent = 'Đang xin quyền micro / camera (camera không bắt buộc)…';
 
       var tok = await api('/embed/calls/' + callId + '/token', { method: 'POST', body: '{}' });
       if (!tok.ok) {
-        throw new Error((tok.body && tok.body.error) || ('Token failed (' + tok.status + ')'));
+        throw new Error((tok.body && tok.body.error) || ('Không lấy được quyền vào cuộc gọi (' + tok.status + ')'));
       }
 
       var acquired = await acquireLocalTracks(LivekitClient);
       localTracks = acquired.tracks || [];
       updateLocalPreview();
 
-      els.mediaHint.textContent = 'Đang vào phòng media…';
+      els.mediaHint.textContent = 'Đang vào cuộc gọi…';
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
       room.on(LivekitClient.RoomEvent.TrackSubscribed, function (track) {
         var kind = track.kind;
@@ -567,7 +569,7 @@
     // Do not clear callId — 90s in-call stale / reconnect policy.
     showPane('reconnect');
     setStatus('Mất media');
-    els.reconnectMeta.textContent = 'Giữ cuộc gọi, tiếp tục poll backend. Bấm nối lại khi mạng ổn định.';
+    els.reconnectMeta.textContent = 'Cuộc gọi vẫn được giữ. Bấm nối lại khi mạng ổn định.';
     postParent({ type: 'state', state: 'Reconnect' });
     if (!pollTimer) startPoll();
   }
@@ -611,7 +613,7 @@
         if (lastServerStatus === 'Accepted' || (res.body && res.body.status === 'Accepted')) {
           showReady();
           if (!pollTimer) startPoll();
-          els.waitMeta && (els.readyMeta.textContent = 'Không hủy được — nhân viên đã nhận cuộc gọi.');
+          els.waitMeta && (els.readyMeta.textContent = 'Không hủy được — nhân viên đã nhận. Hãy tham gia hoặc kết thúc.');
           return;
         }
         // Re-poll truth
@@ -619,7 +621,7 @@
         return;
       }
       if (!res.ok) {
-        els.waitMeta.textContent = (res.body && res.body.error) || ('Hủy thất bại (' + res.status + ')');
+        els.waitMeta.textContent = (res.body && res.body.error) || 'Không hủy được. Vui lòng thử lại.';
         return;
       }
     } catch (err) {
@@ -671,7 +673,7 @@
       try { room.localParticipant.setMicrophoneEnabled(micEnabled); } catch { /* ignore */ }
     }
     els.btnMic.classList.toggle('off', !micEnabled);
-    els.btnMic.textContent = micEnabled ? 'Mic' : 'Mic off';
+    els.btnMic.textContent = micEnabled ? 'Micro' : 'Tắt micro';
   }
 
   function toggleCam() {
@@ -680,7 +682,7 @@
       try { room.localParticipant.setCameraEnabled(camEnabled); } catch { /* ignore */ }
     }
     els.btnCam.classList.toggle('off', !camEnabled);
-    els.btnCam.textContent = camEnabled ? 'Cam' : 'Cam off';
+    els.btnCam.textContent = camEnabled ? 'Camera' : 'Tắt camera';
   }
 
   function resetIdle() {

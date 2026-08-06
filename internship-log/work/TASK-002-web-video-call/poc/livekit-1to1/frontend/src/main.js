@@ -109,12 +109,29 @@ function agentBadgeClass(state) {
   return 'agent-badge agent-badge--offline'
 }
 
+/** Staff status for doctors / consultants (never raw English enums). */
 function agentBadgeLabel(state) {
   const s = String(state || 'Offline')
-  if (s === 'Available') return 'Available'
-  if (s === 'Ringing') return 'Ringing'
-  if (s === 'InCall') return 'InCall'
-  return 'Offline'
+  if (s === 'Available') return 'Sẵn sàng'
+  if (s === 'Ringing') return 'Đang đổ chuông'
+  if (s === 'InCall') return 'Đang tư vấn'
+  return 'Ngoại tuyến'
+}
+
+/** Call lifecycle status for staff UI. */
+function callStatusVi(status) {
+  switch (status) {
+    case 'Queued': return 'Đang chờ'
+    case 'Ringing': return 'Đang đổ chuông'
+    case 'Accepted': return 'Đang tư vấn'
+    case 'Rejected': return 'Đã từ chối'
+    case 'Cancelled': return 'Đã hủy'
+    case 'Ended': return 'Đã kết thúc'
+    case 'Timeout': return 'Hết thời gian chờ'
+    case 'NoAgent': return 'Chưa có nhân viên nhận'
+    case 'Closed': return 'Phòng khám đang đóng'
+    default: return status || '—'
+  }
 }
 
 function formatQueueLabel(item) {
@@ -124,16 +141,31 @@ function formatQueueLabel(item) {
 }
 
 function queueStatusVi(status) {
-  if (status === 'Queued') return 'Đang xếp hàng'
-  if (status === 'Ringing') return 'Đang reo'
-  return status || '—'
+  return callStatusVi(status)
+}
+
+function clinicDisplayName(clinicId) {
+  if (!clinicId) return 'Phòng khám'
+  if (clinicId === 'clinic-a') return 'Phòng khám A'
+  if (clinicId === 'clinic-b') return 'Phòng khám B'
+  return String(clinicId).replace(/^clinic-/i, 'Phòng khám ')
+}
+
+function roleDisplayName(role) {
+  if (!role || role === 'Staff') return 'Nhân viên tư vấn'
+  if (role === 'Visitor') return 'Khách'
+  if (role === 'Admin' || role === 'Manager') return 'Quản lý'
+  return role
 }
 
 function formatWaitSeconds(seconds) {
   const n = Number(seconds)
   if (!Number.isFinite(n) || n < 0) return '—'
-  if (n < 60) return `~${Math.floor(n)}s`
-  return `~${Math.floor(n / 60)}m`
+  if (n < 60) return `khoảng ${Math.floor(n)} giây`
+  const m = Math.floor(n / 60)
+  const s = Math.floor(n % 60)
+  if (s === 0) return `khoảng ${m} phút`
+  return `khoảng ${m} phút ${s} giây`
 }
 
 async function apiFetch(path, options = {}) {
@@ -898,19 +930,23 @@ if (isCallRoute) {
         return this.mediaPermissionState === 'connected' && !this.remoteVideoConnected
       },
       remotePlaceholderText() {
-        if (this.isEmbedPeer) return 'Khách không bật camera'
-        return 'Người còn lại chưa bật camera'
+        if (this.isEmbedPeer) return 'Khách đang tắt camera'
+        return 'Đối phương đang tắt camera'
       },
       mediaSetupLabel() {
-        if (this.mediaPermissionState === 'requesting') return 'Đang xin quyền camera và microphone…'
-        if (this.mediaPermissionState === 'connecting') return 'Đang kết nối vào phòng media…'
-        if (this.mediaPermissionState === 'error') return this.error || 'Không thể kết nối media'
+        if (this.mediaPermissionState === 'requesting') return 'Đang xin quyền camera và micro…'
+        if (this.mediaPermissionState === 'connecting') return 'Đang kết nối video…'
+        if (this.mediaPermissionState === 'error') return this.error || 'Không kết nối được hình ảnh / âm thanh'
         if (this.mediaPermissionState === 'connected' && !this.remoteVideoConnected) {
           return this.isEmbedPeer
-            ? 'Khách không bật camera (audio / placeholder).'
-            : 'Người còn lại chưa bật camera.'
+            ? 'Khách đang tắt camera (vẫn nghe được tiếng).'
+            : 'Đối phương đang tắt camera.'
         }
-        return 'Đang chuẩn bị thiết bị…'
+        return 'Đang chuẩn bị camera và micro…'
+      },
+      callStatusLabel() {
+        if (!this.call) return 'Đang tải…'
+        return callStatusVi(this.call.status)
       },
       qualityBadge() {
         const resolution = this.qualityStats.incomingResolution
@@ -1518,24 +1554,24 @@ if (isCallRoute) {
             <div class="call-header-avatar" :title="peerId">{{ peerAvatar }}</div>
             <div>
               <div class="call-header-title">{{ peerName }}</div>
-              <div class="call-header-status">{{ call ? call.status : 'Đang tải...' }}</div>
+              <div class="call-header-status">{{ callStatusLabel }}</div>
             </div>
           </div>
           <div class="call-header-actions">
-            <span v-if="isRecording" class="recording-indicator"><span></span> Đang ghi</span>
-            <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng đường truyền">{{ qualityBadge }}</button>
-            <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật âm thanh</button>
+            <span v-if="isRecording" class="recording-indicator"><span></span> Đang ghi hình</span>
+            <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng hình ảnh">{{ qualityBadge }}</button>
+            <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật tiếng</button>
           </div>
         </header>
 
         <main class="call-window-body">
           <!-- Connecting / Waiting State -->
           <div v-if="!call || call.status !== 'Accepted'" class="call-connecting-state">
-            <div class="pulse-ring-avatar" :title="peerId">{{ peerAvatar }}</div>
+            <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h2>{{ peerName }}</h2>
-            <p v-if="call && call.status === 'Ringing'">{{ call.callerId === userId ? 'Đang đổ chuông...' : 'Đang nhận cuộc gọi...' }}</p>
-            <p v-else-if="call">{{ call.status }}</p>
-            <p v-else>Đang kết nối tới máy chủ...</p>
+            <p v-if="call && call.status === 'Ringing'">{{ call.callerId === userId ? 'Đang đổ chuông…' : 'Cuộc gọi đến — vui lòng chờ…' }}</p>
+            <p v-else-if="call">{{ callStatusLabel }}</p>
+            <p v-else>Đang kết nối…</p>
           </div>
 
           <!-- Video Grid inside Call Window -->
@@ -1561,44 +1597,43 @@ if (isCallRoute) {
             <div class="local-video-container" ref="localMedia"></div>
             <div ref="remoteAudio"></div>
 
-            <section v-if="showQualityPanel" class="quality-panel" aria-label="Chất lượng cuộc gọi">
-              <div class="quality-panel-title">Chất lượng thực tế <span class="quality-auto-hint">(tự đo mỗi 2s)</span></div>
-              <p class="quality-call-id" title="Dùng với scripts/export-quality.ps1">
-                Call ID:
+            <section v-if="showQualityPanel" class="quality-panel" aria-label="Chất lượng hình ảnh">
+              <div class="quality-panel-title">Chất lượng hình ảnh <span class="quality-auto-hint">(tự cập nhật)</span></div>
+              <p class="quality-call-id" title="Mã cuộc gọi (hỗ trợ kỹ thuật)">
+                Mã cuộc gọi:
                 <button type="button" class="quality-call-id-btn" @click="copyCallId">{{ callId }}</button>
               </p>
               <dl>
-                <div><dt>Nhận</dt><dd>{{ qualityStats.incomingResolution }} · {{ qualityStats.incomingFps }} fps</dd></div>
+                <div><dt>Hình nhận</dt><dd>{{ qualityStats.incomingResolution }} · {{ qualityStats.incomingFps }} khung/giây</dd></div>
                 <div><dt>Tốc độ nhận</dt><dd>{{ qualityStats.incomingBitrateKbps }} kbps</dd></div>
-                <div><dt>Gửi</dt><dd>{{ qualityStats.outgoingResolution }} · {{ qualityStats.outgoingFps }} fps</dd></div>
+                <div><dt>Hình gửi</dt><dd>{{ qualityStats.outgoingResolution }} · {{ qualityStats.outgoingFps }} khung/giây</dd></div>
                 <div><dt>Tốc độ gửi</dt><dd>{{ qualityStats.outgoingBitrateKbps }} kbps</dd></div>
-                <div><dt>Mất gói</dt><dd>{{ qualityStats.packetLossPercent }}%</dd></div>
+                <div><dt>Mất tín hiệu</dt><dd>{{ qualityStats.packetLossPercent }}%</dd></div>
                 <div><dt>Độ trễ</dt><dd>{{ qualityStats.roundTripTimeMs }} ms</dd></div>
-                <div><dt>Codec</dt><dd>{{ qualityStats.codec }}</dd></div>
-                <div><dt>Giới hạn</dt><dd>{{ qualityStats.qualityLimitationReason }}</dd></div>
+                <div><dt>Định dạng</dt><dd>{{ qualityStats.codec }}</dd></div>
+                <div><dt>Hạn chế mạng</dt><dd>{{ qualityStats.qualityLimitationReason }}</dd></div>
               </dl>
               <div class="quality-export-actions">
-                <button type="button" class="quality-export-primary" @click="downloadQualityLog('csv')" title="Xuất báo cáo đã ghi trong call">Tải báo cáo CSV</button>
-                <button type="button" @click="downloadQualityLog('json')">JSON</button>
-                <button type="button" class="quality-export-end" @click="endCallAndExport" title="Flush metric, tải CSV, rồi kết thúc">Kết thúc + tải</button>
+                <button type="button" class="quality-export-primary" @click="downloadQualityLog('csv')" title="Tải báo cáo chất lượng">Tải báo cáo</button>
+                <button type="button" class="quality-export-end" @click="endCallAndExport" title="Tải báo cáo rồi kết thúc">Kết thúc và tải</button>
               </div>
             </section>
 
             <div class="call-window-controls">
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !microphoneEnabled && 'off']" @click="toggleMicrophone" :title="microphoneEnabled ? 'Tắt Mic' : 'Bật Mic'">
+              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !microphoneEnabled && 'off']" @click="toggleMicrophone" :title="microphoneEnabled ? 'Tắt micro' : 'Bật micro'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
               </button>
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !cameraEnabled && 'off']" @click="toggleCamera" :title="cameraEnabled ? 'Tắt Cam' : 'Bật Cam'">
+              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !cameraEnabled && 'off']" @click="toggleCamera" :title="cameraEnabled ? 'Tắt camera' : 'Bật camera'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi hình' : 'Bắt đầu ghi hình'">
                 <span class="record-dot"></span>
               </button>
-              <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải file ghi hình">
+              <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi hình">
                 <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
               </button>
               <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="joinRoom">
-                Thử lại
+                Thử kết nối lại
               </button>
               <button class="ctrl-btn danger" @click="endCall" title="Kết thúc cuộc gọi">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 6 6l2-2a2 2 0 0 1 2-.48c.68.23 1.37.39 2.08.48A2 2 0 0 1 24 19.3V22a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 4.55 6.73 2 2 0 0 1 6.53 4.55h2.7a2 2 0 0 1 2 1.72c.09.71.25 1.4.48 2.08a2 2 0 0 1-.47 2zM23 1 1 23"/></svg>
@@ -1974,7 +2009,10 @@ if (isCallRoute) {
       },
       formatQueueLabel,
       queueStatusVi,
+      callStatusVi,
       formatWaitSeconds,
+      clinicDisplayName,
+      roleDisplayName,
       isQueueAssignedToMe(item) {
         if (!item || !this.identityId) return false
         return String(item.assignedStaffId || '').toLowerCase() === this.identityId.toLowerCase()
@@ -2026,10 +2064,16 @@ if (isCallRoute) {
         return this.sameClinic(item)
       },
       contactStatusLabel(item) {
-        if (!this.sameClinic(item)) return 'Phòng khám / clinic khác'
+        if (!this.sameClinic(item)) return 'Phòng khám khác'
         const state = this.agentStateMap[item.id]
         if (state && state !== 'Offline') return agentBadgeLabel(state)
-        return this.isUserOnline(item.id) ? 'Available' : 'Offline'
+        return this.isUserOnline(item.id) ? 'Sẵn sàng' : 'Ngoại tuyến'
+      },
+      clinicLabel(clinicId) {
+        return clinicDisplayName(clinicId)
+      },
+      roleLabel(role) {
+        return roleDisplayName(role)
       },
       async startCall(targetId) {
         if (this.isVisitor) {
@@ -2040,12 +2084,12 @@ if (isCallRoute) {
         const peer = this.identities.find(i => i.id === targetId)
         if (!peer) return
         if (!this.sameClinic(peer)) {
-          this.popupErrorMessage = 'Không thể gọi user thuộc phòng khám / clinic khác.'
+          this.popupErrorMessage = 'Chỉ gọi được đồng nghiệp cùng phòng khám.'
           this.popupState = 'error'
           return
         }
         if (!this.isUserOnline(targetId)) {
-          this.popupErrorMessage = 'User đang offline (chưa mở app / mất kết nối realtime). Chỉ gọi được khi họ online.'
+          this.popupErrorMessage = 'Đồng nghiệp này đang ngoại tuyến. Vui lòng gọi khi họ đã đăng nhập.'
           this.popupState = 'error'
           return
         }
@@ -2116,7 +2160,7 @@ if (isCallRoute) {
           if (!res.ok) {
             if (popupWin) popupWin.close()
             const errData = await res.json().catch(() => ({}))
-            this.popupErrorMessage = errData.error || 'Không thể chấp nhận cuộc gọi'
+            this.popupErrorMessage = errData.error || 'Không nhận được cuộc gọi. Có thể đã được chuyển cho người khác.'
             this.popupState = 'error'
             return
           }
@@ -2199,10 +2243,10 @@ if (isCallRoute) {
           <div class="login-card">
             <div class="login-brand">
               <div class="login-logo">S</div>
-              <h1>SimlyDent Call</h1>
+              <h1>SimlyDent</h1>
             </div>
-            <p>Đăng nhập bằng tài khoản phòng khám (JWT session)</p>
-            <p style="font-size: 12px; color: #65676b; margin: -12px 0 16px;">Mật khẩu demo mọi user: <strong>Demo@123</strong></p>
+            <p class="login-lead">Cổng tư vấn video cho bác sĩ &amp; chuyên viên</p>
+            <p class="login-hint">Bản demo — mật khẩu: <strong>Demo@123</strong></p>
             <div class="demo-account-list">
               <button
                 v-for="user in loginAccounts"
@@ -2215,26 +2259,25 @@ if (isCallRoute) {
                 <div class="account-avatar">{{ user.id }}</div>
                 <div class="account-info">
                   <span class="account-name">{{ user.displayName }}</span>
-                  <span class="account-id">ID: {{ user.id }} · Clinic: {{ user.clinicId || user.tenantId }} · {{ user.role || 'Staff' }}</span>
+                  <span class="account-id">{{ clinicLabel(user.clinicId || user.tenantId) }} · {{ roleLabel(user.role) }}</span>
                 </div>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
               </button>
             </div>
-            <div style="margin-top: 16px; text-align: left;">
-              <label style="font-size: 12px; color: #65676b; display: block; margin-bottom: 6px;">Mật khẩu</label>
+            <div class="login-password-field">
+              <label for="login-password">Mật khẩu</label>
               <input
+                id="login-password"
                 v-model="loginPassword"
                 type="password"
                 autocomplete="current-password"
-                style="width: 100%; padding: 10px 12px; border: 1px solid #e4e6eb; border-radius: 10px; font-size: 14px; box-sizing: border-box;"
                 @keyup.enter="submitLogin"
               />
             </div>
-            <p v-if="loginError" style="color: #fa383e; font-size: 13px; margin: 12px 0 0;">{{ loginError }}</p>
+            <p v-if="loginError" class="login-error">{{ loginError }}</p>
             <button
               type="button"
-              class="start-call-btn"
-              style="width: 100%; margin-top: 16px; justify-content: center;"
+              class="start-call-btn login-submit"
               :disabled="loginBusy || !loginUserId"
               @click="submitLogin"
             >
@@ -2245,24 +2288,16 @@ if (isCallRoute) {
 
         <!-- MAIN APP (3 COLUMNS) -->
         <main v-else class="app-shell">
-          <!-- LEFT COLUMN: Contact / People Sidebar -->
+          <!-- LEFT: colleagues -->
           <aside class="sidebar">
             <header class="sidebar-header">
-              <h1>Đoạn chat</h1>
-              <div class="header-actions">
-                <button class="action-circle-btn" title="Menu">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                </button>
-                <button class="action-circle-btn" title="Tạo mới">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-              </div>
+              <h1>Đồng nghiệp</h1>
             </header>
 
             <div class="search-container">
               <div class="search-input-wrapper">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input v-model="searchQuery" type="search" placeholder="Tìm kiếm trên SimlyDent" />
+                <input v-model="searchQuery" type="search" placeholder="Tìm đồng nghiệp…" />
               </div>
             </div>
 
@@ -2288,8 +2323,8 @@ if (isCallRoute) {
                   </div>
                 </div>
               </div>
-              <p v-if="!visibleContacts.length" style="padding: 16px; color: #65676b; font-size: 13px;">
-                Không có đồng nghiệp cùng phòng khám trong danh sách demo.
+              <p v-if="!visibleContacts.length" class="empty-list-hint">
+                Chưa có đồng nghiệp cùng phòng khám.
               </p>
             </div>
 
@@ -2297,16 +2332,16 @@ if (isCallRoute) {
               <div class="current-user-info">
                 <div class="current-user-avatar">{{ currentUser.id }}</div>
                 <div>
-                  <strong style="font-size: 14px; display: block;">{{ currentUser.displayName }}</strong>
-                  <span style="font-size: 11px; color: #65676b; display: block;">ID: {{ currentUser.id }}</span>
-                  <span v-if="!isVisitor" :class="selfAgentBadgeClass" style="margin-top: 4px;">Bạn: {{ selfAgentBadgeLabel }}</span>
+                  <strong class="current-user-name">{{ currentUser.displayName }}</strong>
+                  <span class="current-user-meta">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }}</span>
+                  <span v-if="!isVisitor" :class="[selfAgentBadgeClass, 'self-status-badge']">{{ selfAgentBadgeLabel }}</span>
                 </div>
               </div>
               <button class="logout-btn" @click="logout">Đăng xuất</button>
             </footer>
           </aside>
 
-          <!-- MIDDLE COLUMN: Conversation Main Stage -->
+          <!-- MIDDLE -->
           <section class="main-stage">
             <header class="main-header" v-if="selectedIdentity">
               <div class="target-info">
@@ -2333,38 +2368,35 @@ if (isCallRoute) {
             </header>
 
             <div class="main-body">
-              <!-- Active window status banner -->
               <div v-if="popupState === 'active_window'" class="active-window-banner">
-                <span>🎥 Cuộc gọi đang diễn ra trong cửa sổ riêng</span>
-                <button @click="reopenCallWindow">Mở lại cửa sổ</button>
+                <span>Cuộc gọi đang mở ở cửa sổ riêng</span>
+                <button @click="reopenCallWindow">Mở lại</button>
               </div>
 
-              <!-- Visitor queue entry (Phase 1 demo VA) -->
               <div v-if="isVisitor" class="idle-placeholder">
                 <div class="hero-avatar-large">VA</div>
-                <h2 style="margin: 0; font-size: 22px;">Gọi phòng khám</h2>
-                <p style="margin: 0; color: #65676b; font-size: 14px;">
-                  Vào hàng đợi clinic — backend tự gán staff Available (longest-idle)
+                <h2 class="idle-title">Gọi phòng khám</h2>
+                <p class="idle-desc">
+                  Bạn sẽ vào danh sách chờ. Nhân viên rảnh sẽ được mời nhận cuộc gọi.
                 </p>
-                <p v-if="queueItems.length" style="margin: 8px 0 0; color: #65676b; font-size: 13px;">
-                  Queue: {{ queueItems.length }} call(s)
+                <p v-if="queueItems.length" class="idle-meta">
+                  Đang có {{ queueItems.length }} yêu cầu trong hàng chờ
                 </p>
                 <button class="start-call-btn" :disabled="isCallActive" @click="startQueueCall">
-                  <span>{{ isCallActive ? ('Đang ' + (call && call.status)) : 'Bắt đầu gọi (queue)' }}</span>
+                  <span>{{ isCallActive ? ('Đang ' + callStatusVi(call && call.status)) : 'Bắt đầu gọi tư vấn' }}</span>
                 </button>
               </div>
 
-              <!-- Idle Placeholder (staff direct call) -->
               <div v-else-if="selectedIdentity" class="idle-placeholder">
                 <div class="hero-avatar-large">{{ selectedIdentity.id }}</div>
-                <h2 style="margin: 0; font-size: 22px;">{{ selectedIdentity.displayName }}</h2>
+                <h2 class="idle-title">{{ selectedIdentity.displayName }}</h2>
                 <p class="queue-hint">
-                  Gọi trực tiếp 1:1 · Agent:
+                  Trạng thái:
                   <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
                 </p>
                 <p class="queue-hint">
-                  Khách website hiện ở <strong>Hàng đợi</strong> (góc dưới trái).
-                  Chỉ Accept khi được gán (popup reo).
+                  Khách từ website nằm ở <strong>Khách chờ</strong> (góc dưới trái).
+                  Khi có cuộc gọi dành cho bạn, hệ thống sẽ hiện cửa sổ <strong>Nhận cuộc gọi</strong>.
                 </p>
                 <button
                   class="start-call-btn"
@@ -2372,66 +2404,35 @@ if (isCallRoute) {
                   @click="startCall(selectedIdentity.id)"
                 >
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-                  <span>Bắt đầu cuộc gọi video</span>
+                  <span>Gọi video với đồng nghiệp</span>
                 </button>
+              </div>
+
+              <div v-else class="idle-placeholder">
+                <div class="hero-avatar-large hero-logo">S</div>
+                <h2 class="idle-title">Chào mừng đến SimlyDent</h2>
+                <p class="idle-desc">Chọn đồng nghiệp bên trái để gọi, hoặc mở <strong>Khách chờ</strong> để nhận khách từ website.</p>
               </div>
             </div>
           </section>
 
-          <!-- RIGHT COLUMN: Messenger Details Sidebar -->
+          <!-- RIGHT: peer info (simplified for clinical use) -->
           <aside class="right-sidebar" v-if="selectedIdentity">
             <div class="profile-section">
               <div class="right-profile-avatar">{{ selectedIdentity.id }}</div>
               <div class="right-profile-name">{{ selectedIdentity.displayName }}</div>
-              <div class="encryption-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span>Được mã hóa đầu cuối</span>
+              <div class="peer-status-block">
+                <span :class="agentBadgeClassFor(selectedIdentity.id)">{{ agentBadgeLabelFor(selectedIdentity.id) }}</span>
               </div>
-
-              <div class="action-buttons-group">
-                <div class="icon-action-item">
-                  <div class="icon-action-circle">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                  <span>Trang cá n...</span>
-                </div>
-                <div class="icon-action-item">
-                  <div class="icon-action-circle">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                  </div>
-                  <span>Tắt thông báo</span>
-                </div>
-                <div class="icon-action-item">
-                  <div class="icon-action-circle">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                  </div>
-                  <span>Tìm kiếm</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="accordion-section">
-              <div class="accordion-item">
-                <span>Thông tin về đoạn chat</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
-              <div class="accordion-item">
-                <span>Tùy chỉnh đoạn chat</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
-              <div class="accordion-item">
-                <span>File phương tiện và file</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
-              <div class="accordion-item">
-                <span>Quyền riêng tư và hỗ trợ</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
+              <p class="peer-clinic-line">{{ clinicLabel(selectedIdentity.clinicId || selectedIdentity.tenantId) }}</p>
+              <p class="peer-help-text">
+                Gọi video nội bộ giữa nhân viên cùng phòng khám. Khách website được xử lý qua hàng chờ.
+              </p>
             </div>
           </aside>
         </main>
 
-        <!-- PR-D: Staff queue dock — bottom-left, collapsed by default -->
+        <!-- Staff queue dock -->
         <div v-if="!isVisitor" class="queue-dock" :class="{ open: queuePanelOpen }">
           <button
             type="button"
@@ -2441,22 +2442,22 @@ if (isCallRoute) {
             @click="queuePanelOpen = !queuePanelOpen"
           >
             <span class="queue-dock-icon" aria-hidden="true">📋</span>
-            <span class="queue-dock-label">Hàng đợi</span>
+            <span class="queue-dock-label">Khách chờ</span>
             <span class="queue-dock-badge" :class="{ hot: queueItems.length > 0 }">{{ queueItems.length }}</span>
-            <span v-if="queueMineCount > 0" class="queue-dock-mine">{{ queueMineCount }} gán bạn</span>
+            <span v-if="queueMineCount > 0" class="queue-dock-mine">{{ queueMineCount }} của bạn</span>
             <span class="queue-dock-chevron">{{ queuePanelOpen ? '▾' : '▴' }}</span>
           </button>
           <div
             v-show="queuePanelOpen"
             id="queue-dock-panel"
             class="queue-panel queue-panel--dock"
-            aria-label="Hàng đợi tư vấn"
+            aria-label="Khách đang chờ tư vấn"
           >
             <div class="queue-panel-header">
-              <span class="queue-panel-title">Hàng đợi tư vấn</span>
+              <span class="queue-panel-title">Khách đang chờ tư vấn</span>
               <button type="button" class="queue-panel-close" @click="queuePanelOpen = false" aria-label="Thu gọn">✕</button>
             </div>
-            <div v-if="!queueItems.length" class="queue-empty">Không có khách trong hàng đợi.</div>
+            <div v-if="!queueItems.length" class="queue-empty">Hiện không có khách chờ.</div>
             <div v-else class="queue-panel-list">
               <div v-for="item in queueItems" :key="item.id" class="queue-row">
                 <div class="queue-row-avatar">
@@ -2466,63 +2467,59 @@ if (isCallRoute) {
                   <div class="queue-row-name">{{ formatQueueLabel(item) }}</div>
                   <div class="queue-row-meta">
                     {{ queueStatusVi(item.status) }}
-                    · chờ {{ formatWaitSeconds(item.waitingSeconds) }}
-                    · {{ item.assignedStaffId ? ('gán ' + item.assignedStaffId) : 'Chưa gán' }}
+                    · đã chờ {{ formatWaitSeconds(item.waitingSeconds) }}
+                    · {{ item.assignedStaffId ? ('phụ trách: ' + item.assignedStaffId) : 'Chưa phân công' }}
                   </div>
                 </div>
                 <div class="queue-row-tags">
                   <span
                     :class="['queue-tag', item.status === 'Ringing' ? 'queue-tag--ringing' : 'queue-tag--queued']"
-                  >{{ item.status }}</span>
-                  <span v-if="isQueueAssignedToMe(item)" class="queue-tag queue-tag--mine">Gán cho bạn</span>
+                  >{{ queueStatusVi(item.status) }}</span>
+                  <span v-if="isQueueAssignedToMe(item)" class="queue-tag queue-tag--mine">Của bạn</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- POPUPS ON MAIN PAGE -->
-        <!-- 1. Incoming Call Popup -->
+        <!-- POPUPS -->
         <div v-if="popupState === 'incoming'" class="modal-backdrop">
           <div class="call-popup-card">
-            <div class="pulse-ring-avatar" :title="peerIdentity?.id">{{ peerAvatar }}</div>
+            <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách website đang gọi tư vấn — call được gán cho bạn.' : 'đang gọi video cho bạn...' }}</p>
+            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách từ website đang chờ tư vấn — cuộc gọi dành cho bạn.' : 'Đang gọi video cho bạn…' }}</p>
             <div class="popup-action-buttons">
               <button class="popup-btn danger" @click="rejectCall">Từ chối</button>
-              <button class="popup-btn success" @click="acceptCall">Chấp nhận</button>
+              <button class="popup-btn success" @click="acceptCall">Nhận cuộc gọi</button>
             </div>
           </div>
         </div>
 
-        <!-- 2. Outgoing Call Ringing Popup -->
         <div v-if="popupState === 'ringing'" class="modal-backdrop">
           <div class="call-popup-card">
-            <div class="pulse-ring-avatar" :title="peerIdentity?.id">{{ peerAvatar }}</div>
+            <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">Đang đổ chuông...</p>
+            <p class="popup-subtitle">Đang đổ chuông…</p>
             <div class="popup-action-buttons">
               <button class="popup-btn danger" @click="cancelCall">Hủy cuộc gọi</button>
             </div>
           </div>
         </div>
 
-        <!-- 3. Popup Blocked Alert -->
         <div v-if="popupState === 'popup_blocked'" class="modal-backdrop">
           <div class="call-popup-card">
             <h3 class="popup-title">Trình duyệt đã chặn cửa sổ gọi</h3>
-            <p class="popup-subtitle">Vui lòng bấm nút bên dưới để mở cửa sổ cuộc gọi video.</p>
+            <p class="popup-subtitle">Vui lòng bấm nút bên dưới để mở cửa sổ video.</p>
             <div class="popup-action-buttons">
               <button class="popup-btn primary" @click="reopenCallWindow">Mở cuộc gọi</button>
-              <button class="popup-btn secondary" @click="closePopup">Hủy</button>
+              <button class="popup-btn secondary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
 
-        <!-- 4. Rejected Alert -->
         <div v-if="popupState === 'rejected'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title">Bị từ chối</h3>
+            <h3 class="popup-title">Cuộc gọi bị từ chối</h3>
             <p class="popup-subtitle">{{ peerName }} đã từ chối cuộc gọi.</p>
             <div class="popup-action-buttons">
               <button class="popup-btn primary" @click="closePopup">Đóng</button>
@@ -2530,35 +2527,32 @@ if (isCallRoute) {
           </div>
         </div>
 
-        <!-- 5. Busy Alert -->
         <div v-if="popupState === 'busy'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title">Người nhận bận</h3>
-            <p class="popup-subtitle">Người dùng này đang trong một cuộc gọi khác.</p>
+            <h3 class="popup-title">Đồng nghiệp đang bận</h3>
+            <p class="popup-subtitle">Người này đang trong cuộc gọi khác. Vui lòng thử lại sau.</p>
             <div class="popup-action-buttons">
               <button class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
 
-        <!-- 6. Ended Alert -->
         <div v-if="popupState === 'ended'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title">Đã kết thúc</h3>
-            <p class="popup-subtitle">Cuộc gọi video đã kết thúc.</p>
+            <h3 class="popup-title">Cuộc gọi đã kết thúc</h3>
+            <p class="popup-subtitle">Cảm ơn bạn. Có thể nhận khách mới từ hàng chờ.</p>
             <div class="popup-action-buttons">
               <button class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>
 
-        <!-- 7. Error Alert -->
         <div v-if="popupState === 'error'" class="modal-backdrop">
           <div class="call-popup-card">
-            <h3 class="popup-title" style="color: var(--color-danger);">Có lỗi xảy ra</h3>
+            <h3 class="popup-title" style="color: var(--color-danger);">Không thực hiện được</h3>
             <p class="popup-subtitle">{{ popupErrorMessage }}</p>
             <div class="popup-action-buttons">
-              <button class="popup-btn primary" @click="closePopup">Thử lại</button>
+              <button class="popup-btn primary" @click="closePopup">Đóng</button>
             </div>
           </div>
         </div>

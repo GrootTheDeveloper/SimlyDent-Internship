@@ -108,6 +108,131 @@ svg {
   color: var(--color-text-secondary);
 }
 
+.login-lead {
+  margin: 0 0 8px !important;
+  font-size: 15px !important;
+  color: var(--color-text) !important;
+  font-weight: 500;
+}
+
+.login-hint {
+  margin: 0 0 20px !important;
+  font-size: 13px !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.login-password-field {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.login-password-field label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.login-password-field input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-password-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.15);
+}
+
+.login-error {
+  color: var(--color-danger) !important;
+  font-size: 13px !important;
+  margin: 12px 0 0 !important;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.idle-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.idle-desc {
+  margin: 8px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 360px;
+  text-align: center;
+}
+
+.idle-meta {
+  margin: 8px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.empty-list-hint {
+  padding: 16px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.current-user-name {
+  font-size: 14px;
+  display: block;
+}
+
+.current-user-meta {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-top: 2px;
+}
+
+.self-status-badge {
+  margin-top: 6px;
+}
+
+.hero-logo {
+  background: linear-gradient(135deg, #0084ff, #a033ff) !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+
+.peer-status-block {
+  margin: 10px 0 6px;
+}
+
+.peer-clinic-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.peer-help-text {
+  margin: 14px 16px 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
 .demo-account-list {
   display: flex;
   flex-direction: column;

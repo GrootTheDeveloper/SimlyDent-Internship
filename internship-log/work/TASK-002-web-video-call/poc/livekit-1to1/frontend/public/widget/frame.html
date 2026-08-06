@@ -18,21 +18,20 @@
 
     <main class="main">
       <div id="idlePane" class="pane">
-        <p class="lead">Bấm gọi để xếp hàng. Sau khi nhân viên nhận, bạn bấm Tham gia — camera không bắt buộc.</p>
+        <p class="lead">Bấm <strong>Gọi tư vấn</strong> để được nhân viên phòng khám hỗ trợ. Camera không bắt buộc.</p>
         <button type="button" id="btnCall" class="primary">Gọi tư vấn</button>
       </div>
 
       <div id="waitPane" class="pane hidden">
         <div class="spinner" aria-hidden="true"></div>
-        <p id="waitText" class="lead">Đang xếp hàng…</p>
+        <p id="waitText" class="lead">Đang chờ nhân viên…</p>
         <p id="waitMeta" class="meta"></p>
         <button type="button" id="btnCancel" class="secondary">Hủy cuộc gọi</button>
       </div>
 
-      <!-- Staff Accepted — visitor confirms Join (cam optional) -->
       <div id="readyPane" class="pane hidden">
-        <p class="lead">Nhân viên đã sẵn sàng. Bấm Tham gia — camera không bắt buộc (có thể chỉ mic / nhận hình).</p>
-        <p id="readyMeta" class="meta">Chưa xin quyền thiết bị.</p>
+        <p class="lead">Nhân viên đã sẵn sàng. Bấm <strong>Tham gia</strong> — có thể chỉ bật micro, không cần camera.</p>
+        <p id="readyMeta" class="meta">Chưa bật camera / micro.</p>
         <button type="button" id="btnJoin" class="primary">Tham gia cuộc gọi</button>
         <button type="button" id="btnEndFromReady" class="secondary">Kết thúc</button>
       </div>
@@ -42,29 +41,27 @@
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="localVideo" autoplay playsinline muted></video>
           <img id="localSample" class="local-sample hidden" src="/assets/guest-avatar.svg" alt="Không có camera" />
-          <div id="mediaHint" class="media-hint">Đang kết nối media…</div>
+          <div id="mediaHint" class="media-hint">Đang kết nối…</div>
           <div id="deviceBanner" class="device-banner hidden"></div>
         </div>
         <div class="controls">
-          <button type="button" id="btnMic" class="ctl">Mic</button>
-          <button type="button" id="btnCam" class="ctl">Cam</button>
-          <button type="button" id="btnRetryDevices" class="ctl hidden">Thử mic/cam</button>
+          <button type="button" id="btnMic" class="ctl">Micro</button>
+          <button type="button" id="btnCam" class="ctl">Camera</button>
+          <button type="button" id="btnRetryDevices" class="ctl hidden">Thử lại micro/camera</button>
           <button type="button" id="btnEnd" class="ctl danger">Kết thúc</button>
         </div>
       </div>
 
-      <!-- Hard join failure only (token/network) — call still Accepted -->
       <div id="permPane" class="pane hidden">
-        <p id="permText" class="lead error">Không vào được phòng media.</p>
-        <p class="meta">Cuộc gọi vẫn Accepted. Thử lại join hoặc kết thúc.</p>
-        <button type="button" id="btnRetryMedia" class="primary">Thử join lại</button>
+        <p id="permText" class="lead error">Chưa kết nối được hình ảnh / âm thanh.</p>
+        <p class="meta">Cuộc gọi vẫn đang mở. Bạn có thể thử lại hoặc kết thúc.</p>
+        <button type="button" id="btnRetryMedia" class="primary">Thử kết nối lại</button>
         <button type="button" id="btnEndFromPerm" class="secondary">Kết thúc cuộc gọi</button>
       </div>
 
-      <!-- Transient media disconnect — still polling backend -->
       <div id="reconnectPane" class="pane hidden">
         <div class="spinner" aria-hidden="true"></div>
-        <p class="lead">Mất kết nối media. Đang giữ cuộc gọi và thử nối lại…</p>
+        <p class="lead">Mất kết nối. Đang giữ cuộc gọi và thử nối lại…</p>
         <p id="reconnectMeta" class="meta"></p>
         <button type="button" id="btnReconnect" class="primary">Thử nối lại ngay</button>
         <button type="button" id="btnEndFromReconnect" class="secondary">Kết thúc</button>
@@ -76,13 +73,12 @@
       </div>
 
       <div id="errorPane" class="pane hidden">
-        <p id="errorText" class="lead error">Có lỗi xảy ra.</p>
+        <p id="errorText" class="lead error">Có lỗi xảy ra. Vui lòng thử lại.</p>
         <button type="button" id="btnRetry" class="primary">Thử lại</button>
       </div>
     </main>
   </div>
 
-  <!-- LiveKit loaded lazily on Join — not at page open -->
   <script src="./frame.js"></script>
 </body>
 </html>
