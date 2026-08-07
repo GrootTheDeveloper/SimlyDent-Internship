@@ -253,20 +253,35 @@ body { overflow: hidden; }
   width: 100%;
   height: 100%;
 }
+/* Local PiP: JS sizes to stream aspect (is-portrait / is-landscape). No fixed 3:4 crop. */
 #localVideo,
 .local-pip {
   position: absolute;
   right: 12px;
   bottom: 72px;
-  width: 28%;
-  max-width: 120px;
-  aspect-ratio: 3/4;
+  width: auto;
+  height: auto;
+  max-width: min(168px, 46vw);
+  max-height: min(168px, 34vh);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: rgba(0, 0, 0, 0.22) 0 8px 20px;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
   background: #1d1d1f;
   z-index: 15;
+  display: block;
+  line-height: 0;
+}
+#localVideo.is-landscape,
+.local-pip.is-landscape {
+  max-width: min(168px, 46vw);
+  max-height: min(100px, 22vh);
+}
+#localVideo.is-portrait,
+.local-pip.is-portrait {
+  max-width: min(110px, 28vw);
+  max-height: min(168px, 34vh);
 }
 #localVideo.hidden,
 .local-pip.hidden { display: none !important; }

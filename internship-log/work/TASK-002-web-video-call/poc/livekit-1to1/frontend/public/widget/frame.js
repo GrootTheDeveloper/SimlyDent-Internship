@@ -230,7 +230,7 @@
     if (uiState === 'media' && els.statusLine) {
       // keep status from setStatus; kind is on voice stage
     }
-    // Local PiP
+    // Local PiP — size from stream aspect (landscape vs portrait), not fixed 3:4
     if (els.localVideo) {
       if (hasLocalVideo && localTrack) {
         try {
@@ -238,14 +238,17 @@
           els.localVideo.muted = true;
           els.localVideo.playsInline = true;
           els.localVideo.autoplay = true;
+          els.localVideo.setAttribute('playsinline', '');
           els.localVideo.classList.remove('hidden');
           els.localVideo.play().catch(function () { /* ignore */ });
+          fitLocalPipPreview(els.localVideo);
         } catch (eAtt) {
           console.warn('[embed] attach local preview failed', eAtt);
         }
       } else {
         try { els.localVideo.srcObject = null; } catch (eC) { /* ignore */ }
         els.localVideo.classList.add('hidden');
+        els.localVideo.classList.remove('is-portrait', 'is-landscape');
       }
     }
     if (els.localSample) els.localSample.classList.add('hidden');
@@ -253,6 +256,37 @@
     if (els.btnToAudio) els.btnToAudio.classList.add('hidden');
     if (els.btnCam) els.btnCam.classList.remove('hidden');
     syncCamButton();
+  }
+
+  /**
+   * Fit visitor local PiP to actual camera aspect (same behavior as staff call-window).
+   */
+  function fitLocalPipPreview(videoEl) {
+    if (!videoEl) return;
+    var mp = mediaP();
+    if (mp && mp.applyLocalPipFit) {
+      mp.applyLocalPipFit(videoEl);
+      return;
+    }
+    // Minimal fallback if media-primitives not loaded
+    var layout = function () {
+      var vw = videoEl.videoWidth || 0;
+      var vh = videoEl.videoHeight || 0;
+      videoEl.classList.remove('is-portrait', 'is-landscape');
+      if (vw > 0 && vh > 0) {
+        videoEl.classList.add(vh > vw ? 'is-portrait' : 'is-landscape');
+        var maxW = vh > vw ? 110 : 168;
+        var maxH = vh > vw ? 168 : 100;
+        var scale = Math.min(maxW / vw, maxH / vh);
+        videoEl.style.width = Math.round(vw * scale) + 'px';
+        videoEl.style.height = Math.round(vh * scale) + 'px';
+        videoEl.style.objectFit = 'contain';
+        videoEl.style.aspectRatio = 'auto';
+      }
+    };
+    layout();
+    videoEl.addEventListener('loadedmetadata', layout);
+    videoEl.addEventListener('playing', layout);
   }
 
   function applyMediaUi() {

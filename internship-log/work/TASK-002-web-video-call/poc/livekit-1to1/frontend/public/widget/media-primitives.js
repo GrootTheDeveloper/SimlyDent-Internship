@@ -173,6 +173,76 @@
     }, { passive: true });
   }
 
+  /**
+   * Size local PiP <video> to actual stream aspect (portrait vs landscape).
+   * Mirrors src/domain/media/media-utils.js applyLocalPipFit — no fixed 3:4 crop.
+   *
+   * @param {HTMLVideoElement} element
+   * @param {{ maxW?: number, maxH?: number }} [opts]
+   */
+  function applyLocalPipFit(element, opts) {
+    if (!element) return;
+    opts = opts || {};
+
+    function layout() {
+      var vw = element.videoWidth || 0;
+      var vh = element.videoHeight || 0;
+      element.classList.remove('is-portrait', 'is-landscape');
+      if (vw > 0 && vh > 0) {
+        element.classList.add(vh > vw ? 'is-portrait' : 'is-landscape');
+      }
+
+      element.style.setProperty('object-fit', 'contain', 'important');
+      element.style.setProperty('object-position', 'center center', 'important');
+      element.style.removeProperty('aspect-ratio');
+
+      if (vw <= 0 || vh <= 0) {
+        // Metadata not ready — keep max box until loadedmetadata fires
+        element.style.setProperty('width', 'auto', 'important');
+        element.style.setProperty('height', 'auto', 'important');
+        element.style.setProperty('max-width', 'min(120px, 28vw)', 'important');
+        element.style.setProperty('max-height', 'min(160px, 32vh)', 'important');
+        return;
+      }
+
+      var maxW = opts.maxW || Math.min(160, Math.floor((window.innerWidth || 360) * 0.42) || 160);
+      var maxH = opts.maxH || Math.min(168, Math.floor((window.innerHeight || 640) * 0.32) || 168);
+      // Portrait streams: taller box; landscape: wider box
+      if (vh > vw) {
+        maxW = opts.maxW || Math.min(110, Math.floor((window.innerWidth || 360) * 0.28) || 110);
+        maxH = opts.maxH || Math.min(168, Math.floor((window.innerHeight || 640) * 0.34) || 168);
+      } else {
+        maxW = opts.maxW || Math.min(168, Math.floor((window.innerWidth || 360) * 0.46) || 168);
+        maxH = opts.maxH || Math.min(100, Math.floor((window.innerHeight || 640) * 0.22) || 100);
+      }
+
+      var scale = Math.min(maxW / vw, maxH / vh);
+      var drawW = Math.max(1, Math.round(vw * scale));
+      var drawH = Math.max(1, Math.round(vh * scale));
+      element.style.setProperty('width', drawW + 'px', 'important');
+      element.style.setProperty('height', drawH + 'px', 'important');
+      element.style.setProperty('max-width', 'none', 'important');
+      element.style.setProperty('max-height', 'none', 'important');
+    }
+
+    // Debounce re-bind: remove previous listeners if re-applied
+    if (element._sdPipLayout) {
+      element.removeEventListener('loadedmetadata', element._sdPipLayout);
+      element.removeEventListener('resize', element._sdPipLayout);
+      element.removeEventListener('playing', element._sdPipLayout);
+      if (element._sdPipWinResize) {
+        window.removeEventListener('resize', element._sdPipWinResize);
+      }
+    }
+    element._sdPipLayout = layout;
+    element._sdPipWinResize = layout;
+    layout();
+    element.addEventListener('loadedmetadata', layout);
+    element.addEventListener('resize', layout);
+    element.addEventListener('playing', layout);
+    window.addEventListener('resize', layout);
+  }
+
   global.SimlyDentMediaPrimitives = {
     normalizeMediaModeValue: normalizeMediaModeValue,
     defaultAudioConstraints: defaultAudioConstraints,
@@ -181,6 +251,7 @@
     publishLocalTracksWithSources: publishLocalTracksWithSources,
     attachExistingRemoteTracks: attachExistingRemoteTracks,
     unlockRemoteAudio: unlockRemoteAudio,
-    bindTapToUnlockAudio: bindTapToUnlockAudio
+    bindTapToUnlockAudio: bindTapToUnlockAudio,
+    applyLocalPipFit: applyLocalPipFit
   };
 })(typeof window !== 'undefined' ? window : this);
