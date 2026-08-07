@@ -54,6 +54,7 @@ builder.Services.AddSingleton<ConcurrentDictionary<Guid, CallSession>>();
 builder.Services.AddSingleton<RecordingPolicyRegistry>();
 builder.Services.AddSingleton<RecordingAuditService>();
 builder.Services.AddSingleton<IRecordingStorage>(RecordingStorageFactory.Create);
+builder.Services.AddSingleton<IRecordingCatalog>(RecordingCatalogFactory.Create);
 builder.Services.AddSingleton<CallDispatcher>();
 builder.Services.AddSingleton<CallEndService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
@@ -104,7 +105,26 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+// Durable recording catalog schema (no-op for memory backend).
+try
+{
+    var catalog = app.Services.GetRequiredService<IRecordingCatalog>();
+    catalog.EnsureSchemaAsync().GetAwaiter().GetResult();
+    app.Logger.LogInformation("Recording catalog backend: {Backend}", catalog.BackendName);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex,
+        "Recording catalog schema init failed — start/list may degrade until DB is available.");
+}
+
+app.MapGet("/health", (IRecordingCatalog catalog, IRecordingStorage storage) =>
+    Results.Ok(new
+    {
+        status = "ok",
+        recordingCatalog = catalog.BackendName,
+        recordingStorage = storage.BackendName
+    }));
 
 // ---- Embed bootstrap (anonymous) — Phase 2 PR-A ----
 app.MapPost("/embed/session", (
@@ -353,14 +373,16 @@ app.MapGet("/api/clinics/me/recording-policy", (
 }).RequireAuthorization();
 
 /// <summary>
-/// Manager library: clinic-scoped recordings (Complete / Failed / Deleted / in-progress).
+/// Manager library: clinic-scoped recordings from durable catalog (fallback: in-memory calls).
 /// Staff → 403. Cross-clinic isolation by principal clinic only.
 /// </summary>
-app.MapGet("/api/recordings", (
+app.MapGet("/api/recordings", async (
     ClaimsPrincipal principal,
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
-    RecordingPolicyRegistry policies) =>
+    RecordingPolicyRegistry policies,
+    IRecordingCatalog catalog,
+    CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     var denied = RecordingAuthorization.RequireManager(current);
@@ -368,12 +390,8 @@ app.MapGet("/api/recordings", (
 
     var clinicId = current!.ClinicId;
     var policy = policies.Get(clinicId);
-    static bool IsLibraryRow(CallSession c) =>
-        c.RecordingStatus is not ("Idle" or "")
-        || !string.IsNullOrWhiteSpace(c.RecordingStorageKey)
-        || c.RecordingMode != RecordingMode.None;
 
-    static string CallerLabel(string callerId)
+    static string CallerLabel(string? callerId)
     {
         if (string.IsNullOrWhiteSpace(callerId)) return "—";
         if (callerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
@@ -386,7 +404,43 @@ app.MapGet("/api/recordings", (
         return callerId;
     }
 
-    var items = calls.Values
+    // Prefer durable catalog so Manager library survives API restart.
+    var catalogRows = await catalog.ListByClinicAsync(clinicId, cancellationToken);
+    if (catalogRows.Count > 0 || catalog.BackendName is "postgres")
+    {
+        var items = catalogRows.Select(r =>
+        {
+            var uiStatus = RecordingLedgerStatus.ToUiStatus(r.Status);
+            var canDownload = RecordingLedgerStatus.IsDownloadable(r.Status)
+                              && !string.IsNullOrWhiteSpace(r.StorageKey);
+            var canDelete = r.Status is RecordingLedgerStatus.Deleted
+                            || (r.Status is RecordingLedgerStatus.Ready or RecordingLedgerStatus.Failed
+                                && !string.IsNullOrWhiteSpace(r.StorageKey));
+            return new RecordingListItem(
+                r.CallId,
+                r.Id,
+                r.CallerId ?? "",
+                CallerLabel(r.CallerId),
+                r.AssignedStaffId,
+                r.CallStatus ?? "—",
+                r.Mode,
+                uiStatus,
+                r.ConsentStatus ?? "—",
+                r.CreatedAt,
+                r.UpdatedAt,
+                canDownload,
+                canDelete);
+        }).ToList();
+        return Results.Ok(new RecordingListResponse(items, items.Count));
+    }
+
+    // Memory catalog empty: fall back to live call sessions (lab without prior starts).
+    static bool IsLibraryRow(CallSession c) =>
+        c.RecordingStatus is not ("Idle" or "")
+        || !string.IsNullOrWhiteSpace(c.RecordingStorageKey)
+        || c.RecordingMode != RecordingMode.None;
+
+    var fallback = calls.Values
         .Where(c => c.BelongsToClinic(clinicId) && IsLibraryRow(c))
         .OrderByDescending(c => c.UpdatedAt)
         .Select(c =>
@@ -409,7 +463,7 @@ app.MapGet("/api/recordings", (
         })
         .ToList();
 
-    return Results.Ok(new RecordingListResponse(items, items.Count));
+    return Results.Ok(new RecordingListResponse(fallback, fallback.Count));
 }).RequireAuthorization();
 
 app.MapGet("/api/recording/audit", (
@@ -772,6 +826,8 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     ConcurrentDictionary<Guid, CallSession> calls,
     RecordingPolicyRegistry policies,
     LiveKitEgressService egress,
+    IRecordingStorage storage,
+    IRecordingCatalog catalog,
     CallDispatcher dispatcher,
     RecordingAuditService audit,
     CancellationToken cancellationToken) =>
@@ -787,6 +843,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     RecordingMode mode;
     string fileName;
     string recId;
+    string storageKey;
     lock (call.SyncRoot)
     {
         var gate = RecordingAuthorization.ValidateStart(call, policy);
@@ -795,24 +852,60 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
         mode = call.RecordingMode;
         recId = Guid.NewGuid().ToString("N");
         fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{recId}.mp4";
+        storageKey = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
         call.RecordingStatus = "Starting";
         call.RecordingFileName = fileName;
         call.RecordingId = recId;
         call.RecordingEgressId = null;
-        call.RecordingStorageKey = null;
+        call.RecordingStorageKey = storageKey;
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    // Durable ledger BEFORE egress starts — survive restart even if StartEgress hangs.
+    var retentionUntil = DateTimeOffset.UtcNow.AddDays(policy.RetentionDays);
+    try
+    {
+        await catalog.InsertRequestedAsync(
+            recId,
+            call.ClinicId,
+            call.Id,
+            mode.ToString(),
+            storageKey,
+            "Composite",
+            retentionUntil,
+            call.CallerId,
+            call.AssignedStaffId ?? call.CalleeId,
+            call.Status.ToString(),
+            call.ConsentStatus.ToString(),
+            cancellationToken);
+    }
+    catch (Exception ex)
+    {
+        lock (call.SyncRoot)
+        {
+            call.RecordingStatus = "Failed";
+            call.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            "RecordingStartFailed", "Failed", $"catalog: {ex.Message}");
+        await dispatcher.NotifyCallAsync(call);
+        return Results.Json(new { error = $"Không thể tạo ledger ghi hình: {ex.Message}", call = call.ToView() },
+            statusCode: 503);
+    }
+
     await dispatcher.NotifyCallAsync(call);
 
     try
     {
-        var result = await egress.StartRoomRecordingAsync(call.RoomName, fileName, mode, cancellationToken);
+        var result = await egress.StartRoomRecordingAsync(
+            call.RoomName, fileName, mode, storageKey, cancellationToken);
         lock (call.SyncRoot)
         {
             call.RecordingEgressId = result.EgressId;
             call.RecordingStatus = "Recording";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        await catalog.MarkRecordingAsync(recId, result.EgressId, cancellationToken);
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingStarted", "Ok", mode.ToString());
         await dispatcher.NotifyCallAsync(call);
@@ -825,6 +918,8 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
+        catch { /* catalog best-effort */ }
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingStartFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
@@ -841,6 +936,7 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     RecordingPolicyRegistry policies,
     LiveKitEgressService egress,
     IRecordingStorage storage,
+    IRecordingCatalog catalog,
     CallDispatcher dispatcher,
     RecordingAuditService audit,
     CancellationToken cancellationToken) =>
@@ -866,19 +962,15 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
         call.RecordingStatus = "Stopping";
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
+    try { await catalog.MarkFinalizingAsync(recId, cancellationToken); }
+    catch { /* dual-write best-effort */ }
     await dispatcher.NotifyCallAsync(call);
 
     try
     {
         await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
-        var localPath = egress.GetLocalEgressPath(fileName);
-        var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
-        // Complete only when archive succeeds — never set storage key without object.
-        if (!File.Exists(localPath))
-            throw new InvalidOperationException("Egress completed but the recording file was not found.");
-        await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
-        if (!await storage.ExistsAsync(key, cancellationToken))
-            throw new InvalidOperationException("Archive to storage failed (object missing after save).");
+        var key = await RecordingFinalize.MaterializeObjectAsync(
+            egress, storage, call.ClinicId, call.Id, recId, fileName, cancellationToken);
         lock (call.SyncRoot)
         {
             call.RecordingId = recId;
@@ -886,6 +978,8 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             call.RecordingStatus = "Complete";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        try { await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken); }
+        catch { /* dual-write best-effort */ }
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingStopped", "Ok");
         await dispatcher.NotifyCallAsync(call);
@@ -899,6 +993,8 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             call.RecordingStorageKey = null;
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
+        catch { /* dual-write best-effort */ }
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingFinalizeFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
@@ -917,6 +1013,7 @@ app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IRecordingStorage storage,
+    IRecordingCatalog catalog,
     RecordingPolicyRegistry policies,
     RecordingAuditService audit,
     CallDispatcher dispatcher,
@@ -955,10 +1052,26 @@ app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
     var updatedAt = ageDays > 0
         ? DateTimeOffset.UtcNow.AddDays(-ageDays)
         : DateTimeOffset.UtcNow;
+    var policy = policies.Get(call.ClinicId);
+    var mode = call.RecordingMode == RecordingMode.None ? RecordingMode.Video : call.RecordingMode;
+    var retentionUntil = updatedAt.AddDays(policy.RetentionDays);
+
+    try
+    {
+        await catalog.InsertRequestedAsync(
+            recId, call.ClinicId, call.Id, mode.ToString(), key, "Composite",
+            retentionUntil, call.CallerId, call.AssignedStaffId ?? call.CalleeId,
+            call.Status.ToString(), call.ConsentStatus.ToString(), cancellationToken);
+        await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { error = $"Plant catalog failed: {ex.Message}" }, statusCode: 503);
+    }
 
     lock (call.SyncRoot)
     {
-        call.RecordingMode = call.RecordingMode == RecordingMode.None ? RecordingMode.Video : call.RecordingMode;
+        call.RecordingMode = mode;
         call.RecordingId = recId;
         call.RecordingStorageKey = key;
         call.RecordingStatus = "Complete";
@@ -968,7 +1081,6 @@ app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
     audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
         "RecordingStopped", "Ok", "plant-complete");
     await dispatcher.NotifyCallAsync(call);
-    var policy = policies.Get(call.ClinicId);
     return Results.Ok(new
     {
         storageKey = key,
@@ -982,6 +1094,7 @@ app.MapGet("/api/calls/{id:guid}/recording/file", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IRecordingStorage storage,
+    IRecordingCatalog catalog,
     RecordingAuditService audit,
     CancellationToken cancellationToken) =>
 {
@@ -989,29 +1102,57 @@ app.MapGet("/api/calls/{id:guid}/recording/file", async (
     if (current is null) return Results.Unauthorized();
     // Manager same clinic only — not participant GetAuthorizedCall.
     var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
-    if (call is null) return Results.NotFound();
+    // Call may be gone after restart; still allow download via catalog if clinic matches.
+    string? key = null;
+    string? recId = null;
+    string clinicId;
+    Guid callId = id;
 
-    string? key;
-    string? recId;
-    lock (call.SyncRoot)
+    if (call is not null)
     {
-        if (call.RecordingStatus != "Complete" || string.IsNullOrWhiteSpace(call.RecordingStorageKey))
+        clinicId = call.ClinicId;
+        lock (call.SyncRoot)
+        {
+            if (call.RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(call.RecordingStorageKey))
+            {
+                key = call.RecordingStorageKey;
+                recId = call.RecordingId;
+            }
+        }
+    }
+    else
+    {
+        clinicId = current.ClinicId;
+    }
+
+    if (string.IsNullOrWhiteSpace(key))
+    {
+        var ledger = await catalog.GetLatestByCallAsync(id, cancellationToken);
+        if (ledger is null
+            || !string.Equals(ledger.ClinicId, current.ClinicId, StringComparison.OrdinalIgnoreCase)
+            || !RecordingLedgerStatus.IsDownloadable(ledger.Status)
+            || string.IsNullOrWhiteSpace(ledger.StorageKey))
+        {
+            if (call is null) return Results.NotFound();
             return Results.Conflict(new { error = "Recording is not ready." });
-        key = call.RecordingStorageKey;
-        recId = call.RecordingId;
+        }
+        key = ledger.StorageKey;
+        recId = ledger.Id;
+        clinicId = ledger.ClinicId;
+        callId = ledger.CallId;
     }
 
     var stream = await storage.OpenReadAsync(key!, cancellationToken);
     if (stream is null)
     {
-        audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+        audit.Append(clinicId, callId, recId, current.Id, current.Role,
             "RecordingDownloaded", "Failed", "missing object");
         return Results.NotFound(new { error = "Recording file was not found." });
     }
 
-    audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+    audit.Append(clinicId, callId, recId, current.Id, current.Role,
         "RecordingDownloaded", "Ok");
-    var downloadName = $"recording-{call.Id:N}.mp4";
+    var downloadName = $"recording-{callId:N}.mp4";
     return Results.File(stream, "video/mp4", downloadName, enableRangeProcessing: true);
 }).RequireAuthorization();
 
@@ -1021,25 +1162,52 @@ app.MapDelete("/api/calls/{id:guid}/recording", async (
     IdentityRegistry identities,
     ConcurrentDictionary<Guid, CallSession> calls,
     IRecordingStorage storage,
+    IRecordingCatalog catalog,
     RecordingAuditService audit,
     CallDispatcher dispatcher,
     CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
-    if (call is null) return Results.NotFound();
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
 
-    string? key;
-    string? recId;
-    lock (call.SyncRoot)
+    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
+    string? key = null;
+    string? recId = null;
+    var clinicId = current!.ClinicId;
+
+    if (call is not null)
     {
-        if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
+        clinicId = call.ClinicId;
+        lock (call.SyncRoot)
+        {
+            if (call.RecordingStatus is "Starting" or "Recording" or "Stopping")
+                return Results.Conflict(new { error = "Cannot delete an active recording." });
+            key = call.RecordingStorageKey;
+            recId = call.RecordingId;
+            if (call.RecordingStatus == "Deleted" && string.IsNullOrWhiteSpace(key))
+                return Results.Ok(new { status = "Deleted" });
+        }
+    }
+
+    // Catalog survives API restart even when CallSession is gone.
+    var latest = await catalog.GetLatestByCallAsync(id, cancellationToken);
+    if (latest is not null)
+    {
+        if (!string.Equals(latest.ClinicId, current.ClinicId, StringComparison.OrdinalIgnoreCase))
+            return Results.NotFound();
+        if (RecordingLedgerStatus.IsActive(latest.Status))
             return Results.Conflict(new { error = "Cannot delete an active recording." });
-        key = call.RecordingStorageKey;
-        recId = call.RecordingId;
-        if (call.RecordingStatus == "Deleted" && string.IsNullOrWhiteSpace(key))
+        recId ??= latest.Id;
+        key ??= latest.StorageKey;
+        clinicId = latest.ClinicId;
+        if (latest.Status == RecordingLedgerStatus.Deleted && string.IsNullOrWhiteSpace(key))
             return Results.Ok(new { status = "Deleted" });
+    }
+    else if (call is null)
+    {
+        return Results.NotFound();
     }
 
     if (!string.IsNullOrWhiteSpace(key))
@@ -1050,23 +1218,32 @@ app.MapDelete("/api/calls/{id:guid}/recording", async (
         }
         catch (Exception ex)
         {
-            audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+            audit.Append(clinicId, id, recId, current.Id, current.Role,
                 "RecordingDeleted", "Failed", ex.Message);
             return Results.Json(new { error = ex.Message }, statusCode: 503);
         }
     }
 
-    lock (call.SyncRoot)
+    if (call is not null)
     {
-        call.RecordingStatus = "Deleted";
-        call.RecordingStorageKey = null;
-        call.RecordingFileName = null;
-        call.RecordingEgressId = null;
-        call.UpdatedAt = DateTimeOffset.UtcNow;
+        lock (call.SyncRoot)
+        {
+            call.RecordingStatus = "Deleted";
+            call.RecordingStorageKey = null;
+            call.RecordingFileName = null;
+            call.RecordingEgressId = null;
+            call.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await dispatcher.NotifyCallAsync(call);
     }
-    audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
+
+    if (!string.IsNullOrWhiteSpace(recId))
+    {
+        try { await catalog.MarkDeletedAsync(recId, cancellationToken); }
+        catch { /* best-effort */ }
+    }
+    audit.Append(clinicId, id, recId, current.Id, current.Role,
         "RecordingDeleted", "Ok");
-    await dispatcher.NotifyCallAsync(call);
     return Results.Ok(new { status = "Deleted" });
 }).RequireAuthorization();
 

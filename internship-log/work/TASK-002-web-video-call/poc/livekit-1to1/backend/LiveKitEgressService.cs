@@ -12,16 +12,28 @@ public sealed class LiveKitEgressService(
 {
     private readonly Uri _baseUri = new(configuration["LIVEKIT_HTTP_URL"] ?? "http://livekit:7880");
     private readonly string _recordingsPath = configuration["RECORDINGS_PATH"] ?? "/recordings";
+    private readonly IConfiguration _configuration = configuration;
 
     /// <summary>
-    /// Start room composite egress. Video uses H264 preset; AudioOnly sets audio_only=true
-    /// (LiveKit RoomCompositeOptions.audioOnly).
+    /// Output mode: local disk under /out (lab) or S3-compatible upload from Egress worker (prod path).
+    /// Env: EGRESS_OUTPUT=local|s3 (default local).
     /// </summary>
+    public bool UsesDirectS3Output =>
+        string.Equals(_configuration["EGRESS_OUTPUT"] ?? "local", "s3", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(_configuration["EGRESS_OUTPUT"] ?? "local", "minio", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Start room composite egress. Video encoding is env-configurable (preset or advanced).
+    /// AudioOnly sets audio_only=true (LiveKit RoomCompositeOptions.audioOnly).
+    /// When EGRESS_OUTPUT=s3, file is uploaded by Egress directly (no API PutObject of video bytes).
+    /// </summary>
+    /// <param name="storageKey">Clinic-scoped object key used as S3 filepath when direct S3 is on.</param>
     public async Task<EgressResult> StartRoomRecordingAsync(
         string roomName,
         string fileName,
         RecordingMode mode,
-        CancellationToken cancellationToken)
+        string? storageKey = null,
+        CancellationToken cancellationToken = default)
     {
         if (mode is not (RecordingMode.Video or RecordingMode.AudioOnly))
             throw new InvalidOperationException("Egress is only started for Video or AudioOnly modes.");
@@ -29,26 +41,112 @@ public sealed class LiveKitEgressService(
         await EnsureRoomAsync(roomName, cancellationToken);
 
         var audioOnly = mode == RecordingMode.AudioOnly;
-        // Audio-only composite still uses a media container; OGG/MP4 depending on egress version.
-        // Prefer MP4 for both so local file checks stay consistent; audio_only drops video tracks.
+        var fileOutput = BuildFileOutput(fileName, storageKey);
         var request = new Dictionary<string, object?>
         {
             ["room_name"] = roomName,
             ["layout"] = "grid",
             ["audio_only"] = audioOnly,
-            ["file_outputs"] = new[]
-            {
-                new Dictionary<string, object?>
-                {
-                    ["file_type"] = "MP4",
-                    ["filepath"] = $"/out/{fileName}"
-                }
-            }
+            ["file_outputs"] = new[] { fileOutput }
         };
         if (!audioOnly)
-            request["preset"] = "H264_720P_30";
+            ApplyVideoEncodingOptions(request);
 
         return await PostAsync("StartRoomCompositeEgress", request, cancellationToken);
+    }
+
+    private Dictionary<string, object?> BuildFileOutput(string fileName, string? storageKey)
+    {
+        if (!UsesDirectS3Output)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["file_type"] = "MP4",
+                ["filepath"] = $"/out/{fileName}"
+            };
+        }
+
+        // Direct S3: object key is the filepath; Egress worker performs PutObject.
+        // Prefer worker-level credentials when possible; request embeds env for MinIO fixture.
+        var key = string.IsNullOrWhiteSpace(storageKey)
+            ? fileName.TrimStart('/')
+            : storageKey.Replace('\\', '/').TrimStart('/');
+        var endpoint = (_configuration["S3_ENDPOINT"] ?? "http://minio:9000").TrimEnd('/');
+        var bucket = _configuration["S3_BUCKET"] ?? "simlydent-recordings";
+        var accessKey = _configuration["S3_ACCESS_KEY"] ?? "minioadmin";
+        var secretKey = _configuration["S3_SECRET_KEY"] ?? "minioadmin";
+        var region = _configuration["S3_REGION"] ?? "us-east-1";
+        var forcePathStyle = !string.Equals(_configuration["S3_PATH_STYLE"], "0", StringComparison.OrdinalIgnoreCase);
+
+        return new Dictionary<string, object?>
+        {
+            ["file_type"] = "MP4",
+            ["filepath"] = key,
+            ["s3"] = new Dictionary<string, object?>
+            {
+                ["access_key"] = accessKey,
+                ["secret"] = secretKey,
+                ["bucket"] = bucket,
+                ["region"] = region,
+                ["endpoint"] = endpoint,
+                ["force_path_style"] = forcePathStyle
+            }
+        };
+    }
+
+    /// <summary>
+    /// Encoding modes (env):
+    /// - EGRESS_ENCODING_MODE=preset (default): EGRESS_VIDEO_PRESET (default H264_720P_30)
+    /// - EGRESS_ENCODING_MODE=advanced: width/height/framerate + video/audio bitrate (kbps)
+    ///
+    /// Recommended clinical trial (advanced): 1280x720 @ 20fps, video 1500 kbps, audio 96 kbps.
+    /// ~0.55–0.7 GB/h is a conditional size target — pick lowest bitrate that still passes visual QA.
+    /// </summary>
+    private void ApplyVideoEncodingOptions(Dictionary<string, object?> request)
+    {
+        var mode = (_configuration["EGRESS_ENCODING_MODE"] ?? "preset").Trim().ToLowerInvariant();
+        if (mode is "advanced" or "custom")
+        {
+            var width = ParsePositiveInt(_configuration["EGRESS_WIDTH"], 1280);
+            var height = ParsePositiveInt(_configuration["EGRESS_HEIGHT"], 720);
+            var framerate = ParsePositiveInt(_configuration["EGRESS_FRAMERATE"], 20);
+            // LiveKit EncodingOptions.videoBitrate / audioBitrate are in kbps.
+            var videoBitrateKbps = ParsePositiveInt(_configuration["EGRESS_VIDEO_BITRATE_KBPS"], 1500);
+            var audioBitrateKbps = ParsePositiveInt(_configuration["EGRESS_AUDIO_BITRATE_KBPS"], 96);
+            var keyFrameInterval = ParsePositiveDouble(_configuration["EGRESS_KEY_FRAME_INTERVAL"], 2.0);
+
+            request["advanced"] = new Dictionary<string, object?>
+            {
+                ["width"] = width,
+                ["height"] = height,
+                ["framerate"] = framerate,
+                ["audioCodec"] = "AAC",
+                ["audioBitrate"] = audioBitrateKbps,
+                ["videoCodec"] = "H264_MAIN",
+                ["videoBitrate"] = videoBitrateKbps,
+                ["keyFrameInterval"] = keyFrameInterval
+            };
+            return;
+        }
+
+        var preset = (_configuration["EGRESS_VIDEO_PRESET"] ?? "H264_720P_30").Trim();
+        if (string.IsNullOrWhiteSpace(preset))
+            preset = "H264_720P_30";
+        request["preset"] = preset;
+    }
+
+    private static int ParsePositiveInt(string? raw, int fallback)
+    {
+        if (int.TryParse(raw, out var n) && n > 0) return n;
+        return fallback;
+    }
+
+    private static double ParsePositiveDouble(string? raw, double fallback)
+    {
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var n) && n > 0)
+            return n;
+        return fallback;
     }
 
     private async Task EnsureRoomAsync(string roomName, CancellationToken cancellationToken)
@@ -66,6 +164,10 @@ public sealed class LiveKitEgressService(
         }
     }
 
+    /// <summary>
+    /// Stop egress and wait until LiveKit reports COMPLETE.
+    /// Local mode still checks the file on disk; S3 mode leaves object existence to the caller (HeadObject).
+    /// </summary>
     public async Task<EgressResult> StopRecordingAsync(
         string egressId,
         string fileName,
@@ -78,9 +180,12 @@ public sealed class LiveKitEgressService(
             var status = result.Status?.ToUpperInvariant() ?? string.Empty;
             if (status is "EGRESS_COMPLETE" or "COMPLETE")
             {
-                var path = Path.Combine(_recordingsPath, Path.GetFileName(fileName));
-                if (!File.Exists(path))
-                    throw new InvalidOperationException("Egress completed but the recording file was not found.");
+                if (!UsesDirectS3Output)
+                {
+                    var path = Path.Combine(_recordingsPath, Path.GetFileName(fileName));
+                    if (!File.Exists(path))
+                        throw new InvalidOperationException("Egress completed but the recording file was not found.");
+                }
                 return result;
             }
             if (status is "EGRESS_FAILED" or "FAILED" or "EGRESS_ABORTED" or "ABORTED" or "EGRESS_LIMIT_REACHED" or "LIMIT_REACHED")

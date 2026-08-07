@@ -17,6 +17,22 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
+  # Durable recording catalog (R-pg-core).
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-simlydent}
+      POSTGRES_USER: ${POSTGRES_USER:-simlydent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simlydent}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-simlydent} -d ${POSTGRES_DB:-simlydent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   livekit:
     image: livekit/livekit-server:v1.13.1
     command:
@@ -77,7 +93,23 @@ services:
       RECORDINGS_PATH: /recordings
       QUALITY_LOGS_PATH: /telemetry
       RECORDING_STORAGE: ${RECORDING_STORAGE:-local}
+      # local = egress /out + API archive; s3 = Egress direct upload (needs minio + RECORDING_STORAGE=s3)
+      EGRESS_OUTPUT: ${EGRESS_OUTPUT:-local}
       RECORDING_RETENTION_DAYS: ${RECORDING_RETENTION_DAYS:-30}
+      RECORDING_CATALOG: ${RECORDING_CATALOG:-postgres}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-simlydent}
+      POSTGRES_USER: ${POSTGRES_USER:-simlydent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simlydent}
+      # Encode: preset (default) or advanced custom bitrate. See docs/egress-encode-profiles.md
+      EGRESS_ENCODING_MODE: ${EGRESS_ENCODING_MODE:-preset}
+      EGRESS_VIDEO_PRESET: ${EGRESS_VIDEO_PRESET:-H264_720P_30}
+      EGRESS_WIDTH: ${EGRESS_WIDTH:-1280}
+      EGRESS_HEIGHT: ${EGRESS_HEIGHT:-720}
+      EGRESS_FRAMERATE: ${EGRESS_FRAMERATE:-20}
+      EGRESS_VIDEO_BITRATE_KBPS: ${EGRESS_VIDEO_BITRATE_KBPS:-1500}
+      EGRESS_AUDIO_BITRATE_KBPS: ${EGRESS_AUDIO_BITRATE_KBPS:-96}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       S3_BUCKET: ${S3_BUCKET:-simlydent-recordings}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
@@ -87,7 +119,10 @@ services:
       - ./recordings:/recordings
       - ./telemetry:/telemetry
     depends_on:
-      - livekit
+      livekit:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   minio:
@@ -133,3 +168,4 @@ volumes:
   caddy_data:
   caddy_config:
   minio_data:
+  postgres_data:

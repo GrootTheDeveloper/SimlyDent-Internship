@@ -8,6 +8,7 @@ public sealed class CallEndService(
     CallDispatcher dispatcher,
     LiveKitEgressService egress,
     IRecordingStorage storage,
+    IRecordingCatalog catalog,
     RecordingAuditService audit)
 {
     public async Task<CallTransitionResult> EndWithRecordingAsync(
@@ -39,18 +40,15 @@ public sealed class CallEndService(
         if (string.IsNullOrWhiteSpace(egressId) || string.IsNullOrWhiteSpace(fileName))
             return result;
 
+        var recId = recordingId ?? Guid.NewGuid().ToString("N");
+        try { await catalog.MarkFinalizingAsync(recId, cancellationToken); }
+        catch { /* dual-write best-effort */ }
+
         try
         {
             await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
-            var localPath = egress.GetLocalEgressPath(fileName);
-            var recId = recordingId ?? Guid.NewGuid().ToString("N");
-            var key = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
-            // Complete only after a real object exists in storage (never key without archive).
-            if (!File.Exists(localPath))
-                throw new InvalidOperationException("Egress completed but the recording file was not found.");
-            await storage.SaveFromLocalFileAsync(key, localPath, cancellationToken);
-            if (!await storage.ExistsAsync(key, cancellationToken))
-                throw new InvalidOperationException("Archive to storage failed (object missing after save).");
+            var key = await RecordingFinalize.MaterializeObjectAsync(
+                egress, storage, call.ClinicId, call.Id, recId, fileName, cancellationToken);
 
             lock (call.SyncRoot)
             {
@@ -59,6 +57,9 @@ public sealed class CallEndService(
                 call.RecordingStatus = "Complete";
                 call.UpdatedAt = DateTimeOffset.UtcNow;
             }
+
+            try { await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken); }
+            catch { /* dual-write best-effort */ }
 
             audit.Append(call.ClinicId, call.Id, recId, actor.Id, actor.Role,
                 "RecordingStopped", "Ok", mode.ToString());
@@ -72,6 +73,9 @@ public sealed class CallEndService(
                 call.RecordingStorageKey = null;
                 call.UpdatedAt = DateTimeOffset.UtcNow;
             }
+
+            try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
+            catch { /* dual-write best-effort */ }
 
             audit.Append(call.ClinicId, call.Id, recordingId, actor.Id, actor.Role,
                 "RecordingFinalizeFailed", "Failed", ex.Message);
