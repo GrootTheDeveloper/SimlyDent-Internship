@@ -67,9 +67,15 @@ function Invoke-PocRequest {
     if (-not $NoAuth) {
         $parameters.Headers = Get-AuthHeaders -UserId $UserId
     }
+    # ASP.NET minimal APIs that declare a JSON body parameter (even optional)
+    # return 415 when POST has no Content-Type. Always send JSON for POST.
     if ($null -ne $Body) {
         $parameters.ContentType = "application/json"
         $parameters.Body = $Body | ConvertTo-Json -Depth 10 -Compress
+    }
+    elseif ($Method -eq "POST") {
+        $parameters.ContentType = "application/json"
+        $parameters.Body = "{}"
     }
 
     try {
