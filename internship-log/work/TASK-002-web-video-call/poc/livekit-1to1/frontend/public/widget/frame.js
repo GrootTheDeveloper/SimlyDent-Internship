@@ -260,7 +260,10 @@
     setCallButtonsDisabled(true);
     try {
       await ensureSessionFromParent();
-      var res = await api('/embed/calls', { method: 'POST', body: '{}' });
+      var res = await api('/embed/calls', {
+        method: 'POST',
+        body: JSON.stringify({ initialMediaMode: preferredMedia === 'audio' ? 'Audio' : 'Video' })
+      });
       if (!res.ok) {
         throw new Error((res.body && res.body.error) || ('Create call failed (' + res.status + ')'));
       }
@@ -362,7 +365,7 @@
     }
 
     if (status === 'Accepted') {
-      // Keep heartbeat. Do NOT auto joinMedia.
+      // Product: visitor auto-enters call after staff Accept — no "Tham gia" confirm.
       if (uiState === 'media' && room) {
         setStatus('Đang tư vấn');
         return;
@@ -371,8 +374,17 @@
         els.reconnectMeta.textContent = 'Cuộc gọi vẫn đang mở — thử nối lại hình ảnh / âm thanh.';
         return;
       }
+      // Stay on perm/reconnect manual retry UI; otherwise auto-join once.
       if (uiState === 'perm') return;
-      if (uiState !== 'ready' && uiState !== 'media') showReady(res.body);
+      if (uiState === 'media' || uiState === 'ready') return;
+      if (joining) return;
+      postParent({ type: 'state', state: 'Accepted' });
+      // Keep wait spinner until joinMedia swaps to media pane.
+      if (uiState === 'waiting') {
+        els.waitText.textContent = 'Nhân viên đã nhận — đang vào cuộc gọi…';
+        setStatus('Đang vào cuộc gọi');
+      }
+      joinMedia();
       return;
     }
 
@@ -889,12 +901,17 @@
         return;
       }
       if (res.status === 409) {
-        // Staff may have Accepted concurrently.
+        // Staff may have Accepted concurrently — auto-join, no confirm step.
         lastServerStatus = (res.body && res.body.status) || lastServerStatus;
         if (lastServerStatus === 'Accepted' || (res.body && res.body.status === 'Accepted')) {
-          showReady();
           if (!pollTimer) startPoll();
-          els.waitMeta && (els.readyMeta.textContent = 'Không hủy được — nhân viên đã nhận. Hãy tham gia hoặc kết thúc.');
+          if (!room && !joining) {
+            if (uiState === 'waiting') {
+              els.waitText.textContent = 'Nhân viên đã nhận — đang vào cuộc gọi…';
+              setStatus('Đang vào cuộc gọi');
+            }
+            joinMedia();
+          }
           return;
         }
         // Re-poll truth
