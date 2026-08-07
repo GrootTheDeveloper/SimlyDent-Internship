@@ -673,7 +673,7 @@
     } catch {
       return;
     }
-    if (!msg || msg.type !== 'capture_photo' || !msg.uploadUrl || !msg.assetId) return;
+    if (!msg || msg.type !== 'capture_photo' || !msg.assetId) return;
     if (!room || !room.localParticipant) {
       console.warn('[embed] capture_photo: no room');
       return;
@@ -727,35 +727,69 @@
 
     if (!blob) throw new Error('Không chụp được ảnh');
 
-    var putRes = await fetch(msg.uploadUrl, {
-      method: 'PUT',
-      body: blob,
-      headers: { 'Content-Type': 'image/jpeg' }
-    });
-    if (!putRes.ok) throw new Error('Upload ảnh HTTP ' + putRes.status);
+    var mode = msg.uploadMode || (msg.uploadUrl ? 'presign' : 'api');
+    if (mode === 'presign' && msg.uploadUrl) {
+      var putRes = await fetch(msg.uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': 'image/jpeg' }
+      });
+      if (!putRes.ok) throw new Error('Upload ảnh HTTP ' + putRes.status);
 
-    var lastErr = null;
-    for (var attempt = 0; attempt < 3; attempt++) {
-      try {
-        var complete = await api('/api/media/' + msg.assetId + '/upload-complete', {
-          method: 'POST',
-          body: JSON.stringify({
-            actualWidth: actualWidth,
-            actualHeight: actualHeight,
-            bytes: blob.size
-          })
-        });
-        if (complete.ok || complete.status === 202) {
-          console.info('[embed] photo ready', msg.assetId);
-          return;
+      var lastErr = null;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          var complete = await api('/api/media/' + msg.assetId + '/upload-complete', {
+            method: 'POST',
+            body: JSON.stringify({
+              actualWidth: actualWidth,
+              actualHeight: actualHeight,
+              bytes: blob.size
+            })
+          });
+          if (complete.ok || complete.status === 202) {
+            console.info('[embed] photo ready', msg.assetId);
+            return;
+          }
+          lastErr = new Error((complete.body && complete.body.error) || ('upload-complete ' + complete.status));
+        } catch (e) {
+          lastErr = e;
         }
-        lastErr = new Error((complete.body && complete.body.error) || ('upload-complete ' + complete.status));
-      } catch (e) {
-        lastErr = e;
+        await new Promise(function (r) { setTimeout(r, 800 * (attempt + 1)); });
       }
-      await new Promise(function (r) { setTimeout(r, 800 * (attempt + 1)); });
+      if (lastErr) throw lastErr;
+      return;
     }
-    if (lastErr) throw lastErr;
+
+    // API upload (local storage) — Bearer embed token via api()
+    var path = msg.uploadPath || ('/api/media/' + msg.assetId + '/upload');
+    var qs = [];
+    if (actualWidth) qs.push('w=' + encodeURIComponent(actualWidth));
+    if (actualHeight) qs.push('h=' + encodeURIComponent(actualHeight));
+    if (qs.length) path += '?' + qs.join('&');
+    var up = await api(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob
+    });
+    // api() helper may not accept raw body — fallback fetch
+    if (!up || up.status === undefined) {
+      var res = await fetch(apiBase + path, {
+        method: 'POST',
+        headers: {
+          Authorization: accessToken ? ('Bearer ' + accessToken) : '',
+          'Content-Type': 'image/jpeg',
+          Accept: 'application/json'
+        },
+        body: blob,
+        credentials: 'omit'
+      });
+      if (!res.ok) throw new Error('API upload HTTP ' + res.status);
+      console.info('[embed] photo ready (api)', msg.assetId);
+      return;
+    }
+    if (!up.ok) throw new Error((up.body && up.body.error) || ('API upload ' + up.status));
+    console.info('[embed] photo ready (api)', msg.assetId);
   }
 
   function disconnectMedia(opts) {

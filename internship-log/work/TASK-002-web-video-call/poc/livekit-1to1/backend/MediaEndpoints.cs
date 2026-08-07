@@ -156,7 +156,56 @@ public static class MediaEndpoints
             {
                 return Results.Conflict(new { error = ex.Message });
             }
+            catch (Exception ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: 500);
+            }
         }).RequireAuthorization();
+
+        // Patient: binary JPEG upload (local storage / uploadMode=api)
+        app.MapPost("/api/media/{assetId:guid}/upload", async (
+            Guid assetId,
+            HttpRequest request,
+            ClaimsPrincipal principal,
+            IdentityRegistry identities,
+            SnapshotService snapshotService,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            if (!ConsultationEndpoints.IsMediaFeatureEnabled(config))
+                return Results.NotFound();
+
+            var candidates = CollectParticipantIdentities(principal, identities);
+            if (candidates.Count == 0)
+                return Results.Unauthorized();
+
+            int? width = int.TryParse(request.Query["w"], out var w) ? w : null;
+            int? height = int.TryParse(request.Query["h"], out var h) ? h : null;
+
+            // Buffer body once — stream may be non-seekable.
+            await using var ms = new MemoryStream();
+            await request.Body.CopyToAsync(ms, ct);
+            var len = ms.Length;
+            if (len <= 0)
+                return Results.BadRequest(new { error = "Empty body." });
+
+            var ok = false;
+            foreach (var identity in candidates)
+            {
+                ms.Position = 0;
+                ok = await snapshotService.ReceiveUploadAsync(
+                    assetId, identity, ms, len, width, height, ct);
+                if (ok) break;
+            }
+
+            if (!ok)
+                return Results.Conflict(new { error = "Upload rejected or not ready." });
+            return Results.Ok(new { status = "Ready" });
+        }).RequireAuthorization(new AuthorizeAttribute
+        {
+            AuthenticationSchemes =
+                $"{JwtBearerDefaults.AuthenticationScheme},{EmbedAuthTokenService.AuthenticationScheme}"
+        });
 
         // Patient (staff JWT participant or embed): confirm upload
         app.MapPost("/api/media/{assetId:guid}/upload-complete", async (
@@ -172,45 +221,7 @@ public static class MediaEndpoints
             if (!ConsultationEndpoints.IsMediaFeatureEnabled(config))
                 return Results.NotFound();
 
-            var current = ClinicAuthorization.CurrentUser(principal, identities);
-            var candidates = new List<string>();
-
-            if (current is not null)
-            {
-                // LiveKit identity convention: {clinicId}:{userId}
-                candidates.Add($"{current.ClinicId}:{current.Id}");
-                candidates.Add(current.Id);
-            }
-
-            // Embed visitor JWT / generic claims
-            var embed = EmbedAuthTokenService.TryReadSession(principal);
-            if (embed is not null)
-            {
-                candidates.Add($"visitor:{embed.SessionId}");
-                candidates.Add($"{embed.ClinicId}:visitor:{embed.SessionId}");
-                if (!string.IsNullOrWhiteSpace(embed.VisitorId))
-                {
-                    candidates.Add(embed.VisitorId);
-                    candidates.Add($"{embed.ClinicId}:{embed.VisitorId}");
-                }
-            }
-
-            var sub = principal.FindFirstValue("sub")
-                      ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            var clinicClaim = principal.FindFirstValue("clinic_id")
-                              ?? principal.FindFirstValue("clinicId");
-            if (!string.IsNullOrWhiteSpace(sub))
-            {
-                candidates.Add(sub);
-                if (!string.IsNullOrWhiteSpace(clinicClaim))
-                    candidates.Add($"{clinicClaim}:{sub}");
-            }
-
-            candidates = candidates
-                .Where(c => !string.IsNullOrWhiteSpace(c))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
+            var candidates = CollectParticipantIdentities(principal, identities);
             if (candidates.Count == 0)
                 return Results.Unauthorized();
 
@@ -422,5 +433,46 @@ public static class MediaEndpoints
         }).RequireAuthorization();
 
         return app;
+    }
+
+    private static List<string> CollectParticipantIdentities(
+        ClaimsPrincipal principal,
+        IdentityRegistry identities)
+    {
+        var candidates = new List<string>();
+        var current = ClinicAuthorization.CurrentUser(principal, identities);
+        if (current is not null)
+        {
+            candidates.Add($"{current.ClinicId}:{current.Id}");
+            candidates.Add(current.Id);
+        }
+
+        var embed = EmbedAuthTokenService.TryReadSession(principal);
+        if (embed is not null)
+        {
+            candidates.Add($"visitor:{embed.SessionId}");
+            candidates.Add($"{embed.ClinicId}:visitor:{embed.SessionId}");
+            if (!string.IsNullOrWhiteSpace(embed.VisitorId))
+            {
+                candidates.Add(embed.VisitorId);
+                candidates.Add($"{embed.ClinicId}:{embed.VisitorId}");
+            }
+        }
+
+        var sub = principal.FindFirstValue("sub")
+                  ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clinicClaim = principal.FindFirstValue("clinic_id")
+                          ?? principal.FindFirstValue("clinicId");
+        if (!string.IsNullOrWhiteSpace(sub))
+        {
+            candidates.Add(sub);
+            if (!string.IsNullOrWhiteSpace(clinicClaim))
+                candidates.Add($"{clinicClaim}:{sub}");
+        }
+
+        return candidates
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

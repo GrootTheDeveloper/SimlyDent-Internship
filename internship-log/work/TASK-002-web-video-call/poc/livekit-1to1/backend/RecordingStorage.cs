@@ -16,6 +16,9 @@ public interface IRecordingStorage
 
     Task SaveFromLocalFileAsync(string storageKey, string localPath, CancellationToken ct);
 
+    /// <summary>Write stream to storage key (snapshot API upload, etc.).</summary>
+    Task SaveStreamAsync(string storageKey, Stream content, string? contentType, CancellationToken ct);
+
     Task<Stream?> OpenReadAsync(string storageKey, CancellationToken ct);
 
     Task<bool> ExistsAsync(string storageKey, CancellationToken ct);
@@ -100,6 +103,14 @@ public sealed class LocalRecordingStorage : IRecordingStorage
         return Task.CompletedTask;
     }
 
+    public async Task SaveStreamAsync(string storageKey, Stream content, string? contentType, CancellationToken ct)
+    {
+        var dest = ResolvePath(storageKey);
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        await using var fs = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.None);
+        await content.CopyToAsync(fs, ct);
+    }
+
     public Task<Stream?> OpenReadAsync(string storageKey, CancellationToken ct)
     {
         var path = ResolvePath(storageKey);
@@ -180,6 +191,20 @@ public sealed class S3RecordingStorage : IRecordingStorage
         using var content = new StreamContent(fs);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         var req = await SignedRequestAsync(HttpMethod.Put, storageKey, content, _internalEndpoint, ct);
+        using var res = await _http.SendAsync(req, ct);
+        if (!res.IsSuccessStatusCode)
+        {
+            var body = await res.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"S3 PutObject failed HTTP {(int)res.StatusCode}: {body}");
+        }
+    }
+
+    public async Task SaveStreamAsync(string storageKey, Stream content, string? contentType, CancellationToken ct)
+    {
+        using var sc = new StreamContent(content);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+        var req = await SignedRequestAsync(HttpMethod.Put, storageKey, sc, _internalEndpoint, ct);
         using var res = await _http.SendAsync(req, ct);
         if (!res.IsSuccessStatusCode)
         {
