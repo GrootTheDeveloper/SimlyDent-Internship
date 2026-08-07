@@ -259,20 +259,54 @@ public sealed class RecordingFinalizeService(
         if (egress.UsesDirectS3Output)
             return false;
 
-        // Local lab: materialize from egress /out using basename of storage key
-        var fileName = Path.GetFileName(storageKey);
-        if (string.IsNullOrWhiteSpace(fileName))
-            return false;
-        var localPath = egress.GetLocalEgressPath(fileName);
-        // Also try common egress naming patterns used at start
-        if (!File.Exists(localPath))
+        // Local lab: materialize from egress /out (filename patterns vary by start path).
+        var candidates = new List<string>();
+        var baseName = Path.GetFileName(storageKey);
+        if (!string.IsNullOrWhiteSpace(baseName))
+            candidates.Add(egress.GetLocalEgressPath(baseName));
+
+        var clinic = asset.ClinicId.Trim().ToLowerInvariant();
+        candidates.Add(egress.GetLocalEgressPath(
+            $"audio-{clinic}-{asset.CallId:N}-{asset.Id:N}.mp3"));
+        candidates.Add(egress.GetLocalEgressPath(
+            $"clip-{asset.CallId:N}-{asset.Id:N}.mp4"));
+        // Legacy room composite style
+        candidates.Add(egress.GetLocalEgressPath(
+            $"clinic-{clinic}-call-{asset.CallId:N}-{asset.Id:N}.mp4"));
+
+        string? localPath = candidates.FirstOrDefault(File.Exists);
+        if (localPath is null)
         {
-            var alt = asset.Kind == MediaAssetKinds.CallAudio
-                ? $"audio-{asset.ClinicId}-{asset.CallId:N}-{asset.Id:N}.mp3"
-                : $"clip-{asset.CallId:N}-{asset.Id:N}.mp4";
-            localPath = egress.GetLocalEgressPath(alt);
+            // Scan /out for any file containing callId or assetId (egress basename may differ).
+            try
+            {
+                var outDir = Path.GetDirectoryName(egress.GetLocalEgressPath("x")) ?? "/recordings";
+                if (Directory.Exists(outDir))
+                {
+                    var callToken = asset.CallId.ToString("N");
+                    var assetToken = asset.Id.ToString("N");
+                    var ext = asset.Kind == MediaAssetKinds.CallAudio ? ".mp3" : ".mp4";
+                    localPath = Directory.EnumerateFiles(outDir, "*" + ext)
+                        .Where(f =>
+                        {
+                            var n = Path.GetFileName(f);
+                            return n.Contains(callToken, StringComparison.OrdinalIgnoreCase)
+                                   || n.Contains(assetToken, StringComparison.OrdinalIgnoreCase)
+                                   || (asset.Kind == MediaAssetKinds.CallAudio
+                                       && n.StartsWith("audio-", StringComparison.OrdinalIgnoreCase)
+                                       && n.Contains(callToken, StringComparison.OrdinalIgnoreCase));
+                        })
+                        .OrderByDescending(File.GetLastWriteTimeUtc)
+                        .FirstOrDefault();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Scan local egress dir failed");
+            }
         }
-        if (!File.Exists(localPath))
+
+        if (localPath is null || !File.Exists(localPath))
             return false;
         try
         {
