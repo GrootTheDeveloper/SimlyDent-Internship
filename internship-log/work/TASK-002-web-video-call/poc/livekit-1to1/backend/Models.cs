@@ -90,6 +90,14 @@ public sealed class CallSession
     public string? RecordingFileName { get; set; }
     public string? RecordingId { get; set; }
 
+    // ---- Consultation media domain (UI cache; catalog is source of truth after restart) ----
+    public Guid? ConsultationSessionId { get; set; }
+    public Guid? ActiveDentalClipAssetId { get; set; }
+    /// <summary>Idle | Recording | Finalizing</summary>
+    public string ActiveDentalClipStatus { get; set; } = "Idle";
+    /// <summary>Idle | Recording | Finalizing | Ready | Failed</summary>
+    public string AutoAudioStatus { get; set; } = "Idle";
+
     public object SyncRoot { get; } = new();
 
     public bool Contains(string userId)

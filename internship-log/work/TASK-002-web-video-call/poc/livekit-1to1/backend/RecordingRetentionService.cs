@@ -12,7 +12,8 @@ public sealed class RecordingRetentionService(
     ConcurrentDictionary<Guid, CallSession> calls,
     IRecordingStorage storage,
     RecordingAuditService audit,
-    ILogger<RecordingRetentionService> logger) : BackgroundService
+    ILogger<RecordingRetentionService> logger,
+    IConsultationCatalog? consultationCatalog = null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -59,9 +60,96 @@ public sealed class RecordingRetentionService(
                 deleted++;
         }
 
+        // Media assets retention
+        if (consultationCatalog is not null)
+        {
+            try
+            {
+                deleted += await ProcessMediaRetentionAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Media asset retention sweep failed.");
+            }
+        }
+
         if (deleted > 0)
             logger.LogInformation("Retention completed {Count} recording(s).", deleted);
         return deleted;
+    }
+
+    private async Task<int> ProcessMediaRetentionAsync(CancellationToken cancellationToken)
+    {
+        if (consultationCatalog is null) return 0;
+        var deleted = 0;
+        var due = await consultationCatalog.ListDueForRetentionAsync(50, cancellationToken);
+        foreach (var asset in due)
+        {
+            if (await ProcessMediaCandidateAsync(asset, claimFromReady: true, cancellationToken))
+                deleted++;
+        }
+        var pending = await consultationCatalog.ListDeletePendingAsync(50, cancellationToken);
+        foreach (var asset in pending)
+        {
+            if (await ProcessMediaCandidateAsync(asset, claimFromReady: false, cancellationToken))
+                deleted++;
+        }
+        return deleted;
+    }
+
+    private async Task<bool> ProcessMediaCandidateAsync(
+        MediaAsset asset,
+        bool claimFromReady,
+        CancellationToken cancellationToken)
+    {
+        if (consultationCatalog is null) return false;
+        if (claimFromReady)
+        {
+            var claimed = await consultationCatalog.TryMarkDeletePendingAsync(asset.Id, cancellationToken);
+            if (!claimed) return false;
+        }
+        else if (asset.Status != MediaAssetStatus.DeletePending)
+        {
+            return false;
+        }
+
+        var objects = await consultationCatalog.GetObjectsByAssetAsync(asset.Id, cancellationToken);
+        var allGone = true;
+        foreach (var obj in objects)
+        {
+            try
+            {
+                await storage.DeleteAsync(obj.StorageKey, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Media retention delete failed for {Key}", obj.StorageKey);
+                allGone = false;
+                continue;
+            }
+
+            try
+            {
+                if (await storage.ExistsAsync(obj.StorageKey, cancellationToken))
+                    allGone = false;
+            }
+            catch
+            {
+                allGone = false;
+            }
+        }
+
+        if (!allGone)
+        {
+            audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+                "MediaExpired", "Partial", "DeletePending retry");
+            return false;
+        }
+
+        await consultationCatalog.MarkDeletedAsync(asset.Id, cancellationToken);
+        audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+            "MediaExpired", "Ok", "status=Deleted");
+        return true;
     }
 
     private async Task<bool> ProcessRetentionCandidateAsync(

@@ -5,6 +5,12 @@ namespace LiveKitPoc.Api;
 public sealed record FinalizeApplyResult(bool Changed, string? NewStatus, string? Detail);
 
 /// <summary>
+/// Tri-state: Found distinguishes "unknown egress" from "no change needed".
+/// Prevents incorrect fallback to old recording catalog when webhook hits a terminal asset.
+/// </summary>
+public sealed record FinalizeMediaResult(bool Found, bool Changed, string? NewStatus, string? Detail);
+
+/// <summary>
 /// Shared finalize path for webhook + reconcile.
 /// Ready only after object exists. Transport StopEgress is never the source of truth.
 /// </summary>
@@ -16,7 +22,8 @@ public sealed class RecordingFinalizeService(
     CallDispatcher dispatcher,
     RecordingAuditService audit,
     IConfiguration configuration,
-    ILogger<RecordingFinalizeService> logger)
+    ILogger<RecordingFinalizeService> logger,
+    IConsultationCatalog? consultationCatalog = null)
 {
     private int FinalizeTimeoutSeconds =>
         int.TryParse(configuration["RECORDING_FINALIZE_TIMEOUT_SECONDS"], out var n) && n > 0 ? n : 300;
@@ -111,6 +118,196 @@ public sealed class RecordingFinalizeService(
 
         // ACTIVE / STARTING / ENDING etc. — no catalog change
         return new FinalizeApplyResult(false, row.Status, status);
+    }
+
+    /// <summary>
+    /// Apply egress terminal status against media_assets catalog.
+    /// </summary>
+    public async Task<FinalizeMediaResult> ApplyMediaEgressStatusAsync(
+        string egressId,
+        string? egressStatus,
+        string? error = null,
+        string? errorCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (consultationCatalog is null || string.IsNullOrWhiteSpace(egressId))
+            return new FinalizeMediaResult(Found: false, Changed: false, null, "unavailable");
+
+        var asset = await consultationCatalog.GetAssetByEgressIdAsync(egressId, cancellationToken);
+        if (asset is null)
+            return new FinalizeMediaResult(Found: false, Changed: false, null, "unknown_egress");
+
+        if (MediaAssetStatus.IsTerminal(asset.Status))
+            return new FinalizeMediaResult(Found: true, Changed: false, asset.Status, "already_terminal");
+
+        var status = (egressStatus ?? "").ToUpperInvariant();
+        if (status.StartsWith("EGRESS_", StringComparison.Ordinal))
+            status = status["EGRESS_".Length..];
+
+        if (status is "FAILED" or "ABORTED")
+        {
+            var msg = string.IsNullOrWhiteSpace(error) ? (errorCode ?? status) : error;
+            var failed = await consultationCatalog.TryMarkFailedAsync(asset.Id, egressId, msg!, cancellationToken);
+            if (failed)
+            {
+                DualWriteMediaCall(asset, failedStatus: true);
+                audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+                    "MediaFinalizeFailed", "Failed", msg);
+            }
+            return new FinalizeMediaResult(true, failed, failed ? MediaAssetStatus.Failed : asset.Status, msg);
+        }
+
+        if (status is "COMPLETE" or "LIMIT_REACHED")
+        {
+            await consultationCatalog.TrySetTerminalSeenAsync(asset.Id, egressId, cancellationToken);
+            asset = await consultationCatalog.GetAssetByEgressIdAsync(egressId, cancellationToken) ?? asset;
+
+            var obj = await consultationCatalog.GetObjectByAssetAndKindAsync(
+                asset.Id, MediaObjectKinds.Original, cancellationToken);
+            var key = obj?.StorageKey;
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = asset.Kind == MediaAssetKinds.CallAudio
+                    ? MediaStorageKeys.AudioKey(asset.ClinicId, asset.CallId, asset.Id)
+                    : MediaStorageKeys.VideoClipKey(asset.ClinicId, asset.CallId, asset.Id);
+            }
+
+            var objectOk = await EnsureMediaObjectExistsAsync(asset, key!, cancellationToken);
+            if (objectOk)
+            {
+                var endedAt = DateTimeOffset.UtcNow;
+                var ready = await consultationCatalog.TryMarkReadyAsync(
+                    asset.Id, egressId, durationMs: null, endedAt, cancellationToken);
+                if (ready)
+                {
+                    await consultationCatalog.MarkMediaObjectReadyAsync(
+                        asset.Id, MediaObjectKinds.Original, null, null, null, cancellationToken);
+                    DualWriteMediaCall(asset, failedStatus: false);
+                    audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+                        "MediaReady", "Ok", status);
+                }
+                return new FinalizeMediaResult(true, ready,
+                    ready ? MediaAssetStatus.Ready : asset.Status, status);
+            }
+
+            var terminalAt = asset.TerminalSeenAt ?? DateTimeOffset.UtcNow;
+            var age = DateTimeOffset.UtcNow - terminalAt;
+            if (age.TotalSeconds >= FinalizeTimeoutSeconds)
+            {
+                var failMsg = $"Object not available within {FinalizeTimeoutSeconds}s after {status}";
+                var failed = await consultationCatalog.TryMarkFailedAsync(
+                    asset.Id, egressId, failMsg, cancellationToken);
+                if (failed)
+                {
+                    DualWriteMediaCall(asset, failedStatus: true);
+                    audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+                        "MediaFinalizeFailed", "Failed", failMsg);
+                }
+                return new FinalizeMediaResult(true, failed,
+                    failed ? MediaAssetStatus.Failed : asset.Status, failMsg);
+            }
+
+            logger.LogInformation(
+                "Media asset {AssetId} egress {EgressId} terminal {Status} but object missing; waiting",
+                asset.Id, egressId, status);
+            return new FinalizeMediaResult(true, false, asset.Status, "object_not_visible_yet");
+        }
+
+        return new FinalizeMediaResult(true, false, asset.Status, status);
+    }
+
+    public async Task<FinalizeMediaResult> ApplyMediaFinalizingTimeoutIfNeededAsync(
+        MediaAsset asset,
+        CancellationToken cancellationToken = default)
+    {
+        if (consultationCatalog is null)
+            return new FinalizeMediaResult(false, false, null, "unavailable");
+        if (asset.Status != MediaAssetStatus.Finalizing)
+            return new FinalizeMediaResult(true, false, asset.Status, "not finalizing");
+        if (string.IsNullOrWhiteSpace(asset.EgressId))
+            return new FinalizeMediaResult(true, false, asset.Status, "no egress");
+
+        var clock = asset.TerminalSeenAt ?? asset.FinalizingStartedAt;
+        if (clock is null)
+            return new FinalizeMediaResult(true, false, asset.Status, "no clock");
+
+        var age = DateTimeOffset.UtcNow - clock.Value;
+        if (age.TotalSeconds < FinalizeTimeoutSeconds)
+            return new FinalizeMediaResult(true, false, asset.Status, "within timeout");
+
+        var failMsg = $"Media finalize timeout after {FinalizeTimeoutSeconds}s";
+        var failed = await consultationCatalog.TryMarkFailedAsync(
+            asset.Id, asset.EgressId, failMsg, cancellationToken);
+        if (failed)
+        {
+            DualWriteMediaCall(asset, failedStatus: true);
+            audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
+                "MediaFinalizeFailed", "Failed", failMsg);
+        }
+        return new FinalizeMediaResult(true, failed,
+            failed ? MediaAssetStatus.Failed : asset.Status, failMsg);
+    }
+
+    private async Task<bool> EnsureMediaObjectExistsAsync(
+        MediaAsset asset,
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        if (await storage.ExistsAsync(storageKey, cancellationToken))
+            return true;
+
+        if (egress.UsesDirectS3Output)
+            return false;
+
+        // Local lab: materialize from egress /out using basename of storage key
+        var fileName = Path.GetFileName(storageKey);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return false;
+        var localPath = egress.GetLocalEgressPath(fileName);
+        // Also try common egress naming patterns used at start
+        if (!File.Exists(localPath))
+        {
+            var alt = asset.Kind == MediaAssetKinds.CallAudio
+                ? $"audio-{asset.ClinicId}-{asset.CallId:N}-{asset.Id:N}.mp3"
+                : $"clip-{asset.CallId:N}-{asset.Id:N}.mp4";
+            localPath = egress.GetLocalEgressPath(alt);
+        }
+        if (!File.Exists(localPath))
+            return false;
+        try
+        {
+            await storage.SaveFromLocalFileAsync(storageKey, localPath, cancellationToken);
+            return await storage.ExistsAsync(storageKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Local media materialize failed for {Key}", storageKey);
+            return false;
+        }
+    }
+
+    private void DualWriteMediaCall(MediaAsset asset, bool failedStatus)
+    {
+        if (!calls.TryGetValue(asset.CallId, out var call)) return;
+        lock (call.SyncRoot)
+        {
+            if (asset.Kind == MediaAssetKinds.CallAudio)
+            {
+                call.AutoAudioStatus = failedStatus ? "Failed" : "Ready";
+            }
+            else if (asset.Kind == MediaAssetKinds.DentalVideoClip)
+            {
+                if (call.ActiveDentalClipAssetId == asset.Id || call.ActiveDentalClipAssetId is null)
+                {
+                    call.ActiveDentalClipStatus = failedStatus ? "Idle" : "Idle";
+                    if (!failedStatus || call.ActiveDentalClipAssetId == asset.Id)
+                        call.ActiveDentalClipAssetId = null;
+                }
+            }
+            call.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        try { _ = dispatcher.NotifyCallAsync(call); }
+        catch { /* best effort */ }
     }
 
     /// <summary>

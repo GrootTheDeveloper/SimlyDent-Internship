@@ -9,7 +9,8 @@ public sealed class CallEndService(
     LiveKitEgressService egress,
     IRecordingCatalog catalog,
     RecordingAuditService audit,
-    ILogger<CallEndService> logger)
+    ILogger<CallEndService> logger,
+    ConsultationMediaLifecycleService? mediaLifecycle = null)
 {
     public async Task<CallTransitionResult> EndWithRecordingAsync(
         Guid callId,
@@ -33,6 +34,19 @@ public sealed class CallEndService(
             mode = call.RecordingMode;
             if (egressId is not null && call.RecordingStatus == "Recording")
                 call.RecordingStatus = "Stopping";
+        }
+
+        // NEW: stop all consultation media assets (audio + dental clips)
+        if (mediaLifecycle is not null)
+        {
+            try
+            {
+                await mediaLifecycle.StopAllActiveMediaAsync(call, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "StopAllActiveMedia failed on call end {CallId}", call.Id);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(egressId))

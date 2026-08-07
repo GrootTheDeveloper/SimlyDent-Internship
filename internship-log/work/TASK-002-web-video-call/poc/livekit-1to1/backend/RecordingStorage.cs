@@ -30,6 +30,9 @@ public interface IRecordingStorage
     /// Null if unsupported. Never log the returned URL.
     /// </summary>
     string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl);
+
+    /// <summary>SigV4 presigned PUT for direct browser upload (short TTL). Null if unsupported.</summary>
+    string? CreatePresignedPutUrl(string storageKey, TimeSpan ttl);
 }
 
 public static class RecordingStorageKeys
@@ -42,12 +45,27 @@ public static class RecordingStorageKeys
         return $"clinic/{clinic}/calls/{callId:N}/{rec}.{ext}";
     }
 
-    private static string Sanitize(string value)
+    public static string Sanitize(string value)
     {
         var chars = value.Trim().Select(ch =>
             char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '-').ToArray();
         return new string(chars).ToLowerInvariant();
     }
+}
+
+/// <summary>Object keys for consultation media assets (audio / dental clip / snapshot).</summary>
+public static class MediaStorageKeys
+{
+    public static string AudioKey(string clinicId, Guid callId, Guid assetId)
+        => $"clinic/{S(clinicId)}/calls/{callId:N}/audio/{assetId:N}.mp3";
+
+    public static string VideoClipKey(string clinicId, Guid callId, Guid assetId)
+        => $"clinic/{S(clinicId)}/calls/{callId:N}/videos/{assetId:N}.mp4";
+
+    public static string PhotoOriginalKey(string clinicId, Guid callId, Guid assetId)
+        => $"clinic/{S(clinicId)}/calls/{callId:N}/photos/{assetId:N}/original.jpg";
+
+    private static string S(string v) => RecordingStorageKeys.Sanitize(v);
 }
 
 /// <summary>Disk under RECORDINGS_PATH with clinic-scoped relative keys.</summary>
@@ -70,6 +88,8 @@ public sealed class LocalRecordingStorage : IRecordingStorage
     public string? TryGetLocalPath(string storageKey) => ResolvePath(storageKey);
 
     public string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl) => null;
+
+    public string? CreatePresignedPutUrl(string storageKey, TimeSpan ttl) => null;
 
     public Task SaveFromLocalFileAsync(string storageKey, string localPath, CancellationToken ct)
     {
@@ -204,12 +224,18 @@ public sealed class S3RecordingStorage : IRecordingStorage
         }
     }
 
-    public string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl)
+    public string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl) =>
+        CreatePresignedUrl("GET", storageKey, ttl, maxTtlMinutes: 15);
+
+    public string? CreatePresignedPutUrl(string storageKey, TimeSpan ttl) =>
+        CreatePresignedUrl("PUT", storageKey, ttl, maxTtlMinutes: 5);
+
+    private string? CreatePresignedUrl(string method, string storageKey, TimeSpan ttl, int maxTtlMinutes)
     {
         if (!SupportsPresignedGet)
             return null;
         if (ttl <= TimeSpan.Zero) ttl = TimeSpan.FromMinutes(5);
-        if (ttl > TimeSpan.FromMinutes(15)) ttl = TimeSpan.FromMinutes(15);
+        if (ttl > TimeSpan.FromMinutes(maxTtlMinutes)) ttl = TimeSpan.FromMinutes(maxTtlMinutes);
 
         var objectKey = storageKey.Replace('\\', '/').TrimStart('/');
         var endpoint = _publicEndpoint;
@@ -229,7 +255,6 @@ public sealed class S3RecordingStorage : IRecordingStorage
             ? $"/{_bucket}/{EncodeS3Key(objectKey)}"
             : $"/{EncodeS3Key(objectKey)}";
 
-        // Query params must be sorted for canonical request.
         var query = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
             ["X-Amz-Algorithm"] = "AWS4-HMAC-SHA256",
@@ -246,7 +271,7 @@ public sealed class S3RecordingStorage : IRecordingStorage
         var signedHeaders = "host";
         var payloadHash = "UNSIGNED-PAYLOAD";
         var canonicalRequest = string.Join("\n",
-            "GET",
+            method.ToUpperInvariant(),
             canonicalUri,
             canonicalQuery,
             canonicalHeaders,

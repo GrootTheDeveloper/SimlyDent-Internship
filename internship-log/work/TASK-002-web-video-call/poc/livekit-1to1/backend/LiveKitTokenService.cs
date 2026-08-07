@@ -74,6 +74,36 @@ public sealed class LiveKitTokenService(IConfiguration configuration)
         return Sign(header, payload);
     }
 
+    /// <summary>
+    /// Room admin token scoped to ONE room for RoomService operations:
+    /// ListParticipants (track resolution) and SendData (targeted photo command).
+    /// Never issued to clients.
+    /// </summary>
+    public string CreateRoomAdminToken(string roomName, TimeSpan? ttl = null)
+    {
+        if (string.IsNullOrWhiteSpace(roomName))
+            throw new ArgumentException("Room name is required.", nameof(roomName));
+
+        var now = DateTimeOffset.UtcNow;
+        var header = new Dictionary<string, object> { ["alg"] = "HS256", ["typ"] = "JWT" };
+        var payload = new Dictionary<string, object?>
+        {
+            ["iss"] = _apiKey,
+            ["sub"] = "simlydent-room-admin",
+            ["nbf"] = now.ToUnixTimeSeconds(),
+            ["exp"] = now.Add(ttl ?? TimeSpan.FromMinutes(2)).ToUnixTimeSeconds(),
+            ["jti"] = Guid.NewGuid().ToString("N"),
+            ["video"] = new
+            {
+                roomAdmin = true,
+                roomRecord = true,
+                roomCreate = true,
+                room = roomName
+            }
+        };
+        return Sign(header, payload);
+    }
+
     private string Sign(Dictionary<string, object> header, Dictionary<string, object?> payload)
     {
         var encodedHeader = Base64Url(JsonSerializer.SerializeToUtf8Bytes(header));

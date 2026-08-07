@@ -962,6 +962,136 @@ async function fetchAndSaveRecording(callId) {
   URL.revokeObjectURL(url)
 }
 
+/** Download consultation media asset (audio / clip / photo) via Manager endpoint. */
+async function fetchAndSaveMediaAsset(assetId, kindHint = '') {
+  const metaRes = await apiFetch(`/api/media/${assetId}/download-url`, {
+    headers: authHeaders()
+  })
+  if (!metaRes.ok) {
+    const body = await metaRes.json().catch(() => ({}))
+    throw new Error(body.error || `Không lấy được link media (HTTP ${metaRes.status})`)
+  }
+  const meta = await metaRes.json()
+  const ext = kindHint === 'CallAudio' || meta.kind === 'CallAudio'
+    ? 'mp3'
+    : (kindHint === 'Snapshot' || meta.kind === 'Snapshot' ? 'jpg' : 'mp4')
+  const fileName = `media-${String(assetId).replace(/-/g, '')}.${ext}`
+
+  if ((meta.mode || '') === 'presign' && meta.url) {
+    const link = document.createElement('a')
+    link.href = meta.url
+    link.download = fileName
+    link.rel = 'noopener'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    return
+  }
+
+  const path = meta.url || `/api/media/${assetId}/file`
+  const res = await apiFetch(path, { headers: authHeaders() })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Không tải được media (HTTP ${res.status})`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Patient-side: capture photo from local camera and PUT to presigned URL.
+ * Invoked when RoomEvent.DataReceived carries type=capture_photo.
+ */
+async function handleCapturePhotoCommand(room, msg) {
+  if (!msg?.uploadUrl || !msg?.assetId) return
+  const localVideoTrack = room?.localParticipant
+    ?.getTrackPublication?.(Track.Source.Camera)?.track
+    || room?.localParticipant
+      ?.getTrackPublication?.(Track.Source.Camera)?.videoTrack
+  const mst = localVideoTrack?.mediaStreamTrack
+  if (!mst) {
+    console.warn('No local camera track for photo capture')
+    return
+  }
+
+  const settings = mst.getSettings?.() || {}
+  let blob = null
+  let actualWidth = settings.width || null
+  let actualHeight = settings.height || null
+
+  if (typeof ImageCapture !== 'undefined') {
+    try {
+      const capture = new ImageCapture(mst)
+      const photoBlob = await capture.takePhoto()
+      if (photoBlob instanceof Blob) {
+        blob = photoBlob
+      }
+    } catch (e) {
+      console.warn('ImageCapture.takePhoto failed, canvas fallback', e)
+    }
+  }
+
+  if (!blob) {
+    const canvas = document.createElement('canvas')
+    canvas.width = settings.width || 1280
+    canvas.height = settings.height || 720
+    actualWidth = canvas.width
+    actualHeight = canvas.height
+    const videoEl = document.createElement('video')
+    videoEl.muted = true
+    videoEl.playsInline = true
+    videoEl.srcObject = new MediaStream([mst])
+    await videoEl.play()
+    await new Promise(r => setTimeout(r, 50))
+    canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+    videoEl.pause()
+    videoEl.srcObject = null
+    blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.95))
+  }
+
+  if (!blob) throw new Error('Không chụp được ảnh')
+
+  const putRes = await fetch(msg.uploadUrl, {
+    method: 'PUT',
+    body: blob,
+    headers: { 'Content-Type': 'image/jpeg' }
+  })
+  if (!putRes.ok) {
+    throw new Error(`Upload ảnh thất bại HTTP ${putRes.status}`)
+  }
+
+  // Notify backend (retry up to 3 times)
+  let lastErr = null
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await apiFetch(`/api/media/${msg.assetId}/upload-complete`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          actualWidth,
+          actualHeight,
+          bytes: blob.size
+        })
+      })
+      if (res.ok || res.status === 202) return
+      const body = await res.json().catch(() => ({}))
+      lastErr = new Error(body.error || `upload-complete HTTP ${res.status}`)
+      await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    } catch (e) {
+      lastErr = e
+      await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    }
+  }
+  if (lastErr) throw lastErr
+}
+
 // Determine route mode
 const path = window.location.pathname
 const isCallRoute = path.startsWith('/call/')
@@ -996,6 +1126,12 @@ if (isCallRoute) {
       microphoneEnabled: true,
       remoteVideoConnected: false,
       needsAudioPermission: false,
+      /** Consultation media (M2–M4) */
+      dentalClipBusy: false,
+      dentalClipStatus: 'Idle',
+      dentalClipAssetId: null,
+      photoBusy: false,
+      photoStatus: '',
       qualityStats: initialQualityStats(),
       qualityStatsTimer: null,
       qualityStatsPrevious: { inbound: {}, outbound: {} },
@@ -1271,6 +1407,25 @@ if (isCallRoute) {
           room.on(RoomEvent.Disconnected, () => {
             this.handleCallEnded()
           })
+          // Snapshot command from backend RoomService.SendData (targeted to patient)
+          room.on(RoomEvent.DataReceived, async (payload, participant, kind) => {
+            let msg
+            try {
+              msg = JSON.parse(new TextDecoder().decode(payload))
+            } catch {
+              return
+            }
+            if (msg?.type !== 'capture_photo') return
+            try {
+              this.photoStatus = 'Đang chụp…'
+              await handleCapturePhotoCommand(room, msg)
+              this.photoStatus = 'Đã gửi ảnh'
+            } catch (e) {
+              console.warn('capture_photo failed', e)
+              this.photoStatus = e.message || 'Chụp ảnh thất bại'
+              this.error = this.photoStatus
+            }
+          })
 
           await room.connect(credentials.url, credentials.token, {
             websocketTimeout: 15000,
@@ -1372,6 +1527,100 @@ if (isCallRoute) {
         if (this.room) {
           await this.room.startAudio()
           this.needsAudioPermission = !this.room.canPlaybackAudio
+        }
+      },
+      /** LiveKit participant identity for remote patient (clinicId:userId). */
+      resolvePatientParticipantIdentity() {
+        if (!this.room || !this.call) return null
+        const peerId = this.call.callerId === this.userId ? this.call.calleeId : this.call.callerId
+        const clinic = clinicIdOf(this.currentUser) || this.call.clinicId || ''
+        // Prefer matching remote participant by identity suffix
+        for (const p of this.room.remoteParticipants.values()) {
+          const id = p.identity || ''
+          if (id === peerId || id.endsWith(':' + peerId) || id.includes(peerId)) {
+            return id
+          }
+        }
+        // Fallback: convention {clinicId}:{userId}
+        if (clinic && peerId) return `${clinic}:${peerId}`
+        return peerId || null
+      },
+      resolvePatientVideoTrackSid() {
+        if (!this.room) return null
+        for (const p of this.room.remoteParticipants.values()) {
+          for (const pub of p.videoTrackPublications?.values?.() || p.trackPublications?.values?.() || []) {
+            if (pub?.source === Track.Source.Camera || pub?.kind === Track.Kind.Video) {
+              return pub.trackSid || pub.track?.sid || null
+            }
+          }
+        }
+        return null
+      },
+      async toggleDentalClip() {
+        if (!this.callId || this.dentalClipBusy) return
+        this.dentalClipBusy = true
+        try {
+          if (this.dentalClipStatus === 'Recording' && this.dentalClipAssetId) {
+            const res = await apiFetch(
+              `/api/calls/${this.callId}/video-clips/${this.dentalClipAssetId}/stop`,
+              { method: 'POST', headers: authHeaders() }
+            )
+            const body = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(body.error || `Stop clip HTTP ${res.status}`)
+            this.dentalClipStatus = 'Finalizing'
+          } else {
+            const patientIdentity = this.resolvePatientParticipantIdentity()
+            if (!patientIdentity) throw new Error('Chưa thấy bệnh nhân trong room')
+            const trackHint = this.resolvePatientVideoTrackSid()
+            const remotePub = this.room
+              ? [...this.room.remoteParticipants.values()][0]
+              : null
+            const settings = remotePub
+              ? [...(remotePub.videoTrackPublications?.values?.() || [])][0]
+                ?.track?.mediaStreamTrack?.getSettings?.()
+              : null
+            const res = await apiFetch(`/api/calls/${this.callId}/video-clips/start`, {
+              method: 'POST',
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({
+                patientParticipantIdentity: patientIdentity,
+                patientVideoTrackSidHint: trackHint,
+                actualWidth: settings?.width || null,
+                actualHeight: settings?.height || null,
+                actualFrameRate: settings?.frameRate || null
+              })
+            })
+            const body = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(body.error || `Start clip HTTP ${res.status}`)
+            this.dentalClipAssetId = body.assetId
+            this.dentalClipStatus = body.status || 'Recording'
+          }
+        } catch (e) {
+          this.error = e.message
+        } finally {
+          this.dentalClipBusy = false
+        }
+      },
+      async requestPhoto() {
+        if (!this.callId || this.photoBusy) return
+        this.photoBusy = true
+        this.photoStatus = ''
+        try {
+          const patientIdentity = this.resolvePatientParticipantIdentity()
+          if (!patientIdentity) throw new Error('Chưa thấy bệnh nhân trong room')
+          const res = await apiFetch(`/api/calls/${this.callId}/photos/request`, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ patientParticipantIdentity: patientIdentity })
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(body.error || `Request photo HTTP ${res.status}`)
+          this.photoStatus = 'Đã gửi lệnh chụp'
+        } catch (e) {
+          this.error = e.message
+          this.photoStatus = e.message
+        } finally {
+          this.photoBusy = false
         }
       },
       startQualityMonitoring() {
@@ -1706,6 +1955,8 @@ if (isCallRoute) {
           </div>
           <div class="call-header-actions">
             <span v-if="isRecording || recordingStatusLabel" class="recording-indicator"><span></span> {{ recordingStatusLabel || 'Đang ghi' }}</span>
+            <span v-if="dentalClipStatus === 'Recording'" class="recording-indicator"><span></span> Clip răng</span>
+            <span v-if="photoStatus" class="recording-indicator" style="opacity:.85">{{ photoStatus }}</span>
             <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng hình ảnh">{{ qualityBadge }}</button>
             <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật tiếng</button>
           </div>
@@ -1776,6 +2027,24 @@ if (isCallRoute) {
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi' : 'Bắt đầu ghi (cần đồng ý)'">
                 <span class="record-dot"></span>
               </button>
+              <button
+                v-if="mediaPermissionState === 'connected' && !isManagerRole"
+                :class="['ctrl-btn', dentalClipStatus === 'Recording' && 'recording']"
+                :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing'"
+                @click="toggleDentalClip"
+                :title="dentalClipStatus === 'Recording' ? 'Dừng clip răng' : 'Ghi clip răng (camera bệnh nhân)'"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2"/></svg>
+              </button>
+              <button
+                v-if="mediaPermissionState === 'connected' && !isManagerRole"
+                class="ctrl-btn"
+                :disabled="photoBusy"
+                @click="requestPhoto"
+                title="Chụp ảnh (gửi lệnh cho bệnh nhân)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </button>
               <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi (quản lý)">
                 <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
               </button>
@@ -1834,6 +2103,13 @@ if (isCallRoute) {
       recordingsError: '',
       recordingsFilter: 'all', // all | complete | deleted | failed
       recordingActionId: null,
+      /** Manager consultations (M5) */
+      consultations: [],
+      consultationsLoading: false,
+      consultationsError: '',
+      consultationDetail: null,
+      consultationDetailLoading: false,
+      mediaActionId: null,
       /** Left icon rail — only "call" is implemented */
       activeNav: 'call',
       navRailItems: [
@@ -2054,7 +2330,7 @@ if (isCallRoute) {
         this.targetId = sameClinicPeers[0]?.id || ''
         await this.connectRealtime()
         if (String(user.role || '').toLowerCase() === 'manager') {
-          await this.loadRecordings()
+          await Promise.all([this.loadConsultations(), this.loadRecordings()])
         }
       },
       async logout() {
@@ -2077,7 +2353,84 @@ if (isCallRoute) {
         this.recordingsTotal = 0
         this.recordingsError = ''
         this.recordingActionId = null
+        this.consultations = []
+        this.consultationDetail = null
         history.replaceState(null, '', location.pathname)
+      },
+      async loadConsultations() {
+        if (!this.isManager) return
+        this.consultationsLoading = true
+        this.consultationsError = ''
+        try {
+          const res = await apiFetch('/api/consultations?limit=50', { headers: authHeaders() })
+          const body = await res.json().catch(() => ({}))
+          if (res.status === 404) {
+            this.consultations = []
+            return
+          }
+          if (!res.ok) {
+            throw new Error(body.error || `Không tải được consultations (HTTP ${res.status})`)
+          }
+          this.consultations = body.items || []
+        } catch (e) {
+          this.consultationsError = e.message || 'Lỗi tải consultations'
+          this.consultations = []
+        } finally {
+          this.consultationsLoading = false
+        }
+      },
+      async openConsultationDetail(sessionId) {
+        if (!sessionId) return
+        this.consultationDetailLoading = true
+        try {
+          const res = await apiFetch(`/api/consultations/${sessionId}`, { headers: authHeaders() })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+          this.consultationDetail = body
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.consultationDetailLoading = false
+        }
+      },
+      closeConsultationDetail() {
+        this.consultationDetail = null
+      },
+      async downloadMediaAsset(assetId, kind) {
+        if (!assetId || this.mediaActionId) return
+        this.mediaActionId = assetId
+        try {
+          await fetchAndSaveMediaAsset(assetId, kind)
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.mediaActionId = null
+        }
+      },
+      async deleteMediaAsset(assetId) {
+        if (!assetId || this.mediaActionId) return
+        const ok = window.confirm('Đánh dấu xóa media này? File sẽ bị xóa sau bởi retention.')
+        if (!ok) return
+        this.mediaActionId = assetId
+        try {
+          const res = await apiFetch(`/api/media/${assetId}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+          if (this.consultationDetail?.sessionId) {
+            await this.openConsultationDetail(this.consultationDetail.sessionId)
+          }
+          await this.loadConsultations()
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.mediaActionId = null
+        }
       },
       async loadRecordings() {
         if (!this.isManager) return
@@ -2757,14 +3110,14 @@ if (isCallRoute) {
                 </button>
               </div>
 
-              <!-- Manager: recording library -->
+              <!-- Manager: consultations + legacy recordings -->
               <div v-else-if="isManager" class="manager-library">
                 <header class="library-header">
                   <div>
                     <p class="library-kicker">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }} · Quản lý</p>
-                    <h2 class="library-title">Thư viện bản ghi</h2>
+                    <h2 class="library-title">Thư viện tư vấn</h2>
                     <p class="library-desc">
-                      Chỉ quản lý đúng phòng được xem, tải và xóa. Nhân viên tư vấn không tải được file.
+                      Media theo phiên tư vấn (audio + clip răng + ảnh). Chỉ quản lý đúng phòng khám.
                     </p>
                   </div>
                   <div class="library-actions">
@@ -2774,15 +3127,118 @@ if (isCallRoute) {
                     <button
                       type="button"
                       class="btn-secondary-pill"
-                      :disabled="recordingsLoading"
-                      @click="loadRecordings"
+                      :disabled="consultationsLoading || recordingsLoading"
+                      @click="loadConsultations(); loadRecordings()"
                     >
-                      {{ recordingsLoading ? 'Đang tải…' : 'Làm mới' }}
+                      {{ (consultationsLoading || recordingsLoading) ? 'Đang tải…' : 'Làm mới' }}
                     </button>
                   </div>
                 </header>
 
-                <div class="library-filters" role="tablist" aria-label="Lọc bản ghi">
+                <h3 class="library-section-title" style="margin: 16px 0 8px; font-size: 15px;">Consultations</h3>
+                <p v-if="consultationsError" class="library-error">{{ consultationsError }}</p>
+                <div v-if="consultationsLoading && !consultations.length" class="library-empty">
+                  Đang tải consultations…
+                </div>
+                <div v-else-if="!consultations.length" class="library-empty">
+                  <p class="library-empty-title">Chưa có phiên tư vấn</p>
+                  <p class="library-empty-desc">Sau khi staff Accept + consent, phiên và media sẽ xuất hiện ở đây.</p>
+                </div>
+                <div v-else class="library-table-wrap">
+                  <table class="library-table">
+                    <thead>
+                      <tr>
+                        <th>Bệnh nhân</th>
+                        <th>Nhân viên</th>
+                        <th>Media</th>
+                        <th>Thời gian</th>
+                        <th class="col-actions">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in consultations" :key="row.sessionId">
+                        <td>
+                          <div class="library-primary">{{ row.patientDisplayName || row.patientId }}</div>
+                          <div class="library-secondary mono" :title="row.callId">{{ String(row.callId).slice(0, 8) }}…</div>
+                        </td>
+                        <td class="library-secondary">{{ row.staffDisplayName || row.staffId || '—' }}</td>
+                        <td class="library-secondary">
+                          🔊{{ row.audioCount }} · 🎬{{ row.videoCount }} · 📷{{ row.photoCount }}
+                        </td>
+                        <td class="library-secondary">
+                          {{ formatViDateTime(row.startedAt || row.endedAt) }}
+                          <span v-if="row.durationSeconds"> · {{ Math.round(row.durationSeconds / 60) }}p</span>
+                        </td>
+                        <td class="col-actions">
+                          <button type="button" class="row-btn row-btn--primary" @click="openConsultationDetail(row.sessionId)">
+                            Xem
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Consultation detail modal -->
+                <div v-if="consultationDetail" class="library-modal-backdrop" @click.self="closeConsultationDetail" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;">
+                  <div class="library-modal" style="background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:85vh;overflow:auto;padding:20px;">
+                    <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
+                      <div>
+                        <h3 style="margin:0;">{{ consultationDetail.patientDisplayName }}</h3>
+                        <p class="library-secondary" style="margin:4px 0 0;">
+                          NV: {{ consultationDetail.staffDisplayName || '—' }} ·
+                          {{ formatViDateTime(consultationDetail.startedAt) }}
+                        </p>
+                      </div>
+                      <button type="button" class="btn-secondary-pill" @click="closeConsultationDetail">Đóng</button>
+                    </header>
+                    <div v-if="consultationDetailLoading">Đang tải…</div>
+                    <template v-else>
+                      <section v-if="consultationDetail.audio" style="margin-bottom:14px;">
+                        <h4 style="margin:0 0 6px;">Audio phiên</h4>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                          <span class="status-pill">{{ consultationDetail.audio.status }}</span>
+                          <button v-if="consultationDetail.audio.canDownload" type="button" class="row-btn row-btn--primary"
+                            :disabled="mediaActionId === consultationDetail.audio.assetId"
+                            @click="downloadMediaAsset(consultationDetail.audio.assetId, 'CallAudio')">Tải audio</button>
+                          <button v-if="consultationDetail.audio.canMarkDelete" type="button" class="row-btn row-btn--danger"
+                            @click="deleteMediaAsset(consultationDetail.audio.assetId)">Xóa</button>
+                        </div>
+                      </section>
+                      <section style="margin-bottom:14px;">
+                        <h4 style="margin:0 0 6px;">Clip răng ({{ (consultationDetail.videoClips || []).length }})</h4>
+                        <div v-if="!(consultationDetail.videoClips || []).length" class="library-secondary">Chưa có clip</div>
+                        <div v-for="clip in (consultationDetail.videoClips || [])" :key="clip.assetId" style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap;">
+                          <span>Clip {{ clip.displayIndex }}</span>
+                          <span class="status-pill">{{ clip.status }}</span>
+                          <span class="library-secondary" v-if="clip.width">{{ clip.width }}×{{ clip.height }}</span>
+                          <button v-if="clip.canDownload" type="button" class="row-btn row-btn--primary"
+                            @click="downloadMediaAsset(clip.assetId, 'DentalVideoClip')">Tải</button>
+                          <button v-if="clip.canMarkDelete" type="button" class="row-btn row-btn--danger"
+                            @click="deleteMediaAsset(clip.assetId)">Xóa</button>
+                        </div>
+                      </section>
+                      <section>
+                        <h4 style="margin:0 0 6px;">Ảnh ({{ (consultationDetail.photos || []).length }})</h4>
+                        <div v-if="!(consultationDetail.photos || []).length" class="library-secondary">Chưa có ảnh</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                          <div v-for="ph in (consultationDetail.photos || [])" :key="ph.assetId" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;min-width:120px;">
+                            <div class="library-secondary">Ảnh {{ ph.displayIndex }} · {{ ph.status }}</div>
+                            <div style="margin-top:6px;display:flex;gap:6px;">
+                              <button v-if="ph.canDownload" type="button" class="row-btn row-btn--primary"
+                                @click="downloadMediaAsset(ph.assetId, 'Snapshot')">Tải</button>
+                              <button v-if="ph.canMarkDelete" type="button" class="row-btn row-btn--danger"
+                                @click="deleteMediaAsset(ph.assetId)">Xóa</button>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    </template>
+                  </div>
+                </div>
+
+                <h3 class="library-section-title" style="margin: 28px 0 8px; font-size: 15px;">Legacy recordings (trước media catalog)</h3>
+                <div class="library-filters" role="tablist" aria-label="Lọc bản ghi cũ">
                   <button
                     type="button"
                     role="tab"
@@ -2812,13 +3268,10 @@ if (isCallRoute) {
                 <p v-if="recordingsError" class="library-error">{{ recordingsError }}</p>
 
                 <div v-if="recordingsLoading && !recordings.length" class="library-empty">
-                  Đang tải danh sách bản ghi…
+                  Đang tải danh sách bản ghi cũ…
                 </div>
                 <div v-else-if="!filteredRecordings.length" class="library-empty">
-                  <p class="library-empty-title">Chưa có bản ghi phù hợp</p>
-                  <p class="library-empty-desc">
-                    Khi nhân viên bật ghi và hoàn tất cuộc gọi, file sẽ hiện ở đây để bạn tải hoặc xóa.
-                  </p>
+                  <p class="library-empty-title">Không có legacy recording</p>
                 </div>
                 <div v-else class="library-table-wrap">
                   <table class="library-table">

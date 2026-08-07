@@ -573,6 +573,12 @@
       room.on(LivekitClient.RoomEvent.Disconnected, function () {
         onMediaDisconnected();
       });
+      // Staff-triggered photo: backend RoomService.SendData → capture + presigned PUT
+      room.on(LivekitClient.RoomEvent.DataReceived, function (payload) {
+        handleCapturePhotoData(payload).catch(function (e) {
+          console.warn('[embed] capture_photo failed', e);
+        });
+      });
 
       await room.connect(tok.body.url, tok.body.token);
       for (var i = 0; i < localTracks.length; i++) {
@@ -611,6 +617,105 @@
     els.reconnectMeta.textContent = 'Cuộc gọi vẫn được giữ. Bấm nối lại khi mạng ổn định.';
     postParent({ type: 'state', state: 'Reconnect' });
     if (!pollTimer) startPoll();
+  }
+
+  /**
+   * Backend SendData { type: capture_photo, assetId, uploadUrl }
+   * Capture local camera → PUT to Object Storage → upload-complete.
+   */
+  async function handleCapturePhotoData(payload) {
+    var msg;
+    try {
+      var text = typeof payload === 'string'
+        ? payload
+        : new TextDecoder().decode(payload);
+      msg = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (!msg || msg.type !== 'capture_photo' || !msg.uploadUrl || !msg.assetId) return;
+    if (!room || !room.localParticipant) {
+      console.warn('[embed] capture_photo: no room');
+      return;
+    }
+
+    var Track = (window.LivekitClient && window.LivekitClient.Track) || {};
+    var camSource = Track.Source && Track.Source.Camera;
+    var pub = camSource
+      ? room.localParticipant.getTrackPublication(camSource)
+      : null;
+    var track = pub && (pub.track || pub.videoTrack);
+    var mst = track && track.mediaStreamTrack;
+    if (!mst) {
+      console.warn('[embed] capture_photo: no local camera track');
+      return;
+    }
+
+    var settings = (mst.getSettings && mst.getSettings()) || {};
+    var blob = null;
+    var actualWidth = settings.width || null;
+    var actualHeight = settings.height || null;
+
+    if (typeof ImageCapture !== 'undefined') {
+      try {
+        var cap = new ImageCapture(mst);
+        var photo = await cap.takePhoto();
+        if (photo instanceof Blob) blob = photo;
+      } catch (e) {
+        console.warn('[embed] ImageCapture failed, canvas fallback', e);
+      }
+    }
+
+    if (!blob) {
+      var canvas = document.createElement('canvas');
+      canvas.width = settings.width || 1280;
+      canvas.height = settings.height || 720;
+      actualWidth = canvas.width;
+      actualHeight = canvas.height;
+      var videoEl = document.createElement('video');
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      videoEl.srcObject = new MediaStream([mst]);
+      await videoEl.play();
+      await new Promise(function (r) { setTimeout(r, 50); });
+      canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      try { videoEl.pause(); videoEl.srcObject = null; } catch { /* ignore */ }
+      blob = await new Promise(function (res) {
+        canvas.toBlob(function (b) { res(b); }, 'image/jpeg', 0.95);
+      });
+    }
+
+    if (!blob) throw new Error('Không chụp được ảnh');
+
+    var putRes = await fetch(msg.uploadUrl, {
+      method: 'PUT',
+      body: blob,
+      headers: { 'Content-Type': 'image/jpeg' }
+    });
+    if (!putRes.ok) throw new Error('Upload ảnh HTTP ' + putRes.status);
+
+    var lastErr = null;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        var complete = await api('/api/media/' + msg.assetId + '/upload-complete', {
+          method: 'POST',
+          body: JSON.stringify({
+            actualWidth: actualWidth,
+            actualHeight: actualHeight,
+            bytes: blob.size
+          })
+        });
+        if (complete.ok || complete.status === 202) {
+          console.info('[embed] photo ready', msg.assetId);
+          return;
+        }
+        lastErr = new Error((complete.body && complete.body.error) || ('upload-complete ' + complete.status));
+      } catch (e) {
+        lastErr = e;
+      }
+      await new Promise(function (r) { setTimeout(r, 800 * (attempt + 1)); });
+    }
+    if (lastErr) throw lastErr;
   }
 
   function disconnectMedia(opts) {

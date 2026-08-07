@@ -5,6 +5,14 @@ using System.Text.Json.Serialization;
 
 namespace LiveKitPoc.Api;
 
+public enum DentalQualityProfile
+{
+    /// <summary>Benchmark target — only when source track confirmed &gt;= 1080p.</summary>
+    HD_1080p_30,
+    /// <summary>Safe fallback for most mobile cameras.</summary>
+    HD_720p_30
+}
+
 public sealed class LiveKitEgressService(
     HttpClient httpClient,
     IConfiguration configuration,
@@ -53,6 +61,75 @@ public sealed class LiveKitEgressService(
             ApplyVideoEncodingOptions(request);
 
         return await PostAsync("StartRoomCompositeEgress", request, cancellationToken);
+    }
+
+    /// <summary>
+    /// RoomCompositeEgress audio-only. No layout, no video encoder.
+    /// Output: MP3 (browser-playable).
+    /// Note: LiveKit audio-only composite must NOT include layout or custom_base_url.
+    /// </summary>
+    public async Task<EgressResult> StartRoomAudioRecordingAsync(
+        string roomName,
+        string fileName,
+        string? storageKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureRoomAsync(roomName, cancellationToken);
+        var fileOutput = BuildFileOutput(fileName, storageKey);
+        fileOutput["file_type"] = "MP3";
+        var request = new Dictionary<string, object?>
+        {
+            ["room_name"] = roomName,
+            ["audio_only"] = true,
+            // NO "layout" — audio-only must not include it
+            ["file_outputs"] = new[] { fileOutput }
+        };
+        return await PostAsync("StartRoomCompositeEgress", request, cancellationToken);
+    }
+
+    /// <summary>
+    /// TrackCompositeEgress — patient camera video track ONLY (no audio).
+    /// Uses video_track_id (singular), no participant_identity.
+    /// </summary>
+    public async Task<EgressResult> StartTrackCompositeRecordingAsync(
+        string roomName,
+        string videoTrackId,
+        string fileName,
+        string? storageKey = null,
+        DentalQualityProfile profile = DentalQualityProfile.HD_720p_30,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoTrackId))
+            throw new ArgumentException("video_track_id is required.", nameof(videoTrackId));
+
+        var (width, height, bitrateKbps) = profile switch
+        {
+            DentalQualityProfile.HD_1080p_30 => (
+                ParsePositiveInt(_configuration["DENTAL_WIDTH_1080"], 1920),
+                ParsePositiveInt(_configuration["DENTAL_HEIGHT_1080"], 1080),
+                ParsePositiveInt(_configuration["DENTAL_BITRATE_1080_KBPS"], 4000)),
+            _ => (
+                ParsePositiveInt(_configuration["DENTAL_WIDTH_720"], 1280),
+                ParsePositiveInt(_configuration["DENTAL_HEIGHT_720"], 720),
+                ParsePositiveInt(_configuration["DENTAL_BITRATE_720_KBPS"], 2500))
+        };
+
+        var fileOutput = BuildFileOutput(fileName, storageKey);
+        var request = new Dictionary<string, object?>
+        {
+            ["room_name"] = roomName,
+            ["video_track_id"] = videoTrackId,
+            ["file_outputs"] = new[] { fileOutput },
+            ["advanced"] = new Dictionary<string, object?>
+            {
+                ["width"] = width,
+                ["height"] = height,
+                ["framerate"] = 30,
+                ["videoCodec"] = "H264_MAIN",
+                ["videoBitrate"] = bitrateKbps
+            }
+        };
+        return await PostAsync("StartTrackCompositeEgress", request, cancellationToken);
     }
 
     private Dictionary<string, object?> BuildFileOutput(string fileName, string? storageKey)

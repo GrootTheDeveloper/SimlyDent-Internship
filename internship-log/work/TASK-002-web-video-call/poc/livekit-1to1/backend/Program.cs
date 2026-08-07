@@ -57,8 +57,13 @@ builder.Services.AddSingleton<RecordingPolicyRegistry>();
 builder.Services.AddSingleton<RecordingAuditService>();
 builder.Services.AddSingleton<IRecordingStorage>(RecordingStorageFactory.Create);
 builder.Services.AddSingleton<IRecordingCatalog>(RecordingCatalogFactory.Create);
+builder.Services.AddSingleton<IConsultationCatalog>(ConsultationCatalogFactory.Create);
 builder.Services.AddSingleton<LiveKitWebhookValidator>();
 builder.Services.AddSingleton<RecordingFinalizeService>();
+builder.Services.AddSingleton<ConsultationAudioService>();
+builder.Services.AddSingleton<DentalClipService>();
+builder.Services.AddSingleton<ConsultationMediaLifecycleService>();
+builder.Services.AddSingleton<SnapshotService>();
 builder.Services.AddSingleton<CallDispatcher>();
 builder.Services.AddSingleton<CallEndService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
@@ -67,6 +72,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingRetention
 builder.Services.AddSingleton<RecordingReconcileService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingReconcileService>());
 builder.Services.AddHttpClient<LiveKitEgressService>();
+builder.Services.AddHttpClient<LiveKitRoomService>();
 builder.Services.AddHttpClient(nameof(S3RecordingStorage));
 builder.Services.AddSignalR();
 
@@ -135,17 +141,35 @@ catch (Exception ex)
         "Recording catalog schema init failed — start/list may degrade until DB is available.");
 }
 
-app.MapGet("/health", (IRecordingCatalog catalog, IRecordingStorage storage, IConfiguration config) =>
+// Consultation media catalog (additive tables).
+try
+{
+    var mediaCatalog = app.Services.GetRequiredService<IConsultationCatalog>();
+    mediaCatalog.EnsureSchemaAsync().GetAwaiter().GetResult();
+    app.Logger.LogInformation("Consultation catalog backend: {Backend}", mediaCatalog.BackendName);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex,
+        "Consultation catalog schema init failed — media features may degrade until DB is available.");
+}
+
+app.MapConsultationEndpoints();
+app.MapMediaEndpoints();
+
+app.MapGet("/health", (IRecordingCatalog catalog, IRecordingStorage storage, IConsultationCatalog mediaCatalog, IConfiguration config) =>
 {
     var egressOut = (config["EGRESS_OUTPUT"] ?? "local").Trim().ToLowerInvariant();
     return Results.Ok(new
     {
         status = "ok",
         recordingCatalog = catalog.BackendName,
+        consultationCatalog = mediaCatalog.BackendName,
         recordingStorage = storage.BackendName,
         egressOutput = egressOut,
         s3PublicConfigured = !string.IsNullOrWhiteSpace(RecordingS3Config.GetPublicEndpoint(config)),
-        supportsPresignedGet = storage.SupportsPresignedGet
+        supportsPresignedGet = storage.SupportsPresignedGet,
+        featureMediaAssets = ConsultationEndpoints.IsMediaFeatureEnabled(config)
     });
 });
 
@@ -657,7 +681,10 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    CallDispatcher dispatcher) =>
+    CallDispatcher dispatcher,
+    IConsultationCatalog consultationCatalog,
+    ConsultationAudioService audioService,
+    CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
@@ -665,6 +692,28 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
         return Results.StatusCode(403);
 
     var result = await dispatcher.TryAcceptAsync(id, current);
+    if (result.Kind == CallTransitionKind.Ok && result.Call is not null)
+    {
+        var call = result.Call;
+        try
+        {
+            var caller = identities.Find(call.CallerId);
+            var staff = identities.Find(call.AssignedStaffId ?? call.CalleeId ?? current.Id);
+            var session = await consultationCatalog.EnsureSessionAsync(
+                call.Id, call.ClinicId, call.RoomName,
+                call.CallerId, caller?.DisplayName ?? call.CallerId,
+                staff?.Id ?? current.Id, staff?.DisplayName ?? current.DisplayName,
+                initialMediaMode: "Audio", cancellationToken);
+            lock (call.SyncRoot) { call.ConsultationSessionId = session.Id; }
+            // Best-effort auto audio (consent gate inside)
+            await audioService.EnsureAutoAudioStartedAsync(call, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Never fail Accept — media is independent of call
+            app.Logger.LogWarning(ex, "Consultation session/audio ensure failed on Accept {CallId}", call.Id);
+        }
+    }
     return result.Kind switch
     {
         CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
@@ -810,7 +859,7 @@ app.MapPost("/api/calls/{id:guid}/recording/mode", (
     return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
 }).RequireAuthorization();
 
-app.MapPost("/api/calls/{id:guid}/recording/consent", (
+app.MapPost("/api/calls/{id:guid}/recording/consent", async (
     Guid id,
     SetConsentRequest body,
     ClaimsPrincipal principal,
@@ -818,7 +867,10 @@ app.MapPost("/api/calls/{id:guid}/recording/consent", (
     ConcurrentDictionary<Guid, CallSession> calls,
     RecordingPolicyRegistry policies,
     RecordingAuditService audit,
-    CallDispatcher dispatcher) =>
+    CallDispatcher dispatcher,
+    ConsultationAudioService audioService,
+    IConsultationCatalog consultationCatalog,
+    CancellationToken cancellationToken) =>
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
@@ -838,6 +890,29 @@ app.MapPost("/api/calls/{id:guid}/recording/consent", (
     }
     audit.Append(call.ClinicId, call.Id, call.RecordingId, current.Id, current.Role,
         consent == ConsentStatus.Granted ? "ConsentGranted" : "ConsentDeclined", "Ok");
+
+    if (consent == ConsentStatus.Granted && call.Status == CallStatus.Accepted)
+    {
+        try
+        {
+            if (await consultationCatalog.GetSessionByCallIdAsync(call.Id, cancellationToken) is null)
+            {
+                var caller = identities.Find(call.CallerId);
+                var staff = identities.Find(call.AssignedStaffId ?? call.CalleeId ?? current.Id);
+                await consultationCatalog.EnsureSessionAsync(
+                    call.Id, call.ClinicId, call.RoomName,
+                    call.CallerId, caller?.DisplayName ?? call.CallerId,
+                    staff?.Id ?? current.Id, staff?.DisplayName ?? current.DisplayName,
+                    "Audio", cancellationToken);
+            }
+            await audioService.EnsureAutoAudioStartedAsync(call, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "Auto audio after consent failed for {CallId}", call.Id);
+        }
+    }
+
     _ = dispatcher.NotifyCallAsync(call);
     return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
 }).RequireAuthorization();
@@ -1073,14 +1148,30 @@ app.MapPost("/api/livekit/webhook", async (
 
     if (eventName is "egress_ended" or "egress_updated" && !string.IsNullOrWhiteSpace(egressId))
     {
-        var result = await finalize.ApplyEgressStatusAsync(
+        // Dual-catalog: try media_assets first; only fall through when NOT found
+        var mediaResult = await finalize.ApplyMediaEgressStatusAsync(
             egressId!,
             egressStatus,
             egressError,
             egressErrorCode,
             cancellationToken);
-        log.LogInformation("Webhook {Event} egress {EgressId} changed={Changed} status={Status}",
-            eventName, egressId, result.Changed, result.NewStatus);
+        if (mediaResult.Found)
+        {
+            log.LogInformation(
+                "Webhook {Event} media egress {EgressId} found=true changed={Changed} status={Status}",
+                eventName, egressId, mediaResult.Changed, mediaResult.NewStatus);
+        }
+        else
+        {
+            var result = await finalize.ApplyEgressStatusAsync(
+                egressId!,
+                egressStatus,
+                egressError,
+                egressErrorCode,
+                cancellationToken);
+            log.LogInformation("Webhook {Event} recording egress {EgressId} changed={Changed} status={Status}",
+                eventName, egressId, result.Changed, result.NewStatus);
+        }
     }
 
     return Results.Ok(new { received = true });
