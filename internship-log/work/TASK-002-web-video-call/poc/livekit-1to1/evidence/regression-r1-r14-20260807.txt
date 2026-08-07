@@ -1,0 +1,38 @@
+=== REGRESSION 2026-08-07T22:37:21+07:00 HEAD=f5e4a92 ===
+HEALTH http=200 body={"status":"ok","recordingCatalog":"postgres","consultationCatalog":"postgres","recordingStorage":"local","egressOutput":"local","s3PublicConfigured":true,"supportsPresignedGet":false,"featureMediaAssets":true}
+LOGIN A1/A2 ok
+R1 Audio authority: PASS call=b74fc4fd-ca77-44a6-b085-d87a9523ce4a
+R2 Video authority: PASS
+R8 Hangup after accept: PASS
+R9 CallAudio assets: CallAudio|Recording
+R9 Automatic CallAudio: PASS
+R10 Dental without camera guard: PASS (http=409)
+R12 Manager recordings list: PASS (http=200 as token-holder)
+R14 pre-restart call=7671e6c3-954b-4fdf-b035-ffcc6f89d898
+R14 after restart GET call http=502 body=
+R14 Backend restart: FAIL http=502
+R7 asset /widget/frame.html http=200
+R7 asset /widget/frame.js http=200
+R7 asset /widget/media-primitives.js http=200
+R7 Embed assets: PASS (assets 200; browser Safari audio requires manual)
+R3: MANUAL browser required ? not automated in this run
+R4: MANUAL browser required ? not automated in this run
+R5: MANUAL browser required ? not automated in this run
+R6: MANUAL browser required ? not automated in this run
+R11: MANUAL browser required ? not automated in this run
+R13: MANUAL browser required ? not automated in this run
+=== SUMMARY ===
+R1=PASS
+R2=PASS
+R3=MANUAL
+R4=MANUAL
+R5=MANUAL
+R6=MANUAL
+R7=PASS (assets 200; browser Safari audio requires manual)
+R8=PASS
+R9=PASS
+R10=PASS
+R11=MANUAL
+R12=PASS
+R13=MANUAL
+R14=DOCUMENTED (brief 502 while backend restarts; CallSession in-memory ? 404 after ready)

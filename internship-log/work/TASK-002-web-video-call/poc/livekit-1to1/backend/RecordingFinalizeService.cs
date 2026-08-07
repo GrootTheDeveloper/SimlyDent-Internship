@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
 namespace LiveKitPoc.Api;
@@ -6,15 +8,23 @@ public sealed record FinalizeApplyResult(bool Changed, string? NewStatus, string
 
 /// <summary>
 /// Tri-state: Found distinguishes "unknown egress" from "no change needed".
-/// Prevents incorrect fallback to old recording catalog when webhook hits a terminal asset.
+/// Prevents incorrect fallback to legacy recording catalog when webhook hits a terminal media asset.
 /// </summary>
 public sealed record FinalizeMediaResult(bool Found, bool Changed, string? NewStatus, string? Detail);
 
 /// <summary>
-/// Shared finalize path for webhook + reconcile.
-/// Ready only after object exists. Transport StopEgress is never the source of truth.
+/// Shared finalize for webhook + reconcile. Two independent catalogs:
+/// <list type="bullet">
+/// <item><b>Canonical</b> ? <c>ApplyMedia*</c> methods ? <see cref="IConsultationCatalog"/> / media_assets.</item>
+/// <item><b>Legacy (DEPRECATED)</b> ? <c>ApplyEgressStatusAsync</c> / <c>ApplyFinalizingTimeoutIfNeededAsync</c>
+/// ? <see cref="IRecordingCatalog"/> single recording per call.</item>
+/// </list>
+/// Webhook MUST try canonical first (Found=true short-circuits legacy).
+/// Ready only after object exists. Transport StopEgress is never source of truth.
+/// See docs/media-paths.md.
 /// </summary>
 public sealed class RecordingFinalizeService(
+
     IRecordingCatalog catalog,
     IRecordingStorage storage,
     LiveKitEgressService egress,
@@ -23,10 +33,13 @@ public sealed class RecordingFinalizeService(
     RecordingAuditService audit,
     IConfiguration configuration,
     ILogger<RecordingFinalizeService> logger,
+    IOptions<RecordingRuntimeOptions>? recordingOptions = null,
     IConsultationCatalog? consultationCatalog = null)
 {
     private int FinalizeTimeoutSeconds =>
-        int.TryParse(configuration["RECORDING_FINALIZE_TIMEOUT_SECONDS"], out var n) && n > 0 ? n : 300;
+        recordingOptions?.Value.FinalizeTimeoutSeconds > 0
+            ? recordingOptions.Value.FinalizeTimeoutSeconds
+            : (int.TryParse(configuration["RECORDING_FINALIZE_TIMEOUT_SECONDS"], out var n) && n > 0 ? n : 300);
 
     /// <summary>
     /// Apply terminal (or terminal-like) egress status for a known egress_id.
@@ -120,8 +133,12 @@ public sealed class RecordingFinalizeService(
         return new FinalizeApplyResult(false, row.Status, status);
     }
 
+    // -------------------------------------------------------------------------
+    // CANONICAL ? IConsultationCatalog / media_assets (CallAudio, Dental, Snapshot)
+    // -------------------------------------------------------------------------
+
     /// <summary>
-    /// Apply egress terminal status against media_assets catalog.
+    /// CANONICAL: Apply egress terminal status against media_assets catalog.
     /// </summary>
     public async Task<FinalizeMediaResult> ApplyMediaEgressStatusAsync(
         string egressId,

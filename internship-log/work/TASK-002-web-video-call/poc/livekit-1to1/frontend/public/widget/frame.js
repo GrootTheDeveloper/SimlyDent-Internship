@@ -30,6 +30,12 @@
   var hasLocalAudio = false;
   /** Preferred local media when joining: 'video' | 'audio' */
   var preferredMedia = 'video';
+
+  /** @shared-pair src/domain/media/media-primitives.js via window.SimlyDentMediaPrimitives */
+  function mediaP() {
+    return (typeof window !== 'undefined' && window.SimlyDentMediaPrimitives) || null;
+  }
+
   /** idle | waiting | ready | media | reconnect | perm | ended | error */
   var uiState = 'idle';
   var lastServerStatus = '';
@@ -245,7 +251,9 @@
   }
 
   async function startCall(mediaMode) {
-    preferredMedia = mediaMode === 'audio' ? 'audio' : 'video';
+    preferredMedia = (mediaP() && mediaP().normalizeMediaModeValue)
+      ? mediaP().normalizeMediaModeValue(mediaMode)
+      : (mediaMode === 'audio' ? 'audio' : 'video');
     try {
       sessionStorage.setItem(storageKey('preferredMedia'), preferredMedia);
     } catch { /* ignore */ }
@@ -452,11 +460,25 @@
    * Attach remote staff video/audio. Always try play() for audio (Safari autoplay).
    */
   function attachRemoteTrackEmbed(LivekitClient, track) {
+    var mp = mediaP();
+    if (mp && mp.attachRemoteTrack) {
+      var kind = track && track.kind;
+      var isVideo = kind === 'video' ||
+        (LivekitClient.Track && kind === LivekitClient.Track.Kind.Video);
+      mp.attachRemoteTrack(LivekitClient, track, {
+        remoteVideoEl: els.remoteVideo,
+        onAudioBlocked: function () {
+          setDeviceBanner('Ch?m v?o m?n h?nh ?? nghe ti?ng nh?n vi?n (tr?nh duy?t ch?n autoplay).');
+        }
+      });
+      if (isVideo && els.mediaHint) els.mediaHint.classList.add('hidden');
+      return;
+    }
     if (!track) return;
-    var kind = track.kind;
-    var isVideo = kind === 'video' ||
-      (LivekitClient.Track && kind === LivekitClient.Track.Kind.Video);
-    if (isVideo) {
+    var kind2 = track.kind;
+    var isVideo2 = kind2 === 'video' ||
+      (LivekitClient.Track && kind2 === LivekitClient.Track.Kind.Video);
+    if (isVideo2) {
       try {
         track.attach(els.remoteVideo);
         if (els.mediaHint) els.mediaHint.classList.add('hidden');
@@ -471,91 +493,47 @@
       audioEl.muted = false;
       audioEl.volume = 1;
       audioEl.setAttribute('playsinline', '');
-      audioEl.setAttribute('webkit-playsinline', '');
       audioEl.style.display = 'none';
-      // Avoid stacking duplicate elements for same track re-attach.
-      document.querySelectorAll('audio[data-lk-remote="1"]').forEach(function (n) {
-        try { n.remove(); } catch (eRem) { /* ignore */ }
-      });
       audioEl.setAttribute('data-lk-remote', '1');
       document.body.appendChild(audioEl);
       audioEl.play().catch(function () {
-        setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên (trình duyệt chặn autoplay).');
+        setDeviceBanner('Ch?m v?o m?n h?nh ?? nghe ti?ng nh?n vi?n (tr?nh duy?t ch?n autoplay).');
       });
     } catch (eAud) {
       console.warn('[embed] attach remote audio', eAud);
     }
   }
 
-  /**
-   * Progressive device acquisition — never throws for permission deny.
-   * Returns { tracks, note }.
-   */
   async function acquireLocalTracks(LivekitClient) {
-    var createLocalTracks = LivekitClient.createLocalTracks;
-    var videoRes = LivekitClient.VideoPresets
-      ? LivekitClient.VideoPresets.h720.resolution
-      : { width: 1280, height: 720, frameRate: 30 };
-    var tracks = [];
-    var note = '';
-    var wantAudioOnly = preferredMedia === 'audio';
+    var mp = mediaP();
+    var pref = preferredMedia;
     try {
       var stored = sessionStorage.getItem(storageKey('preferredMedia'));
       if (stored === 'audio' || stored === 'video') {
         preferredMedia = stored;
-        wantAudioOnly = preferredMedia === 'audio';
+        pref = stored;
       }
-    } catch { /* ignore */ }
+    } catch (ePref) { /* ignore */ }
 
-    if (wantAudioOnly) {
-      try {
-        tracks = await createLocalTracks({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          },
-          video: false
-        });
-        camEnabled = false;
-        note = 'audio-only';
-        return { tracks: tracks, note: note };
-      } catch (eAudioPref) {
-        console.warn('[embed] preferred audio-only failed', eAudioPref);
-      }
+    if (mp && mp.acquireLocalTracks) {
+      var res = await mp.acquireLocalTracks(LivekitClient, { preferredMedia: pref });
+      if (res.note === 'audio-only' || !res.cameraAvailable) camEnabled = false;
+      if (res.cameraAvailable) camEnabled = true;
+      return { tracks: res.tracks || [], note: res.note || '' };
     }
 
+    // Fallback minimal path
     try {
-      tracks = await createLocalTracks({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: { facingMode: 'user', resolution: videoRes }
+      var tracks = await LivekitClient.createLocalTracks({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: pref === 'audio' ? false : { facingMode: 'user' }
       });
-      note = 'av';
-      return { tracks: tracks, note: note };
-    } catch (eAv) {
-      console.warn('[embed] AV tracks failed', eAv);
+      camEnabled = pref !== 'audio';
+      return { tracks: tracks, note: pref === 'audio' ? 'audio-only' : 'av' };
+    } catch (e) {
+      console.warn('[embed] acquire fallback failed', e);
+      return { tracks: [], note: 'receive-only' };
     }
-
-    try {
-      tracks = await createLocalTracks({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: false
-      });
-      note = 'audio-only';
-      return { tracks: tracks, note: note };
-    } catch (eAudio) {
-      console.warn('[embed] audio-only failed', eAudio);
-    }
-
-    return { tracks: [], note: 'receive-only' };
   }
 
   /**
@@ -656,61 +634,59 @@
 
       // Attach any tracks already published by staff before we joined.
       try {
-        room.remoteParticipants.forEach(function (p) {
-          p.trackPublications.forEach(function (pub) {
-            try { pub.setSubscribed(true); } catch (eSub) { /* ignore */ }
-            if (pub.track) attachRemoteTrackEmbed(LivekitClient, pub.track);
+        var mpAttach = mediaP();
+        if (mpAttach && mpAttach.attachExistingRemoteTracks) {
+          mpAttach.attachExistingRemoteTracks(room, LivekitClient, {
+            remoteVideoEl: els.remoteVideo,
+            onAudioBlocked: function () {
+              setDeviceBanner('Ch?m v?o m?n h?nh ?? nghe ti?ng nh?n vi?n (tr?nh duy?t ch?n autoplay).');
+            }
           });
-        });
+        } else {
+          room.remoteParticipants.forEach(function (p) {
+            p.trackPublications.forEach(function (pub) {
+              try { pub.setSubscribed(true); } catch (eSub) { /* ignore */ }
+              if (pub.track) attachRemoteTrackEmbed(LivekitClient, pub.track);
+            });
+          });
+        }
       } catch (eAttach) {
         console.warn('[embed] attach existing remote failed', eAttach);
       }
 
-      var TrackSource = LivekitClient.Track && LivekitClient.Track.Source;
-      for (var i = 0; i < localTracks.length; i++) {
-        try {
-          var t = localTracks[i];
-          var pubOpts = undefined;
-          if (TrackSource) {
-            if (t.kind === 'audio' || (LivekitClient.Track && t.kind === LivekitClient.Track.Kind.Audio)) {
-              pubOpts = { source: TrackSource.Microphone };
-            } else if (t.kind === 'video' || (LivekitClient.Track && t.kind === LivekitClient.Track.Kind.Video)) {
-              pubOpts = { source: TrackSource.Camera };
-            }
-          }
-          await room.localParticipant.publishTrack(t, pubOpts);
-        } catch (pubErr) {
-          console.warn('[embed] publish failed', pubErr);
+      var mpPub = mediaP();
+      if (mpPub && mpPub.publishLocalTracksWithSources) {
+        await mpPub.publishLocalTracksWithSources(room, localTracks, LivekitClient);
+      } else {
+        for (var i = 0; i < localTracks.length; i++) {
+          try { await room.localParticipant.publishTrack(localTracks[i]); }
+          catch (pubErr) { console.warn('[embed] publish failed', pubErr); }
         }
       }
 
-      // Safari / autoplay: unlock remote staff audio after join (user already clicked Join).
       try {
-        await room.startAudio();
-        document.querySelectorAll('audio').forEach(function (el) {
-          try {
-            el.muted = false;
-            el.volume = 1;
-            el.play().catch(function () { /* need another gesture */ });
-          } catch (ePlay) { /* ignore */ }
-        });
-        if (!room.canPlaybackAudio) {
-          setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên (trình duyệt chặn autoplay).');
+        var canPlay = true;
+        if (mpPub && mpPub.unlockRemoteAudio) {
+          canPlay = await mpPub.unlockRemoteAudio(room);
+        } else {
+          await room.startAudio();
+          canPlay = !!room.canPlaybackAudio;
+        }
+        if (!canPlay) {
+          setDeviceBanner('Ch?m v?o m?n h?nh ?? nghe ti?ng nh?n vi?n (tr?nh duy?t ch?n autoplay).');
         }
       } catch (eStart) {
         console.warn('[embed] startAudio failed', eStart);
-        setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên.');
+        setDeviceBanner('Ch?m v?o m?n h?nh ?? nghe ti?ng nh?n vi?n.');
       }
 
-      // One-time unlock on first tap/click inside media pane (Safari).
-      if (els.mediaPane && !els.mediaPane._audioUnlockBound) {
+      if (mpPub && mpPub.bindTapToUnlockAudio) {
+        mpPub.bindTapToUnlockAudio(els.mediaPane, room, function () { setDeviceBanner(''); });
+      } else if (els.mediaPane && !els.mediaPane._audioUnlockBound) {
         els.mediaPane._audioUnlockBound = true;
-        els.mediaPane.addEventListener('click', function unlockAudioOnce() {
+        els.mediaPane.addEventListener('click', function () {
           if (!room) return;
           room.startAudio().then(function () {
-            document.querySelectorAll('audio').forEach(function (el) {
-              try { el.muted = false; el.volume = 1; el.play().catch(function () {}); } catch (e2) {}
-            });
             if (room.canPlaybackAudio) setDeviceBanner('');
           }).catch(function () {});
         }, { passive: true });

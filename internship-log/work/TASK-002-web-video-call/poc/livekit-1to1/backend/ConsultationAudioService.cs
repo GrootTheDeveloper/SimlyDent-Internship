@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 namespace LiveKitPoc.Api;
 
 /// <summary>
@@ -8,6 +10,7 @@ public sealed class ConsultationAudioService(
     LiveKitEgressService egress,
     RecordingPolicyRegistry policies,
     RecordingAuditService audit,
+    IOptions<FeatureOptions> featureOptions,
     ILogger<ConsultationAudioService> logger)
 {
     /// <summary>
@@ -16,13 +19,10 @@ public sealed class ConsultationAudioService(
     /// </summary>
     public async Task EnsureAutoAudioStartedAsync(CallSession call, CancellationToken ct = default)
     {
-        // Lab 2 vCPU: FEATURE_AUTO_CALL_AUDIO=0 skips room-composite audio so manual video record can start.
-        var autoFlag = Environment.GetEnvironmentVariable("FEATURE_AUTO_CALL_AUDIO");
-        if (string.Equals(autoFlag, "0", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(autoFlag, "false", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(autoFlag, "off", StringComparison.OrdinalIgnoreCase))
+        // Lab 2 vCPU: FEATURE_AUTO_CALL_AUDIO=0 skips room-composite (typed FeatureOptions).
+        if (!featureOptions.Value.AutoCallAudio)
         {
-            logger.LogInformation("Auto CallAudio skipped (FEATURE_AUTO_CALL_AUDIO={Flag})", autoFlag);
+            logger.LogInformation("Auto CallAudio skipped (FeatureOptions.AutoCallAudio=false)");
             return;
         }
 
