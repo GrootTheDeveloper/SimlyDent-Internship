@@ -1,12 +1,8 @@
 import Vue from 'vue/dist/vue.esm.js'
 import * as signalR from '@microsoft/signalr'
 import {
-  createLocalTracks,
   LocalVideoTrack,
-  Room,
-  RoomEvent,
   Track,
-  VideoPreset,
   VideoPresets
 } from 'livekit-client'
 import './style.css'
@@ -358,6 +354,8 @@ if (isCallRoute) {
       recordingCaps: { canStart: false, canStop: false, canDownload: false, canDelete: false },
       hub: null,
       room: null,
+      /** @type {import('./domain/media/media-engine.js').MediaEngine|null} */
+      mediaEngine: null,
       localTracks: [],
       /** Stops canvas portrait pipeline (if used) */
       localMediaCleanup: null,
@@ -544,7 +542,7 @@ if (isCallRoute) {
           this.preferredMediaMode = 'video'
         }
         // Only seed cameraEnabled before join; after connect LiveKit is truth.
-        if (!this.room) {
+        if (!this.room && !this.mediaEngine?.room) {
           this.cameraEnabled = this.preferredMediaMode !== 'audio'
         }
         try {
@@ -608,16 +606,161 @@ if (isCallRoute) {
         await this.hub.start()
         this.connected = true
       },
+      /**
+       * Handle MediaEngine events → Vue UI state.
+       * Media disconnect is NEVER auto business hangup (intentionalLeave check).
+       */
+      onMediaEngineEvent(type, payload) {
+        rtLog('media_engine', { type, payload: payload && (payload.reason || payload.message || typeof payload) })
+        switch (type) {
+          case MediaEngineEvent.Connected:
+            this.mediaPermissionState = 'connected'
+            this.reconnectNotice = ''
+            this.syncRoomFromEngine()
+            this.reconcileLocalMediaUi()
+            this.attachAvailableRemoteTracks()
+            this.$nextTick(() => this.attachLocalVideo())
+            this.startQualityMonitoring()
+            break
+          case MediaEngineEvent.Reconnecting:
+            this.mediaPermissionState = 'reconnecting'
+            this.reconnectNotice = 'Mạng media đang reconnect… cuộc gọi business vẫn mở.'
+            break
+          case MediaEngineEvent.Reconnected:
+            this.mediaPermissionState = 'connected'
+            this.reconnectNotice = ''
+            this.syncRoomFromEngine()
+            this.reconcileLocalMediaUi()
+            this.attachAvailableRemoteTracks()
+            break
+          case MediaEngineEvent.Disconnected: {
+            const reasonStr = payload?.reason || 'unknown'
+            if (this.intentionalLeave || this._endingCall) {
+              this.handleCallEnded()
+              break
+            }
+            if (this.call && ['Rejected', 'Cancelled', 'Ended'].includes(this.call.status)) {
+              this.handleCallEnded()
+              break
+            }
+            this.room = null
+            this.mediaEngine = null
+            this.mediaPermissionState = 'error'
+            this.error = `Mất kết nối media (${reasonStr}). Cuộc gọi chưa kết thúc — bấm Tham gia lại.`
+            this.stopQualityMonitoring?.()
+            break
+          }
+          case MediaEngineEvent.Error: {
+            const message = String(payload?.message || payload || 'media error')
+            this.mediaPermissionState = 'error'
+            this.error = /peer connection|pc connection|ice/i.test(message)
+              ? 'Không thể thiết lập đường truyền media. Wi-Fi đang chặn kết nối trực tiếp hoặc hệ thống chưa có TURN.'
+              : message
+            break
+          }
+          case MediaEngineEvent.RemoteTrackAttached: {
+            const { track, element } = payload || {}
+            if (!track || !element) break
+            if (track.kind === Track.Kind.Video) {
+              const host = this.$refs.remoteMedia
+              applyVideoDisplayFit(element, host)
+              if (host) {
+                host.querySelectorAll('video').forEach(n => n.remove())
+                host.appendChild(element)
+                this.remoteVideoConnected = true
+                element.play().catch(() => {})
+              }
+            } else {
+              const host = this.$refs.remoteAudio
+              if (host) {
+                host.querySelectorAll('audio').forEach(n => n.remove())
+                host.appendChild(element)
+              } else {
+                element.style.display = 'none'
+                document.body.appendChild(element)
+              }
+              element.play().catch(() => { this.needsAudioPermission = true })
+            }
+            break
+          }
+          case MediaEngineEvent.RemoteTrackDetached:
+            if (payload?.track?.kind === Track.Kind.Video) this.remoteVideoConnected = false
+            break
+          case MediaEngineEvent.RemoteVideoMuted:
+            this.remoteVideoConnected = false
+            break
+          case MediaEngineEvent.RemoteVideoUnmuted: {
+            if (payload?.track && payload?.element) {
+              const host = this.$refs.remoteMedia
+              applyVideoDisplayFit(payload.element, host)
+              if (host) {
+                host.querySelectorAll('video').forEach(n => n.remove())
+                host.appendChild(payload.element)
+                this.remoteVideoConnected = true
+                payload.element.play().catch(() => {})
+              }
+            } else {
+              this.remoteVideoConnected = true
+            }
+            break
+          }
+          case MediaEngineEvent.LocalTrackPublished:
+          case MediaEngineEvent.LocalMediaStateChanged:
+            this.reconcileLocalMediaUi()
+            if (this.cameraEnabled) this.$nextTick(() => this.attachLocalVideo())
+            else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
+            break
+          case MediaEngineEvent.LocalTrackUnpublished:
+            this.reconcileLocalMediaUi()
+            if (payload?.publication?.kind === Track.Kind.Video && this.$refs.localMedia) {
+              this.$refs.localMedia.replaceChildren()
+            }
+            break
+          case MediaEngineEvent.AudioPlaybackBlocked:
+            this.needsAudioPermission = true
+            break
+          case MediaEngineEvent.AudioPlaybackAllowed:
+            this.needsAudioPermission = false
+            break
+          case MediaEngineEvent.DataReceived: {
+            let msg
+            try {
+              msg = JSON.parse(new TextDecoder().decode(payload.payload))
+            } catch {
+              break
+            }
+            if (msg?.type !== 'capture_photo') break
+            ;(async () => {
+              try {
+                this.photoStatus = 'Đang chụp…'
+                await handleCapturePhotoCommand(this.room, msg)
+                this.photoStatus = 'Đã gửi ảnh'
+              } catch (e) {
+                console.warn('capture_photo failed', e)
+                this.photoStatus = e.message || 'Chụp ảnh thất bại'
+                this.error = this.photoStatus
+              }
+            })()
+            break
+          }
+          default:
+            break
+        }
+      },
+      syncRoomFromEngine() {
+        this.room = this.mediaEngine?.room || null
+        this.localTracks = this.mediaEngine?._localTracks || this.localTracks || []
+      },
       async joinRoom() {
-        if (this.room || this.joining) return
+        if (this.joining) return
+        if (this.mediaEngine?.room || this.room) return
         this.joining = true
         this.intentionalLeave = false
         this.reconnectNotice = ''
+        this.error = ''
         try {
-          // Re-resolve media mode from latest call (server wins)
           if (this.call) this.applyAuthoritativeMediaMode(this.call)
 
-          // Fetch Media Token
           const res = await apiFetch(`/api/calls/${this.callId}/token`, {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' })
@@ -629,235 +772,33 @@ if (isCallRoute) {
           const credentials = await res.json()
 
           this.mediaPermissionState = 'requesting'
-          let localTracks = []
           const audioOnly = this.preferredMediaMode === 'audio'
-          rtLog('joinRoom_media', { audioOnly, preferredMediaMode: this.preferredMediaMode })
-          try {
-            if (audioOnly) {
-              localTracks = await createLocalTracks({
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true
-                },
-                video: false
-              })
-              this.cameraEnabled = false
-            } else {
-              const captureResolution = preferredVideoCaptureResolution()
-              localTracks = await createLocalTracks({
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true
-                },
-                video: {
-                  facingMode: 'user',
-                  resolution: captureResolution
-                }
-              })
-              const prepared = await prepareLocalTracksForOrientation(localTracks)
-              localTracks = prepared.tracks
-              if (typeof this.localMediaCleanup === 'function') this.localMediaCleanup()
-              this.localMediaCleanup = prepared.cleanup
-            }
-          } catch (e) {
-            console.warn('Could not start preferred media, trying audio only:', e)
-            try {
-              localTracks = await createLocalTracks({ audio: true, video: false })
-              this.cameraEnabled = false
-            } catch (e2) {
-              // Staff may still join receive-only if devices fully denied.
-              console.warn('Audio also failed; joining without local tracks:', e2)
-              localTracks = []
-              this.cameraEnabled = false
-              this.microphoneEnabled = false
-            }
+          rtLog('joinRoom_media', { audioOnly, preferredMediaMode: this.preferredMediaMode, via: 'MediaEngine' })
+
+          if (this.mediaEngine) {
+            try { await this.mediaEngine.destroy() } catch { /* ignore */ }
+            this.mediaEngine = null
           }
-          this.localTracks = localTracks
-          this.$nextTick(() => {
-            this.attachLocalVideo()
+
+          this.mediaEngine = createMediaEngine({
+            onEvent: (type, payload) => this.onMediaEngineEvent(type, payload)
           })
 
           this.mediaPermissionState = 'connecting'
-          // Portrait phones often need a single canvas layer; multi-layer simulcast
-          // can re-encode oddly and look "landscape cropped" on the far side.
-          const portraitPublish = isPortraitCapturePreferred()
-          const room = new Room({
-            adaptiveStream: true,
-            dynacast: true,
-            publishDefaults: {
-              simulcast: !portraitPublish,
-              videoCodec: 'vp8',
-              videoSimulcastLayers: portraitPublish ? [] : preferredSimulcastLayers()
-            }
-          })
-          room.on(RoomEvent.TrackSubscribed, track => {
-            rtLog('TrackSubscribed', { kind: track?.kind, sid: track?.sid })
-            this.attachRemoteTrack(track)
-          })
-          room.on(RoomEvent.TrackPublished, publication => {
-            rtLog('TrackPublished', { kind: publication?.kind, sid: publication?.trackSid })
-            publication.setSubscribed(true)
-          })
-          room.on(RoomEvent.TrackSubscriptionFailed, () => {
-            this.remoteVideoConnected = false
-          })
-          room.on(RoomEvent.TrackUnsubscribed, track => {
-            rtLog('TrackUnsubscribed', { kind: track?.kind, sid: track?.sid })
-            track.detach().forEach(node => node.remove())
-            if (track.kind === Track.Kind.Video) this.remoteVideoConnected = false
-          })
-          // Mid-call cam toggle: muted → placeholder; unmuted → video again.
-          room.on(RoomEvent.TrackMuted, (publication, participant) => {
-            rtLog('TrackMuted', {
-              kind: publication?.kind,
-              local: participant?.isLocal,
-              sid: publication?.trackSid
-            })
-            if (participant?.isLocal) {
-              this.reconcileLocalMediaUi()
-              return
-            }
-            if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
-              this.remoteVideoConnected = false
-            }
-          })
-          room.on(RoomEvent.TrackUnmuted, (publication, participant) => {
-            rtLog('TrackUnmuted', {
-              kind: publication?.kind,
-              local: participant?.isLocal,
-              sid: publication?.trackSid
-            })
-            if (participant?.isLocal) {
-              this.reconcileLocalMediaUi()
-              if (this.cameraEnabled) this.attachLocalVideo()
-              return
-            }
-            if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
-              if (publication.track) this.attachRemoteTrack(publication.track)
-              else this.remoteVideoConnected = true
-            }
-          })
-          room.on(RoomEvent.LocalTrackPublished, (publication) => {
-            rtLog('LocalTrackPublished', { kind: publication?.kind, sid: publication?.trackSid })
-            this.reconcileLocalMediaUi()
-            if (publication?.kind === Track.Kind.Video) this.attachLocalVideo()
-          })
-          room.on(RoomEvent.LocalTrackUnpublished, (publication) => {
-            rtLog('LocalTrackUnpublished', { kind: publication?.kind, sid: publication?.trackSid })
-            this.reconcileLocalMediaUi()
-            if (publication?.kind === Track.Kind.Video && this.$refs.localMedia) {
-              this.$refs.localMedia.replaceChildren()
-            }
-          })
-          room.on(RoomEvent.ParticipantConnected, (p) => {
-            rtLog('ParticipantConnected', p?.identity)
-          })
-          room.on(RoomEvent.ParticipantDisconnected, (p) => {
-            rtLog('ParticipantDisconnected', p?.identity)
-          })
-          room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-            this.needsAudioPermission = !room.canPlaybackAudio
-          })
-          // WebRTC reconnect ≠ business Call Ended. Only leave UI on intentional hangup
-          // or when CallUpdated says status is terminal.
-          room.on(RoomEvent.Reconnecting, () => {
-            rtLog('Reconnecting')
-            this.mediaPermissionState = 'reconnecting'
-            this.reconnectNotice = 'Mạng media đang reconnect… cuộc gọi business vẫn mở.'
-          })
-          room.on(RoomEvent.Reconnected, () => {
-            rtLog('Reconnected')
-            this.mediaPermissionState = 'connected'
-            this.reconnectNotice = ''
-            this.reconcileLocalMediaUi()
-            this.attachAvailableRemoteTracks()
-          })
-          room.on(RoomEvent.Disconnected, (reason) => {
-            const reasonStr = reason != null ? String(reason) : 'unknown'
-            rtLog('Disconnected', reasonStr)
-            if (this.intentionalLeave || this._endingCall) {
-              this.handleCallEnded()
-              return
-            }
-            if (this.call && ['Rejected', 'Cancelled', 'Ended'].includes(this.call.status)) {
-              this.handleCallEnded()
-              return
-            }
-            // Unexpected permanent media loss — keep call window, allow rejoin
-            this.room = null
-            this.mediaPermissionState = 'error'
-            this.error = `Mất kết nối media (${reasonStr}). Cuộc gọi chưa kết thúc — bấm Tham gia lại.`
-            this.stopQualityMonitoring?.()
-          })
-          // Snapshot command from backend RoomService.SendData (targeted to patient)
-          room.on(RoomEvent.DataReceived, async (payload, participant, kind) => {
-            let msg
-            try {
-              msg = JSON.parse(new TextDecoder().decode(payload))
-            } catch {
-              return
-            }
-            if (msg?.type !== 'capture_photo') return
-            try {
-              this.photoStatus = 'Đang chụp…'
-              await handleCapturePhotoCommand(room, msg)
-              this.photoStatus = 'Đã gửi ảnh'
-            } catch (e) {
-              console.warn('capture_photo failed', e)
-              this.photoStatus = e.message || 'Chụp ảnh thất bại'
-              this.error = this.photoStatus
-            }
-          })
-
-          await room.connect(credentials.url, credentials.token, {
-            websocketTimeout: 15000,
-            peerConnectionTimeout: 15000
-          })
-          this.room = room
-          this.attachAvailableRemoteTracks()
-
-          // Publish with explicit sources so remote clients treat them as mic/camera.
-          for (const track of localTracks) {
-            const source = track.kind === Track.Kind.Audio
-              ? Track.Source.Microphone
-              : track.kind === Track.Kind.Video
-                ? Track.Source.Camera
-                : undefined
-            try {
-              await room.localParticipant.publishTrack(
-                track,
-                source ? { source } : undefined
-              )
-              rtLog('published_local', { kind: track.kind, source: source || null })
-            } catch (pubErr) {
-              console.warn('publishTrack failed', track.kind, pubErr)
-              rtLog('publish_failed', { kind: track.kind, err: String(pubErr?.message || pubErr) })
-            }
-          }
+          await this.mediaEngine.connect(credentials.url, credentials.token, { audioOnly })
+          this.syncRoomFromEngine()
           this.reconcileLocalMediaUi()
-          // Browser autoplay policy: unlock remote audio (esp. Safari).
-          try {
-            await room.startAudio()
-            this.needsAudioPermission = !room.canPlaybackAudio
-          } catch {
-            this.needsAudioPermission = true
+          // Connected event also sets state; ensure UI settled
+          if (this.mediaPermissionState !== 'error') {
+            this.mediaPermissionState = 'connected'
           }
-
-          this.mediaPermissionState = 'connected'
-          this.startQualityMonitoring()
-          this.$nextTick(() => {
-            this.attachLocalVideo()
-          })
+          this.$nextTick(() => this.attachLocalVideo())
         } catch (err) {
-          if (this.room) await this.room.disconnect()
+          try {
+            if (this.mediaEngine) await this.mediaEngine.destroy()
+          } catch { /* ignore */ }
+          this.mediaEngine = null
           this.room = null
-          if (typeof this.localMediaCleanup === 'function') {
-            this.localMediaCleanup()
-            this.localMediaCleanup = null
-          }
-          this.localTracks.forEach(t => t.stop())
           this.localTracks = []
           this.mediaPermissionState = 'error'
           const message = String(err?.message || err)
@@ -869,65 +810,28 @@ if (isCallRoute) {
         }
       },
       attachRemoteTrack(track) {
-        const element = track.attach()
-        element.autoplay = true
-        if (track.kind === Track.Kind.Video) {
-          element.muted = true
-          element.playsInline = true
-          element.setAttribute('playsinline', '')
-          element.setAttribute('webkit-playsinline', '')
-          const host = this.$refs.remoteMedia
-          applyVideoDisplayFit(element, host)
-          if (host) {
-            host.querySelectorAll('video').forEach(n => n.remove())
-            host.appendChild(element)
-            this.remoteVideoConnected = true
-            element.play().catch(() => {})
-          }
-        } else {
-          // Remote audio — never muted; keep element in DOM for Safari.
-          element.muted = false
-          element.volume = 1
-          element.setAttribute('playsinline', '')
-          const host = this.$refs.remoteAudio
-          if (host) {
-            host.querySelectorAll('audio').forEach(n => n.remove())
-            host.appendChild(element)
-          } else {
-            element.style.display = 'none'
-            document.body.appendChild(element)
-          }
-          const tryPlay = () => {
-            element.play().catch(() => {
-              this.needsAudioPermission = true
-            })
-          }
-          tryPlay()
-          if (this.room) {
-            this.room.startAudio().then(() => {
-              this.needsAudioPermission = !this.room.canPlaybackAudio
-              tryPlay()
-            }).catch(() => {
-              this.needsAudioPermission = true
-            })
-          }
-        }
+        // Legacy helper: route through adapter attach for dental/quality edge paths
+        const element = attachTrackElement(track)
+        this.onMediaEngineEvent(MediaEngineEvent.RemoteTrackAttached, { track, element })
       },
       attachAvailableRemoteTracks() {
         if (!this.room) return
+        subscribeAvailableRemoteTracks(this.room)
         for (const participant of this.room.remoteParticipants.values()) {
           for (const publication of participant.trackPublications.values()) {
-            try {
-              publication.setSubscribed(true)
-            } catch { /* ignore */ }
             if (publication.track) this.attachRemoteTrack(publication.track)
           }
         }
       },
       attachLocalVideo() {
         if (!this.$refs.localMedia) return
-        const publication = this.getLocalCameraPublication()
-        const track = this.localTracks.find(item => item.kind === Track.Kind.Video) || publication?.track
+        const room = this.mediaEngine?.room || this.room
+        const pubs = room?.localParticipant
+          ? [...room.localParticipant.videoTrackPublications.values()]
+          : []
+        const publication = pubs[0] || null
+        const track = (this.mediaEngine?._localTracks || this.localTracks || [])
+          .find(item => item.kind === Track.Kind.Video) || publication?.track
         if (!track) return
         const element = track.attach()
         element.autoplay = true
@@ -940,50 +844,36 @@ if (isCallRoute) {
         element.play().catch(() => {})
       },
       getLocalCameraPublication() {
-        if (!this.room?.localParticipant) return null
-        const pubs = [...this.room.localParticipant.videoTrackPublications.values()]
+        const room = this.mediaEngine?.room || this.room
+        if (!room?.localParticipant) return null
+        const pubs = [...room.localParticipant.videoTrackPublications.values()]
         return pubs[0] || null
       },
-      /** Read camera/mic truth from LiveKit publications — not Vue flags. */
       reconcileLocalMediaUi() {
-        if (!this.room?.localParticipant) return
-        const camPub = this.getLocalCameraPublication()
-        const camOn = !!(
-          camPub &&
-          !camPub.isMuted &&
-          camPub.track &&
-          !camPub.track.isMuted
-        )
-        this.cameraEnabled = camOn
-        const micPubs = [...this.room.localParticipant.audioTrackPublications.values()]
-        const micPub = micPubs[0]
-        if (micPub) {
-          this.microphoneEnabled = !micPub.isMuted && !!micPub.track && !micPub.track.isMuted
-        }
-      },
-      /**
-       * Single path for camera on/off. Operates on LocalParticipant, then
-       * re-reads publication state into UI. Do not flip Vue flags first.
-       */
-      async ensureCameraEnabled(wantEnabled) {
-        if (!this.room?.localParticipant) return false
-        if (this.cameraToggleBusy) return this.cameraEnabled
-        this.cameraToggleBusy = true
-        try {
-          this.reconcileLocalMediaUi()
-          if (this.cameraEnabled === !!wantEnabled) {
-            if (wantEnabled) this.attachLocalVideo()
-            else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
-            return this.cameraEnabled
+        const room = this.mediaEngine?.room || this.room
+        if (!room?.localParticipant) {
+          if (this.mediaEngine) {
+            const s = this.mediaEngine.getLocalMediaState()
+            this.cameraEnabled = s.cameraEnabled
+            this.microphoneEnabled = s.micEnabled
           }
-          rtLog('ensureCameraEnabled', { want: !!wantEnabled, before: this.cameraEnabled })
-          await this.room.localParticipant.setCameraEnabled(!!wantEnabled)
-          // Re-read actual publication/mute after LiveKit settles
+          return
+        }
+        const state = this.mediaEngine
+          ? this.mediaEngine.getLocalMediaState()
+          : readLocalMediaState(room)
+        this.cameraEnabled = state.cameraEnabled
+        this.microphoneEnabled = state.micEnabled
+      },
+      async ensureCameraEnabled(wantEnabled) {
+        if (!this.mediaEngine?.room) return false
+        try {
+          rtLog('ensureCameraEnabled', { want: !!wantEnabled, via: 'MediaEngine' })
+          const after = await this.mediaEngine.ensureCameraEnabled(!!wantEnabled)
           this.reconcileLocalMediaUi()
           if (this.cameraEnabled) this.attachLocalVideo()
           else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
-          rtLog('ensureCameraEnabled_done', { after: this.cameraEnabled })
-          return this.cameraEnabled
+          return after
         } catch (e) {
           console.warn('ensureCameraEnabled failed', e)
           this.reconcileLocalMediaUi()
@@ -991,19 +881,16 @@ if (isCallRoute) {
             ? (e?.message || 'Không bật được camera — đã giữ trạng thái thoại.')
             : (e?.message || 'Không tắt được camera.')
           return this.cameraEnabled
-        } finally {
-          this.cameraToggleBusy = false
         }
       },
       async toggleCamera() {
-        if (!this.room) return
+        if (!this.mediaEngine?.room) return
         await this.ensureCameraEnabled(!this.cameraEnabled)
       },
       async toggleMicrophone() {
-        if (!this.room?.localParticipant) return
+        if (!this.mediaEngine?.room) return
         try {
-          const want = !this.microphoneEnabled
-          await this.room.localParticipant.setMicrophoneEnabled(want)
+          await this.mediaEngine.ensureMicrophoneEnabled(!this.microphoneEnabled)
           this.reconcileLocalMediaUi()
         } catch (e) {
           console.warn('toggleMicrophone failed', e)
@@ -1012,18 +899,15 @@ if (isCallRoute) {
       },
       async enableAudioPlayback() {
         try {
-          if (this.room) {
-            await this.room.startAudio()
-            this.needsAudioPermission = !this.room.canPlaybackAudio
+          if (this.mediaEngine) {
+            await this.mediaEngine.unlockAudioPlayback()
+          } else if (this.room) {
+            await startRoomAudio(this.room)
+            replayAllAudioElements()
           }
-          // Re-kick every remote <audio> after user gesture (Safari/Opera).
-          document.querySelectorAll('audio').forEach(el => {
-            try {
-              el.muted = false
-              el.volume = 1
-              el.play().catch(() => {})
-            } catch { /* ignore */ }
-          })
+          this.needsAudioPermission = this.mediaEngine?.room
+            ? !this.mediaEngine.room.canPlaybackAudio
+            : this.needsAudioPermission
           this.attachAvailableRemoteTracks()
         } catch (e) {
           console.warn('enableAudioPlayback', e)
@@ -1450,13 +1334,18 @@ if (isCallRoute) {
       },
       disconnectRoom() {
         this.stopQualityMonitoring()
-        if (this.room) this.room.disconnect()
+        if (this.mediaEngine) {
+          try { this.mediaEngine.destroy() } catch (e) { console.warn(e) }
+          this.mediaEngine = null
+        } else if (this.room) {
+          try { this.room.disconnect() } catch (e) { console.warn(e) }
+        }
         this.room = null
         if (typeof this.localMediaCleanup === 'function') {
           this.localMediaCleanup()
           this.localMediaCleanup = null
         }
-        this.localTracks.forEach(t => t.stop())
+        this.localTracks.forEach(t => { try { t.stop() } catch { /* ignore */ } })
         this.localTracks = []
         this.remoteVideoConnected = false
         this.qualityStats = initialQualityStats()
