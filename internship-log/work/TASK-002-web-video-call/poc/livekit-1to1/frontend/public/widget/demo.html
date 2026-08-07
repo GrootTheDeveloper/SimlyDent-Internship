@@ -330,8 +330,16 @@
       place-items: center;
       background: var(--bg-orange);
       color: var(--orange);
-      font-size: 18px;
       margin-bottom: 12px;
+    }
+    .card-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .card h3 {
       margin: 0 0 8px;
@@ -506,17 +514,23 @@
       <p class="section-lead">Nội dung marketing mẫu — phong cách landing simlydent.vn, gọn trong một trang để demo widget.</p>
       <div class="grid-3">
         <article class="card">
-          <div class="card-icon">🦷</div>
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
           <h3>Khám &amp; tư vấn</h3>
           <p>Đặt lịch, tư vấn online qua video — không cần cài app. Camera không bắt buộc.</p>
         </article>
         <article class="card">
-          <div class="card-icon">✨</div>
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3 9.5 8.5 4 9.5l4 4-1 5.5L12 16l5 3-1-5.5 4-4-5.5-1z"/></svg>
+          </div>
           <h3>Thẩm mỹ nụ cười</h3>
           <p>Tẩy trắng, veneer, chỉnh nha — giải thích quy trình trước khi đến phòng khám.</p>
         </article>
         <article class="card">
-          <div class="card-icon">🛡️</div>
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
           <h3>An toàn &amp; riêng tư</h3>
           <p>Call gắn đúng phòng; phòng B không xem được call/recording của phòng A.</p>
         </article>

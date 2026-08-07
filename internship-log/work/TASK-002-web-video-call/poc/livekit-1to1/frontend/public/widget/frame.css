@@ -167,6 +167,13 @@ body { overflow: hidden; }
   min-width: 168px;
   box-shadow: 0 4px 14px rgba(0, 102, 204, 0.28);
   transition: background 0.12s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.primary svg {
+  flex-shrink: 0;
 }
 .primary:hover:not(:disabled) { background: var(--primary-focus); }
 .primary:active:not(:disabled) { transform: scale(0.98); }
