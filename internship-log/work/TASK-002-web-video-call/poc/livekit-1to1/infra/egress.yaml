@@ -7,11 +7,11 @@ backup_storage: /out
 health_port: 8080
 prometheus_port: 9090
 
-# VPS lab has 2 vCPU. Default room_composite cost is 4, so Egress never
-# accepts StartRoomCompositeEgress ("no response from servers" / 503).
-# Override for PoC only — real load may stutter; prefer 4+ CPU for production.
+# VPS lab ~2 vCPU. Defaults (room_composite=4) reject 2nd job:
+# "twirp error unknown: no response from servers".
+# Allow concurrent auto-audio + manual video (and dental track) for PoC.
 cpu_cost:
-  room_composite_cpu_cost: 1.5
-  web_cpu_cost: 1.5
-  track_composite_cpu_cost: 1.0
-  track_cpu_cost: 0.5
+  room_composite_cpu_cost: 0.8
+  web_cpu_cost: 0.8
+  track_composite_cpu_cost: 0.5
+  track_cpu_cost: 0.3
