@@ -1549,24 +1549,54 @@ if (isCallRoute) {
       },
       async downloadRecording() {
         try {
-          // Manager-only on server; staff will get 404.
-          const res = await apiFetch(`/api/calls/${this.callId}/recording/file`, {
-            headers: authHeaders()
-          })
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}))
-            throw new Error(body.error || 'Không tải được bản ghi (cần quyền quản lý).')
-          }
-          const blob = await res.blob()
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = `recording-${this.callId}.mp4`
-          link.click()
-          URL.revokeObjectURL(url)
+          await this.downloadRecordingByCallId(this.callId)
         } catch (err) {
           this.error = err.message
         }
+      },
+      /**
+       * Prefer download-url (presign or proxy). Catalog-backed; works after API restart.
+       */
+      async fetchAndSaveRecording(callId) {
+        const metaRes = await apiFetch(`/api/calls/${callId}/recording/download-url`, {
+          headers: authHeaders()
+        })
+        if (!metaRes.ok) {
+          const body = await metaRes.json().catch(() => ({}))
+          throw new Error(body.error || `Không lấy được link tải (HTTP ${metaRes.status})`)
+        }
+        const meta = await metaRes.json()
+        const mode = meta.mode || 'proxy'
+        const fileName = `recording-${String(callId).replace(/-/g, '')}.mp4`
+
+        if (mode === 'presign' && meta.url) {
+          // Browser hits Object Storage directly — no Bearer on storage host.
+          const link = document.createElement('a')
+          link.href = meta.url
+          link.download = fileName
+          link.rel = 'noopener'
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          return
+        }
+
+        // Proxy: authenticated stream through API.
+        const path = meta.url || `/api/calls/${callId}/recording/file`
+        const res = await apiFetch(path, { headers: authHeaders() })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `Không tải được file (HTTP ${res.status})`)
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
       },
       async endCall() {
         // Prevent double-tap / concurrent hangup paths hanging the UI
@@ -2070,25 +2100,11 @@ if (isCallRoute) {
         if (!callId || this.recordingActionId) return
         this.recordingActionId = callId
         try {
-          const res = await apiFetch(`/api/calls/${callId}/recording/file`, {
-            headers: authHeaders()
-          })
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}))
-            throw new Error(err.error || `Không tải được file (HTTP ${res.status})`)
-          }
-          const blob = await res.blob()
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = `recording-${String(callId).replace(/-/g, '')}.mp4`
-          document.body.appendChild(link)
-          link.click()
-          link.remove()
-          URL.revokeObjectURL(url)
+          await this.fetchAndSaveRecording(callId)
         } catch (e) {
           this.popupErrorMessage = e.message
           this.popupState = 'error'
+          this.error = e.message
         } finally {
           this.recordingActionId = null
         }

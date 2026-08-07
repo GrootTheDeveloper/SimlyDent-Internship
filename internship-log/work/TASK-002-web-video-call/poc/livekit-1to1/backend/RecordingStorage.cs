@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -6,6 +7,9 @@ namespace LiveKitPoc.Api;
 public interface IRecordingStorage
 {
     string BackendName { get; }
+
+    /// <summary>True when CreatePresignedGetUrl can return a browser-usable URL.</summary>
+    bool SupportsPresignedGet { get; }
 
     /// <summary>Server-owned key: clinic/{clinicId}/calls/{callId}/{recordingId}.{ext}</summary>
     string BuildKey(string clinicId, Guid callId, string recordingId, string extension);
@@ -20,6 +24,12 @@ public interface IRecordingStorage
 
     /// <summary>Local filesystem path when backend is local; null for remote-only.</summary>
     string? TryGetLocalPath(string storageKey);
+
+    /// <summary>
+    /// SigV4 presigned GET against the public endpoint host (browser-reachable).
+    /// Null if unsupported. Never log the returned URL.
+    /// </summary>
+    string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl);
 }
 
 public static class RecordingStorageKeys
@@ -52,15 +62,14 @@ public sealed class LocalRecordingStorage : IRecordingStorage
     }
 
     public string BackendName => "local";
+    public bool SupportsPresignedGet => false;
 
     public string BuildKey(string clinicId, Guid callId, string recordingId, string extension) =>
         RecordingStorageKeys.Build(clinicId, callId, recordingId, extension);
 
-    public string? TryGetLocalPath(string storageKey)
-    {
-        var full = ResolvePath(storageKey);
-        return full;
-    }
+    public string? TryGetLocalPath(string storageKey) => ResolvePath(storageKey);
+
+    public string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl) => null;
 
     public Task SaveFromLocalFileAsync(string storageKey, string localPath, CancellationToken ct)
     {
@@ -104,13 +113,15 @@ public sealed class LocalRecordingStorage : IRecordingStorage
 }
 
 /// <summary>
-/// Minimal S3-compatible client for MinIO using AWS Signature V4 (Put/Get/Delete/Head).
-/// No AWS SDK dependency — keeps PoC lightweight.
+/// S3-compatible client (MinIO fixture / any SigV4 S3).
+/// Internal endpoint: Head/Put/Delete from API.
+/// Public endpoint: presigned GET host (must be browser-reachable; same bucket/objects).
 /// </summary>
 public sealed class S3RecordingStorage : IRecordingStorage
 {
     private readonly HttpClient _http;
-    private readonly string _endpoint;
+    private readonly string _internalEndpoint;
+    private readonly string _publicEndpoint;
     private readonly string _bucket;
     private readonly string _accessKey;
     private readonly string _secretKey;
@@ -120,7 +131,10 @@ public sealed class S3RecordingStorage : IRecordingStorage
     public S3RecordingStorage(IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
         _http = httpClientFactory.CreateClient(nameof(S3RecordingStorage));
-        _endpoint = (configuration["S3_ENDPOINT"] ?? "http://minio:9000").TrimEnd('/');
+        // Prefer explicit split; fall back to legacy S3_ENDPOINT for both if only one set.
+        var legacy = (configuration["S3_ENDPOINT"] ?? "http://minio:9000").TrimEnd('/');
+        _internalEndpoint = (configuration["S3_INTERNAL_ENDPOINT"] ?? legacy).TrimEnd('/');
+        _publicEndpoint = (configuration["S3_PUBLIC_ENDPOINT"] ?? configuration["S3_ENDPOINT"] ?? "").TrimEnd('/');
         _bucket = configuration["S3_BUCKET"] ?? "simlydent-recordings";
         _accessKey = configuration["S3_ACCESS_KEY"] ?? "minioadmin";
         _secretKey = configuration["S3_SECRET_KEY"] ?? "minioadmin";
@@ -129,6 +143,11 @@ public sealed class S3RecordingStorage : IRecordingStorage
     }
 
     public string BackendName => "s3";
+
+    public bool SupportsPresignedGet =>
+        !string.IsNullOrWhiteSpace(_publicEndpoint)
+        && Uri.TryCreate(_publicEndpoint, UriKind.Absolute, out var u)
+        && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp);
 
     public string BuildKey(string clinicId, Guid callId, string recordingId, string extension) =>
         RecordingStorageKeys.Build(clinicId, callId, recordingId, extension);
@@ -140,7 +159,7 @@ public sealed class S3RecordingStorage : IRecordingStorage
         await using var fs = File.OpenRead(localPath);
         using var content = new StreamContent(fs);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        var req = await SignedRequestAsync(HttpMethod.Put, storageKey, content, ct);
+        var req = await SignedRequestAsync(HttpMethod.Put, storageKey, content, _internalEndpoint, ct);
         using var res = await _http.SendAsync(req, ct);
         if (!res.IsSuccessStatusCode)
         {
@@ -151,7 +170,7 @@ public sealed class S3RecordingStorage : IRecordingStorage
 
     public async Task<Stream?> OpenReadAsync(string storageKey, CancellationToken ct)
     {
-        var req = await SignedRequestAsync(HttpMethod.Get, storageKey, null, ct);
+        var req = await SignedRequestAsync(HttpMethod.Get, storageKey, null, _internalEndpoint, ct);
         var res = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         if (res.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -169,14 +188,14 @@ public sealed class S3RecordingStorage : IRecordingStorage
 
     public async Task<bool> ExistsAsync(string storageKey, CancellationToken ct)
     {
-        var req = await SignedRequestAsync(HttpMethod.Head, storageKey, null, ct);
+        var req = await SignedRequestAsync(HttpMethod.Head, storageKey, null, _internalEndpoint, ct);
         using var res = await _http.SendAsync(req, ct);
         return res.IsSuccessStatusCode;
     }
 
     public async Task DeleteAsync(string storageKey, CancellationToken ct)
     {
-        var req = await SignedRequestAsync(HttpMethod.Delete, storageKey, null, ct);
+        var req = await SignedRequestAsync(HttpMethod.Delete, storageKey, null, _internalEndpoint, ct);
         using var res = await _http.SendAsync(req, ct);
         if (!res.IsSuccessStatusCode && res.StatusCode != System.Net.HttpStatusCode.NotFound)
         {
@@ -185,25 +204,89 @@ public sealed class S3RecordingStorage : IRecordingStorage
         }
     }
 
+    public string? CreatePresignedGetUrl(string storageKey, TimeSpan ttl)
+    {
+        if (!SupportsPresignedGet)
+            return null;
+        if (ttl <= TimeSpan.Zero) ttl = TimeSpan.FromMinutes(5);
+        if (ttl > TimeSpan.FromMinutes(15)) ttl = TimeSpan.FromMinutes(15);
+
+        var objectKey = storageKey.Replace('\\', '/').TrimStart('/');
+        var endpoint = _publicEndpoint;
+        var uriBase = new Uri(endpoint + "/");
+        var hostHeader = uriBase.IsDefaultPort
+            ? uriBase.Host
+            : $"{uriBase.Host}:{uriBase.Port}";
+
+        var now = DateTime.UtcNow;
+        var amzDate = now.ToString("yyyyMMddTHHmmssZ");
+        var dateStamp = now.ToString("yyyyMMdd");
+        var expires = Math.Max(1, (int)ttl.TotalSeconds);
+        var credentialScope = $"{dateStamp}/{_region}/s3/aws4_request";
+        var credential = $"{_accessKey}/{credentialScope}";
+
+        var canonicalUri = _pathStyle
+            ? $"/{_bucket}/{EncodeS3Key(objectKey)}"
+            : $"/{EncodeS3Key(objectKey)}";
+
+        // Query params must be sorted for canonical request.
+        var query = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["X-Amz-Algorithm"] = "AWS4-HMAC-SHA256",
+            ["X-Amz-Credential"] = credential,
+            ["X-Amz-Date"] = amzDate,
+            ["X-Amz-Expires"] = expires.ToString(CultureInfo.InvariantCulture),
+            ["X-Amz-SignedHeaders"] = "host"
+        };
+
+        var canonicalQuery = string.Join("&",
+            query.Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
+
+        var canonicalHeaders = $"host:{hostHeader}\n";
+        var signedHeaders = "host";
+        var payloadHash = "UNSIGNED-PAYLOAD";
+        var canonicalRequest = string.Join("\n",
+            "GET",
+            canonicalUri,
+            canonicalQuery,
+            canonicalHeaders,
+            signedHeaders,
+            payloadHash);
+
+        var stringToSign = string.Join("\n",
+            "AWS4-HMAC-SHA256",
+            amzDate,
+            credentialScope,
+            Sha256Hex(canonicalRequest));
+
+        var signingKey = GetSignatureKey(_secretKey, dateStamp, _region, "s3");
+        var signature = ToHex(HmacSha256(signingKey, stringToSign));
+
+        var url = _pathStyle
+            ? $"{endpoint}/{_bucket}/{objectKey}?{canonicalQuery}&X-Amz-Signature={signature}"
+            : $"{endpoint}/{objectKey}?{canonicalQuery}&X-Amz-Signature={signature}";
+        return url;
+    }
+
     private Task<HttpRequestMessage> SignedRequestAsync(
         HttpMethod method,
         string key,
         HttpContent? content,
+        string endpoint,
         CancellationToken ct)
     {
         var objectKey = key.Replace('\\', '/').TrimStart('/');
         var url = _pathStyle
-            ? $"{_endpoint}/{_bucket}/{objectKey}"
-            : $"{_endpoint}/{objectKey}";
+            ? $"{endpoint}/{_bucket}/{objectKey}"
+            : $"{endpoint}/{objectKey}";
         var uri = new Uri(url);
         var request = new HttpRequestMessage(method, uri) { Content = content };
-        SignAwsV4(request, objectKey);
+        SignAwsV4Header(request, objectKey);
         return Task.FromResult(request);
     }
 
-    private void SignAwsV4(HttpRequestMessage request, string objectKey)
+    private void SignAwsV4Header(HttpRequestMessage request, string objectKey)
     {
-        // Minimal SigV4 for S3-compatible MinIO (UNSIGNED-PAYLOAD).
         var now = DateTime.UtcNow;
         var amzDate = now.ToString("yyyyMMddTHHmmssZ");
         var dateStamp = now.ToString("yyyyMMdd");
@@ -214,10 +297,6 @@ public sealed class S3RecordingStorage : IRecordingStorage
         request.Headers.TryAddWithoutValidation("x-amz-content-sha256", payloadHash);
 
         var canonicalUri = _pathStyle
-            ? "/" + _bucket + "/" + string.Join("/", objectKey.Split('/').Select(Uri.EscapeDataString))
-            : "/" + string.Join("/", objectKey.Split('/').Select(Uri.EscapeDataString));
-        // EscapeDataString encodes / — undo for path segments join already done; use simple encode
-        canonicalUri = _pathStyle
             ? $"/{_bucket}/{EncodeS3Key(objectKey)}"
             : $"/{EncodeS3Key(objectKey)}";
 

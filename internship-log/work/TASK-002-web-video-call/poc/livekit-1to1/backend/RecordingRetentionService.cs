@@ -3,24 +3,25 @@ using System.Collections.Concurrent;
 namespace LiveKitPoc.Api;
 
 /// <summary>
-/// Periodic retention cleanup. Never deletes active (Starting/Recording/Stopping) recordings.
+/// DB-driven retention: Ready → DeletePending → Deleted.
+/// Deleted only after every physical object is gone or confirmed absent.
+/// retention_until NULL is never auto-deleted.
 /// </summary>
 public sealed class RecordingRetentionService(
+    IRecordingCatalog catalog,
     ConcurrentDictionary<Guid, CallSession> calls,
-    RecordingPolicyRegistry policies,
     IRecordingStorage storage,
     RecordingAuditService audit,
     ILogger<RecordingRetentionService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // First run after short delay; then hourly.
-        await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(25), stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                RunOnce();
+                await RunOnceAsync(stoppingToken);
             }
             catch (Exception ex)
             {
@@ -38,63 +39,100 @@ public sealed class RecordingRetentionService(
         }
     }
 
-    public int RunOnce()
+    public int RunOnce() =>
+        RunOnceAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    public async Task<int> RunOnceAsync(CancellationToken cancellationToken = default)
     {
         var deleted = 0;
-        var now = DateTimeOffset.UtcNow;
-        foreach (var call in calls.Values)
+        var due = await catalog.ListDueForRetentionAsync(50, cancellationToken);
+        foreach (var row in due)
         {
-            string? key;
-            string status;
-            DateTimeOffset updated;
-            string clinicId;
-            Guid callId;
-            string? recordingId;
-            lock (call.SyncRoot)
-            {
-                status = call.RecordingStatus;
-                key = call.RecordingStorageKey;
-                updated = call.UpdatedAt;
-                clinicId = call.ClinicId;
-                callId = call.Id;
-                recordingId = call.RecordingId;
-                if (status is "Starting" or "Recording" or "Stopping")
-                    continue;
-                if (status is not ("Complete" or "Failed"))
-                    continue;
-                if (string.IsNullOrWhiteSpace(key))
-                    continue;
-            }
+            if (await ProcessRetentionCandidateAsync(row, claimFromReady: true, cancellationToken))
+                deleted++;
+        }
 
-            var policy = policies.Get(clinicId);
-            var age = now - updated;
-            if (age < TimeSpan.FromDays(policy.RetentionDays))
-                continue;
+        var pending = await catalog.ListDeletePendingAsync(50, cancellationToken);
+        foreach (var row in pending)
+        {
+            if (await ProcessRetentionCandidateAsync(row, claimFromReady: false, cancellationToken))
+                deleted++;
+        }
 
+        if (deleted > 0)
+            logger.LogInformation("Retention completed {Count} recording(s).", deleted);
+        return deleted;
+    }
+
+    private async Task<bool> ProcessRetentionCandidateAsync(
+        RecordingRecord row,
+        bool claimFromReady,
+        CancellationToken cancellationToken)
+    {
+        if (claimFromReady)
+        {
+            var claimed = await catalog.TryMarkDeletePendingAsync(row.Id, cancellationToken);
+            if (!claimed) return false;
+        }
+        else if (row.Status != RecordingLedgerStatus.DeletePending)
+        {
+            return false;
+        }
+
+        var keys = await catalog.ListObjectKeysAsync(row.Id, cancellationToken);
+        if (keys.Count == 0 && !string.IsNullOrWhiteSpace(row.StorageKey))
+            keys = new[] { row.StorageKey! };
+
+        var allGone = true;
+        foreach (var key in keys)
+        {
             try
             {
-                storage.DeleteAsync(key!, CancellationToken.None).GetAwaiter().GetResult();
+                await storage.DeleteAsync(key, cancellationToken);
             }
             catch (Exception ex)
             {
-                audit.Append(clinicId, callId, recordingId, "system", "System",
-                    "RecordingExpired", "Failed", ex.Message);
+                logger.LogWarning(ex, "Retention delete failed for {Key}", key);
+                allGone = false;
                 continue;
             }
 
+            try
+            {
+                if (await storage.ExistsAsync(key, cancellationToken))
+                    allGone = false;
+            }
+            catch
+            {
+                // If Exists fails after delete, treat as not confirmed.
+                allGone = false;
+            }
+        }
+
+        if (!allGone)
+        {
+            audit.Append(row.ClinicId, row.CallId, row.Id, "system", "System",
+                "RecordingExpired", "Partial", "DeletePending retry");
+            return false;
+        }
+
+        await catalog.MarkDeletedAsync(row.Id, cancellationToken);
+        if (calls.TryGetValue(row.CallId, out var call))
+        {
             lock (call.SyncRoot)
             {
-                call.RecordingStatus = "Deleted";
-                call.RecordingStorageKey = null;
-                call.RecordingFileName = null;
-                call.RecordingEgressId = null;
-                call.UpdatedAt = DateTimeOffset.UtcNow;
+                if (string.Equals(call.RecordingId, row.Id, StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(call.RecordingId))
+                {
+                    call.RecordingStatus = "Deleted";
+                    call.RecordingStorageKey = null;
+                    call.UpdatedAt = DateTimeOffset.UtcNow;
+                }
             }
-
-            audit.Append(clinicId, callId, recordingId, "system", "System",
-                "RecordingExpired", "Ok", $"retentionDays={policy.RetentionDays}");
-            deleted++;
         }
-        return deleted;
+
+        audit.Append(row.ClinicId, row.CallId, row.Id, "system", "System",
+            "RecordingExpired", "Ok", "status=Deleted");
+        return true;
     }
 }

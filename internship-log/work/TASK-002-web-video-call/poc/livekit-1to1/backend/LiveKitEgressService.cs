@@ -71,7 +71,11 @@ public sealed class LiveKitEgressService(
         var key = string.IsNullOrWhiteSpace(storageKey)
             ? fileName.TrimStart('/')
             : storageKey.Replace('\\', '/').TrimStart('/');
-        var endpoint = (_configuration["S3_ENDPOINT"] ?? "http://minio:9000").TrimEnd('/');
+        // Direct S3 Egress must use HTTPS-capable public endpoint (browser/egress contract).
+        // Do not use plain docker-only http://minio:9000 as the Egress target in production-shaped lab.
+        var endpoint = (_configuration["S3_PUBLIC_ENDPOINT"]
+                        ?? _configuration["S3_ENDPOINT"]
+                        ?? "http://minio:9000").TrimEnd('/');
         var bucket = _configuration["S3_BUCKET"] ?? "simlydent-recordings";
         var accessKey = _configuration["S3_ACCESS_KEY"] ?? "minioadmin";
         var secretKey = _configuration["S3_SECRET_KEY"] ?? "minioadmin";

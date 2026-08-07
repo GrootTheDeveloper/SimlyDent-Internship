@@ -1156,11 +1156,79 @@ app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
     });
 }).RequireAuthorization();
 
+/// <summary>
+/// Issue temporary download capability. Catalog is authority (works after API restart).
+/// mode=presign → browser hits Object Storage; mode=proxy → relative file stream URL.
+/// Audit: RecordingDownloadUrlIssued (does not prove bytes were fetched).
+/// </summary>
+app.MapGet("/api/calls/{callId:guid}/recording/download-url", async (
+    Guid callId,
+    ClaimsPrincipal principal,
+    IdentityRegistry identities,
+    IRecordingStorage storage,
+    IRecordingCatalog catalog,
+    RecordingAuditService audit,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var current = ClinicAuthorization.CurrentUser(principal, identities);
+    if (current is null) return Results.Unauthorized();
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
+
+    var ledger = await catalog.GetLatestByCallAsync(callId, cancellationToken);
+    if (ledger is null
+        || !string.Equals(ledger.ClinicId, current!.ClinicId, StringComparison.OrdinalIgnoreCase))
+        return Results.NotFound();
+
+    if (!RecordingLedgerStatus.IsDownloadable(ledger.Status)
+        || string.IsNullOrWhiteSpace(ledger.StorageKey))
+        return Results.Conflict(new { error = "Recording is not ready." });
+
+    var ttlSec = 300;
+    if (int.TryParse(configuration["RECORDING_PRESIGN_TTL_SECONDS"], out var t) && t > 0)
+        ttlSec = Math.Min(t, 900);
+    var ttl = TimeSpan.FromSeconds(ttlSec);
+    var expiresAt = DateTimeOffset.UtcNow.Add(ttl);
+
+    string mode;
+    string url;
+    if (storage.SupportsPresignedGet)
+    {
+        var signed = storage.CreatePresignedGetUrl(ledger.StorageKey!, ttl);
+        if (string.IsNullOrWhiteSpace(signed))
+            return Results.Json(new { error = "Presign unavailable." }, statusCode: 503);
+        mode = "presign";
+        url = signed;
+    }
+    else
+    {
+        mode = "proxy";
+        url = $"/api/calls/{callId:D}/recording/file";
+    }
+
+    // Never put full signed URL in audit detail.
+    audit.Append(ledger.ClinicId, ledger.CallId, ledger.Id, current.Id, current.Role,
+        "RecordingDownloadUrlIssued", "Ok", $"mode={mode};ttlSec={ttlSec}");
+
+    return Results.Ok(new
+    {
+        url,
+        expiresAt,
+        mode,
+        recordingId = ledger.Id,
+        callId = ledger.CallId
+    });
+}).RequireAuthorization();
+
+/// <summary>
+/// Proxy stream path — only when mode=proxy or scripts. Catalog authority.
+/// Audit RecordingDownloaded only when bytes leave this endpoint.
+/// </summary>
 app.MapGet("/api/calls/{id:guid}/recording/file", async (
     Guid id,
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    ConcurrentDictionary<Guid, CallSession> calls,
     IRecordingStorage storage,
     IRecordingCatalog catalog,
     RecordingAuditService audit,
@@ -1168,59 +1236,29 @@ app.MapGet("/api/calls/{id:guid}/recording/file", async (
 {
     var current = ClinicAuthorization.CurrentUser(principal, identities);
     if (current is null) return Results.Unauthorized();
-    // Manager same clinic only — not participant GetAuthorizedCall.
-    var call = RecordingAuthorization.GetClinicCallForManager(calls, id, current);
-    // Call may be gone after restart; still allow download via catalog if clinic matches.
-    string? key = null;
-    string? recId = null;
-    string clinicId;
-    Guid callId = id;
+    var denied = RecordingAuthorization.RequireManager(current);
+    if (denied is not null) return denied;
 
-    if (call is not null)
-    {
-        clinicId = call.ClinicId;
-        lock (call.SyncRoot)
-        {
-            if (call.RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(call.RecordingStorageKey))
-            {
-                key = call.RecordingStorageKey;
-                recId = call.RecordingId;
-            }
-        }
-    }
-    else
-    {
-        clinicId = current.ClinicId;
-    }
+    var ledger = await catalog.GetLatestByCallAsync(id, cancellationToken);
+    if (ledger is null
+        || !string.Equals(ledger.ClinicId, current!.ClinicId, StringComparison.OrdinalIgnoreCase))
+        return Results.NotFound();
 
-    if (string.IsNullOrWhiteSpace(key))
-    {
-        var ledger = await catalog.GetLatestByCallAsync(id, cancellationToken);
-        if (ledger is null
-            || !string.Equals(ledger.ClinicId, current.ClinicId, StringComparison.OrdinalIgnoreCase)
-            || !RecordingLedgerStatus.IsDownloadable(ledger.Status)
-            || string.IsNullOrWhiteSpace(ledger.StorageKey))
-        {
-            if (call is null) return Results.NotFound();
-            return Results.Conflict(new { error = "Recording is not ready." });
-        }
-        key = ledger.StorageKey;
-        recId = ledger.Id;
-        clinicId = ledger.ClinicId;
-        callId = ledger.CallId;
-    }
+    if (!RecordingLedgerStatus.IsDownloadable(ledger.Status)
+        || string.IsNullOrWhiteSpace(ledger.StorageKey))
+        return Results.Conflict(new { error = "Recording is not ready." });
 
-    var stream = await storage.OpenReadAsync(key!, cancellationToken);
+    var stream = await storage.OpenReadAsync(ledger.StorageKey!, cancellationToken);
     if (stream is null)
     {
-        audit.Append(clinicId, callId, recId, current.Id, current.Role,
+        audit.Append(ledger.ClinicId, ledger.CallId, ledger.Id, current.Id, current.Role,
             "RecordingDownloaded", "Failed", "missing object");
         return Results.NotFound(new { error = "Recording file was not found." });
     }
 
-    audit.Append(clinicId, callId, recId, current.Id, current.Role,
-        "RecordingDownloaded", "Ok");
-    var downloadName = $"recording-{callId:N}.mp4";
+    audit.Append(ledger.ClinicId, ledger.CallId, ledger.Id, current.Id, current.Role,
+        "RecordingDownloaded", "Ok", "proxy");
+    var downloadName = $"recording-{ledger.CallId:N}.mp4";
     return Results.File(stream, "video/mp4", downloadName, enableRangeProcessing: true);
 }).RequireAuthorization();
 

@@ -138,6 +138,16 @@ public interface IRecordingCatalog
     /// <summary>Rows in Finalizing (and optionally Recording) for reconcile. Does not use updated_at as sole clock.</summary>
     Task<IReadOnlyList<RecordingRecord>> ListStuckAsync(int limit, CancellationToken cancellationToken = default);
 
+    /// <summary>Ready rows with retention_until set and due. NULL retention_until never returned.</summary>
+    Task<IReadOnlyList<RecordingRecord>> ListDueForRetentionAsync(int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Also returns stuck DeletePending for retry.</summary>
+    Task<IReadOnlyList<RecordingRecord>> ListDeletePendingAsync(int limit, CancellationToken cancellationToken = default);
+
+    Task<bool> TryMarkDeletePendingAsync(string recordingId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> ListObjectKeysAsync(string recordingId, CancellationToken cancellationToken = default);
+
     // ---- Compatibility wrappers (legacy call sites) ----
 
     Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default) =>
@@ -390,6 +400,46 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
             .OrderBy(r => r.FinalizingStartedAt ?? r.CreatedAt)
             .Take(Math.Max(1, limit))
             .ToList());
+
+    public Task<IReadOnlyList<RecordingRecord>> ListDueForRetentionAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return Task.FromResult<IReadOnlyList<RecordingRecord>>(_byId.Values
+            .Where(r => r.Status == RecordingLedgerStatus.Ready
+                        && r.RetentionUntil is not null
+                        && r.RetentionUntil <= now)
+            .OrderBy(r => r.RetentionUntil)
+            .Take(Math.Max(1, limit))
+            .ToList());
+    }
+
+    public Task<IReadOnlyList<RecordingRecord>> ListDeletePendingAsync(int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<RecordingRecord>>(_byId.Values
+            .Where(r => r.Status == RecordingLedgerStatus.DeletePending)
+            .Take(Math.Max(1, limit))
+            .ToList());
+
+    public Task<bool> TryMarkDeletePendingAsync(string recordingId, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (r.Status != RecordingLedgerStatus.Ready) return Task.FromResult(false);
+            _byId[recordingId] = r with
+            {
+                Status = RecordingLedgerStatus.DeletePending,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task<IReadOnlyList<string>> ListObjectKeysAsync(string recordingId, CancellationToken cancellationToken = default)
+    {
+        if (!_byId.TryGetValue(recordingId, out var r) || string.IsNullOrWhiteSpace(r.StorageKey))
+            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        return Task.FromResult<IReadOnlyList<string>>(new[] { r.StorageKey! });
+    }
 }
 
 /// <summary>PostgreSQL source of truth for recording catalog + physical objects.</summary>
@@ -821,6 +871,70 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("s2", RecordingLedgerStatus.Recording);
         cmd.Parameters.AddWithValue("lim", Math.Max(1, limit));
         return await ReadManyAsync(cmd, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RecordingRecord>> ListDueForRetentionAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = SelectSql + """
+             WHERE r.status = @ready
+               AND r.retention_until IS NOT NULL
+               AND r.retention_until <= @now
+             ORDER BY r.retention_until ASC
+             LIMIT @lim
+            """;
+        cmd.Parameters.AddWithValue("ready", RecordingLedgerStatus.Ready);
+        cmd.Parameters.AddWithValue("now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("lim", Math.Max(1, limit));
+        return await ReadManyAsync(cmd, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RecordingRecord>> ListDeletePendingAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = SelectSql + """
+             WHERE r.status = @st
+             ORDER BY r.updated_at ASC
+             LIMIT @lim
+            """;
+        cmd.Parameters.AddWithValue("st", RecordingLedgerStatus.DeletePending);
+        cmd.Parameters.AddWithValue("lim", Math.Max(1, limit));
+        return await ReadManyAsync(cmd, cancellationToken);
+    }
+
+    public async Task<bool> TryMarkDeletePendingAsync(string recordingId, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE recordings
+            SET status = @to, updated_at = @now
+            WHERE id = @id AND status = @from
+            """;
+        cmd.Parameters.AddWithValue("to", RecordingLedgerStatus.DeletePending);
+        cmd.Parameters.AddWithValue("now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("id", recordingId);
+        cmd.Parameters.AddWithValue("from", RecordingLedgerStatus.Ready);
+        return await cmd.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<IReadOnlyList<string>> ListObjectKeysAsync(string recordingId, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT storage_key FROM recording_objects WHERE recording_id = @id";
+        cmd.Parameters.AddWithValue("id", recordingId);
+        var list = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            list.Add(reader.GetString(0));
+        return list;
     }
 
     private const string SelectSql = """

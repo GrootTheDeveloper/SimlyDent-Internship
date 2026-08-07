@@ -30,7 +30,11 @@ $checks = @(
   @{ Name = "Reconcile hosted"; Ok = $progText -match 'RecordingReconcileService' },
   @{ Name = "TryMarkFinalizing with egress"; Ok = $catText -match 'TryMarkFinalizingAsync' -and $catText -match 'finalizing_started_at' },
   @{ Name = "terminal_seen_at clock"; Ok = $catText -match 'terminal_seen_at' },
-  @{ Name = "TryMarkFailed only active states"; Ok = $catText -match "status IN \(@s1, @s2, @s3\)" -or $catText -match 'Requested or Recording or Finalizing' }
+  @{ Name = "TryMarkFailed only active states"; Ok = $catText -match "status IN \(@s1, @s2, @s3\)" -or $catText -match 'Requested or Recording or Finalizing' },
+  @{ Name = "presign CreatePresignedGetUrl"; Ok = (Get-Content (Join-Path $poc "backend\RecordingStorage.cs") -Raw) -match 'CreatePresignedGetUrl' -and (Get-Content (Join-Path $poc "backend\RecordingStorage.cs") -Raw) -match 'S3_PUBLIC_ENDPOINT' },
+  @{ Name = "download-url route"; Ok = $progText -match 'recording/download-url' -and $progText -match 'RecordingDownloadUrlIssued' },
+  @{ Name = "retention ListDueForRetention"; Ok = $catText -match 'ListDueForRetentionAsync' -and $catText -match 'TryMarkDeletePendingAsync' },
+  @{ Name = "retention DeletePending completeness"; Ok = (Get-Content (Join-Path $poc "backend\RecordingRetentionService.cs") -Raw) -match 'DeletePending' }
 )
 $failed = @()
 foreach ($c in $checks) {
