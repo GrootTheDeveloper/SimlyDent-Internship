@@ -154,6 +154,8 @@ public sealed class MemoryConsultationCatalog : IConsultationCatalog
 
     public Task EnsureSchemaAsync(CancellationToken ct = default) => Task.CompletedTask;
 
+    private readonly Dictionary<string, int> _guestSeq = new(StringComparer.OrdinalIgnoreCase);
+
     public Task<ConsultationSession> EnsureSessionAsync(
         Guid callId, string clinicId, string roomName,
         string callerId, string callerDisplayName,
@@ -176,11 +178,21 @@ public sealed class MemoryConsultationCatalog : IConsultationCatalog
                 return Task.FromResult(updated);
             }
 
+            var display = callerDisplayName ?? "";
+            if (PostgresConsultationCatalog.IsGuestCallerId(callerId)
+                && !System.Text.RegularExpressions.Regex.IsMatch(display, @"^Khách #\d+$"))
+            {
+                _guestSeq.TryGetValue(clinicId, out var n);
+                n = Math.Max(1, n);
+                display = $"Khách #{n}";
+                _guestSeq[clinicId] = n + 1;
+            }
+
             var now = DateTimeOffset.UtcNow;
             var session = new ConsultationSession(
                 Guid.NewGuid(), callId, clinicId, roomName,
                 string.IsNullOrWhiteSpace(initialMediaMode) ? "Audio" : initialMediaMode,
-                callerId, callerDisplayName ?? "",
+                callerId, display,
                 staffId, staffDisplayName,
                 now, null, "Active", now, now);
             _sessions[session.Id] = session;
@@ -692,9 +704,79 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
             );
             CREATE INDEX IF NOT EXISTS ix_media_objects_key
                 ON media_objects (storage_key);
+
+            -- Clinic-scoped sequential guest labels: Khách #1, #2, …
+            CREATE TABLE IF NOT EXISTS clinic_guest_counters (
+                clinic_id TEXT PRIMARY KEY,
+                next_seq  INT NOT NULL DEFAULT 1
+            );
+
+            -- One-time style backfill: assign sequential display names for guest callers
+            -- (raw visitor ids, hex-style Khách #ABC123, empty names).
+            WITH guests AS (
+                SELECT id, clinic_id,
+                    ROW_NUMBER() OVER (PARTITION BY clinic_id ORDER BY created_at ASC, id ASC) AS rn
+                FROM consultation_sessions
+                WHERE caller_id ILIKE 'visitor:%'
+                   OR caller_id ~* '^v[a-z0-9]{1,3}$'
+            )
+            UPDATE consultation_sessions s
+            SET caller_display_name = 'Khách #' || g.rn::text
+            FROM guests g
+            WHERE s.id = g.id
+              AND (
+                    s.caller_display_name IS NULL
+                 OR btrim(s.caller_display_name) = ''
+                 OR s.caller_display_name = s.caller_id
+                 OR s.caller_display_name ILIKE 'visitor:%'
+                 -- Not already sequential Khách #1, #2, … (hex-style labels get replaced)
+                 OR s.caller_display_name !~ '^Khách #[0-9]+$'
+              );
+
+            INSERT INTO clinic_guest_counters (clinic_id, next_seq)
+            SELECT clinic_id, COALESCE(MAX(
+                CASE WHEN caller_display_name ~ '^Khách #[0-9]+$'
+                     THEN NULLIF(regexp_replace(caller_display_name, '^Khách #', ''), '')::int
+                     ELSE NULL END
+            ), 0) + 1
+            FROM consultation_sessions
+            GROUP BY clinic_id
+            ON CONFLICT (clinic_id) DO UPDATE
+            SET next_seq = GREATEST(clinic_guest_counters.next_seq, EXCLUDED.next_seq);
             """;
         await cmd.ExecuteNonQueryAsync(ct);
         logger.LogInformation("Consultation media catalog schema ensured (PostgreSQL).");
+    }
+
+    /// <summary>True for embed visitors and short demo queue visitors (VA/VB).</summary>
+    internal static bool IsGuestCallerId(string? callerId)
+    {
+        if (string.IsNullOrWhiteSpace(callerId)) return false;
+        if (callerId.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase)) return true;
+        return callerId.Length is >= 2 and <= 4
+               && (callerId[0] is 'V' or 'v')
+               && callerId.Skip(1).All(char.IsLetterOrDigit);
+    }
+
+    private async Task<string> AllocateGuestDisplayNameAsync(
+        NpgsqlConnection conn, string clinicId, CancellationToken ct)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO clinic_guest_counters (clinic_id, next_seq)
+            VALUES (@clinic, 1)
+            ON CONFLICT (clinic_id) DO NOTHING;
+
+            UPDATE clinic_guest_counters
+            SET next_seq = next_seq + 1
+            WHERE clinic_id = @clinic
+            RETURNING next_seq - 1;
+            """;
+        cmd.Parameters.AddWithValue("clinic", clinicId);
+        var result = await cmd.ExecuteScalarAsync(ct);
+        var n = result is int i ? i : Convert.ToInt32(result);
+        if (n < 1) n = 1;
+        return $"Khách #{n}";
     }
 
     public async Task<ConsultationSession> EnsureSessionAsync(
@@ -705,6 +787,31 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
+
+        // Guest callers always get clinic sequential label Khách #1, #2, …
+        var callerName = callerDisplayName ?? "";
+        if (IsGuestCallerId(callerId))
+        {
+            // Keep existing sequential label if already assigned (idempotent re-ensure)
+            await using (var check = conn.CreateCommand())
+            {
+                check.CommandText = """
+                    SELECT caller_display_name FROM consultation_sessions WHERE call_id = @callId
+                    """;
+                check.Parameters.AddWithValue("callId", callId);
+                var existing = await check.ExecuteScalarAsync(ct) as string;
+                if (!string.IsNullOrWhiteSpace(existing)
+                    && System.Text.RegularExpressions.Regex.IsMatch(existing, @"^Khách #\d+$"))
+                {
+                    callerName = existing;
+                }
+                else
+                {
+                    callerName = await AllocateGuestDisplayNameAsync(conn, clinicId, ct);
+                }
+            }
+        }
+
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO consultation_sessions (
@@ -719,7 +826,15 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
                 updated_at = now(),
                 staff_id = COALESCE(EXCLUDED.staff_id, consultation_sessions.staff_id),
                 staff_display_name = COALESCE(EXCLUDED.staff_display_name, consultation_sessions.staff_display_name),
-                started_at = COALESCE(consultation_sessions.started_at, EXCLUDED.started_at)
+                started_at = COALESCE(consultation_sessions.started_at, EXCLUDED.started_at),
+                -- Upgrade legacy raw/hex labels to sequential when already assigned above path re-ran
+                caller_display_name = CASE
+                    WHEN consultation_sessions.caller_display_name ~ '^Khách #[0-9]+$'
+                        THEN consultation_sessions.caller_display_name
+                    WHEN EXCLUDED.caller_display_name ~ '^Khách #[0-9]+$'
+                        THEN EXCLUDED.caller_display_name
+                    ELSE consultation_sessions.caller_display_name
+                END
             RETURNING id, call_id, clinic_id, livekit_room_name, initial_media_mode,
                 caller_id, caller_display_name, staff_id, staff_display_name,
                 started_at, ended_at, status, created_at, updated_at
@@ -731,7 +846,7 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
         cmd.Parameters.AddWithValue("room", roomName);
         cmd.Parameters.AddWithValue("mode", string.IsNullOrWhiteSpace(initialMediaMode) ? "Audio" : initialMediaMode);
         cmd.Parameters.AddWithValue("callerId", callerId);
-        cmd.Parameters.AddWithValue("callerName", callerDisplayName ?? "");
+        cmd.Parameters.AddWithValue("callerName", callerName);
         cmd.Parameters.AddWithValue("staffId", (object?)staffId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("staffName", (object?)staffDisplayName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("now", now);

@@ -37,11 +37,17 @@ export function visitorShortCode(id) {
 
 /**
  * Human label for staff surfaces. Never show full visitor:{guid} as the title.
+ * Prefer sequential names from manager API (Khách #1, #2). Fallback hex only if no displayName.
  * @param {string} id
  * @param {{ displayName?: string } | null} [known]
  */
 export function peerLabel(id, known = null) {
-  if (known?.displayName && known.displayName !== id) return known.displayName
+  const dn = known?.displayName && String(known.displayName).trim()
+  // Sequential clinic order from backend: Khách #1, Khách #2, …
+  if (dn && /^Khách #\d+$/.test(dn)) return dn
+  if (dn && dn !== id && !dn.toLowerCase().startsWith('visitor:') && !/^Khách #[0-9A-Fa-f]{4,}$/.test(dn)) {
+    return dn
+  }
   if (isEmbedVisitorId(id)) return `Khách #${visitorShortCode(id)}`
   if (!id) return '—'
   // Demo queue visitors VA/VB without directory hit

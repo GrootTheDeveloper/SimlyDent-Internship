@@ -167,19 +167,24 @@ public static class ConsultationEndpoints
     }
 
     /// <summary>
-    /// Prefer human labels (Khách #ABC123) over raw visitor:{guid} stored historically.
+    /// Prefer sequential labels (Khách #1, #2) stored on session; never show visitor:{guid}.
     /// </summary>
     internal static string FormatPatientDisplayName(string? callerId, string? storedName)
     {
-        var pretty = CallDispatcher.FormatCallerLabel(callerId);
-        if (string.IsNullOrWhiteSpace(storedName)) return pretty;
-        // Stored raw visitor id / same as caller id → use pretty label
-        if (string.Equals(storedName, callerId, StringComparison.OrdinalIgnoreCase))
-            return pretty;
-        if (storedName.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
-            return pretty;
-        // Already looks like Khách #… keep it
-        return storedName;
+        // Sequential clinic order — preferred
+        if (!string.IsNullOrWhiteSpace(storedName)
+            && System.Text.RegularExpressions.Regex.IsMatch(storedName.Trim(), @"^Khách #\d+$"))
+            return storedName.Trim();
+
+        // Staff / known display names (not raw visitor ids)
+        if (!string.IsNullOrWhiteSpace(storedName)
+            && !string.Equals(storedName, callerId, StringComparison.OrdinalIgnoreCase)
+            && !storedName.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase)
+            && !System.Text.RegularExpressions.Regex.IsMatch(storedName, @"^Khách #[0-9A-Fa-f]{4,}$"))
+            return storedName;
+
+        // Fallback short code (queue / pre-session) — not ideal but not a GUID
+        return CallDispatcher.FormatCallerLabel(callerId);
     }
 
     internal static async Task<ConsultationDetailView> BuildDetailViewAsync(
