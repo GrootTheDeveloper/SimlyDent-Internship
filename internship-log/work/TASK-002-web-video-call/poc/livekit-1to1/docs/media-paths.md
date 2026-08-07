@@ -28,3 +28,10 @@
 2. **Webhook dual-catalog**: media first, then legacy (avoid double-finalize).
 3. **Reconcile**: two loops in `RecordingReconcileService` — `RunLegacyRecordingReconcileAsync` + `RunCanonicalMediaReconcileAsync`.
 4. Do **not** lower Egress `cpu_cost` to "fix" capacity issues.
+## Embed widget media (Phase 6)
+
+- Staff SPA: \src/domain/media/media-primitives.js\ (ESM)
+- Embed iframe: \public/widget/media-primitives.js\ (IIFE → \window.SimlyDentMediaPrimitives\)
+- \rame.html\ loads media-primitives.js **before** frame.js
+- Keep algorithms in sync (@shared-pair comments)
+- frame.js falls back if IIFE missing
