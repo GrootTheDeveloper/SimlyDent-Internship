@@ -1,1 +1,1 @@
-{"status":"ok","recordingCatalog":"postgres","recordingStorage":"s3","egressOutput":"s3","s3PublicConfigured":true,"supportsPresignedGet":true}
+{"status":"ok","recordingCatalog":"postgres","recordingStorage":"local","egressOutput":"local","s3PublicConfigured":true,"supportsPresignedGet":false}
