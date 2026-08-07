@@ -134,7 +134,8 @@ public sealed class CallSession
         ConsentStatus.ToString(),
         RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(RecordingStorageKey),
         Origin.ToString(), AssignedStaffId,
-        NormalizeMediaMode(InitialMediaMode));
+        NormalizeMediaMode(InitialMediaMode),
+        AutoAudioStatus);
 
     /// <summary>Normalize client/server media mode strings to Audio | Video.</summary>
     public static string NormalizeMediaMode(string? mode) =>
@@ -180,7 +181,9 @@ public sealed record CallView(
     bool RecordingAvailable,
     string Origin = "Direct",
     string? AssignedStaffId = null,
-    string InitialMediaMode = "Video")
+    string InitialMediaMode = "Video",
+    /// <summary>Idle | Recording | Finalizing | Ready | Failed — auto CallAudio (product always-on).</summary>
+    string AutoAudioStatus = "Idle")
 {
     /// <summary>Deprecated alias of ClinicId for older clients / scripts.</summary>
     public string TenantId => ClinicId;

@@ -124,6 +124,11 @@ export function mountCallWindowApp(opts = {}) {
       dentalClipBusy: false,
       dentalClipStatus: 'Idle',
       dentalClipAssetId: null,
+      /** Filled from /media-state poll; CallView also carries autoAudioStatus after Accept. */
+      _polledAutoAudioStatus: '',
+      _mediaStateTimer: null,
+      /** Ready clips completed this call (staff may start many sequential clips). */
+      dentalClipReadyCount: 0,
       photoBusy: false,
       photoStatus: '',
       qualityStats: initialQualityStats(),
@@ -211,15 +216,27 @@ export function mountCallWindowApp(opts = {}) {
       isManagerRole() {
         return String(this.currentUser?.role || this.userRole || '').toLowerCase() === 'manager'
       },
+      /** Product: session audio is always auto (CallAudio), independent of legacy red record button. */
+      autoAudioStatus() {
+        return this.call?.autoAudioStatus || this._polledAutoAudioStatus || 'Idle'
+      },
+      autoAudioLabel() {
+        const s = this.autoAudioStatus
+        if (s === 'Recording') return 'Đang ghi âm phiên'
+        if (s === 'Finalizing') return 'Đang lưu audio…'
+        if (s === 'Ready') return 'Đã có audio phiên'
+        if (s === 'Failed') return 'Ghi âm phiên lỗi'
+        return ''
+      },
       recordingStatusLabel() {
         const s = this.call?.recordingStatus
         if (s === 'Recording') {
-          return this.call?.recordingMode === 'AudioOnly' ? 'Đang ghi âm' : 'Đang ghi hình'
+          return this.call?.recordingMode === 'AudioOnly' ? 'Đang ghi âm (legacy)' : 'Đang ghi hình (legacy)'
         }
         if (s === 'Starting') return 'Đang bắt đầu ghi…'
         if (s === 'Stopping') return 'Đang dừng ghi…'
-        if (s === 'Complete') return 'Đã có bản ghi'
-        if (s === 'Failed') return 'Ghi không thành công'
+        if (s === 'Complete') return 'Đã có bản ghi hình'
+        if (s === 'Failed') return 'Ghi hình không thành công'
         if (s === 'Deleted') return 'Đã xóa bản ghi'
         return ''
       }
@@ -256,6 +273,7 @@ export function mountCallWindowApp(opts = {}) {
       window.addEventListener('beforeunload', this.handleBeforeUnload)
     },
     beforeDestroy() {
+      this.stopMediaStatePolling()
       this.disconnectRoom()
       if (this.hub) this.hub.stop()
       if (this.broadcastChannel) {
@@ -543,6 +561,7 @@ export function mountCallWindowApp(opts = {}) {
           if (this.mediaPermissionState !== 'error') {
             this.mediaPermissionState = 'connected'
           }
+          this.startMediaStatePolling()
           this.$nextTick(() => this.attachLocalVideo())
         } catch (err) {
           try {
@@ -703,6 +722,42 @@ export function mountCallWindowApp(opts = {}) {
         }
         return null
       },
+      async refreshMediaState() {
+        if (!this.callId) return
+        try {
+          const res = await apiFetch(`/api/calls/${this.callId}/media-state`, { headers: authHeaders() })
+          if (!res.ok) return
+          const body = await res.json()
+          // MediaStateView: autoAudioStatus, activeDentalClipStatus, activeDentalClipAssetId, assets
+          const audio = body.autoAudioStatus || body.audioStatus
+          if (audio) {
+            this._polledAutoAudioStatus = audio
+            if (this.call) this.call = { ...this.call, autoAudioStatus: audio }
+          }
+          const clipSt = body.activeDentalClipStatus || body.clipStatus
+          if (clipSt) this.dentalClipStatus = clipSt
+          const clipId = body.activeDentalClipAssetId ?? body.activeClipAssetId
+          if (clipId) this.dentalClipAssetId = clipId
+          if (clipSt === 'Idle') this.dentalClipAssetId = null
+          const items = body.assets || body.items || []
+          this.dentalClipReadyCount = items.filter(
+            (x) => x.kind === 'DentalVideoClip' && (x.status === 'Ready' || x.status === 'Finalizing')
+          ).length
+        } catch {
+          /* ignore poll errors */
+        }
+      },
+      startMediaStatePolling() {
+        this.stopMediaStatePolling()
+        this.refreshMediaState()
+        this._mediaStateTimer = setInterval(() => this.refreshMediaState(), 4000)
+      },
+      stopMediaStatePolling() {
+        if (this._mediaStateTimer) {
+          clearInterval(this._mediaStateTimer)
+          this._mediaStateTimer = null
+        }
+      },
       async toggleDentalClip() {
         if (!this.callId || this.dentalClipBusy) return
         this.dentalClipBusy = true
@@ -715,9 +770,11 @@ export function mountCallWindowApp(opts = {}) {
             const body = await res.json().catch(() => ({}))
             if (!res.ok) throw new Error(body.error || `Stop clip HTTP ${res.status}`)
             this.dentalClipStatus = 'Finalizing'
+            // After finalize, staff can start another clip (multi-clip per call).
+            await this.refreshMediaState()
           } else {
             const patientIdentity = this.resolvePatientParticipantIdentity()
-            if (!patientIdentity) throw new Error('Chưa thấy bệnh nhân trong room')
+            if (!patientIdentity) throw new Error('Chưa thấy bệnh nhân trong room (cần camera remote)')
             const trackHint = this.resolvePatientVideoTrackSid()
             const remotePub = this.room
               ? [...this.room.remoteParticipants.values()][0]
@@ -1138,8 +1195,10 @@ export function mountCallWindowApp(opts = {}) {
             </div>
           </div>
           <div class="call-header-actions">
-            <span v-if="isRecording || recordingStatusLabel" class="recording-indicator"><span></span> {{ recordingStatusLabel || 'Đang ghi' }}</span>
+            <span v-if="autoAudioLabel" class="recording-indicator" :title="'Audio phiên (tự động) · ' + autoAudioStatus"><span></span> {{ autoAudioLabel }}</span>
+            <span v-if="isRecording || recordingStatusLabel" class="recording-indicator" style="opacity:.9"><span></span> {{ recordingStatusLabel || 'Đang ghi' }}</span>
             <span v-if="dentalClipStatus === 'Recording'" class="recording-indicator"><span></span> Clip răng</span>
+            <span v-else-if="dentalClipReadyCount > 0" class="recording-indicator" style="opacity:.8"><span></span> {{ dentalClipReadyCount }} clip</span>
             <span v-if="photoStatus" class="recording-indicator" style="opacity:.85">{{ photoStatus }}</span>
             <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng hình ảnh">{{ qualityBadge }}</button>
             <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật tiếng</button>
@@ -1208,7 +1267,7 @@ export function mountCallWindowApp(opts = {}) {
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !cameraEnabled && 'off']" @click="toggleCamera" :title="cameraEnabled ? 'Tắt camera' : 'Bật camera'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi' : 'Bắt đầu ghi (cần đồng ý)'">
+              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi hình full (legacy)' : 'Ghi hình full cuộc gọi (legacy, tuỳ chọn — audio phiên đã tự ghi)'">
                 <span class="record-dot"></span>
               </button>
               <button
@@ -1216,7 +1275,11 @@ export function mountCallWindowApp(opts = {}) {
                 :class="['ctrl-btn', dentalClipStatus === 'Recording' && 'recording']"
                 :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing'"
                 @click="toggleDentalClip"
-                :title="dentalClipStatus === 'Recording' ? 'Dừng clip răng' : 'Ghi clip răng (camera bệnh nhân)'"
+                :title="dentalClipStatus === 'Recording'
+                  ? 'Dừng clip răng'
+                  : (dentalClipReadyCount
+                    ? ('Quay clip răng thêm (đã có ' + dentalClipReadyCount + ')')
+                    : 'Quay clip răng (camera bệnh nhân) — có thể nhiều clip / cuộc gọi')"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2"/></svg>
               </button>

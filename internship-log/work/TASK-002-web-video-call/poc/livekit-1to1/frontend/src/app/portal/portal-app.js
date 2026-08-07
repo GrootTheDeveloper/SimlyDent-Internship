@@ -1208,7 +1208,7 @@ export function mountPortalApp() {
                 </div>
                 <div v-else-if="!consultations.length" class="library-empty">
                   <p class="library-empty-title">Chưa có phiên tư vấn</p>
-                  <p class="library-empty-desc">Sau khi staff Accept + consent, phiên và media sẽ xuất hiện ở đây.</p>
+                  <p class="library-empty-desc">Sau khi staff Accept, phiên được tạo; audio phiên tự ghi. Clip răng / ảnh do NV chủ động — quản lý tải tại đây khi Ready.</p>
                 </div>
                 <div v-else class="library-table-wrap">
                   <table class="library-table">

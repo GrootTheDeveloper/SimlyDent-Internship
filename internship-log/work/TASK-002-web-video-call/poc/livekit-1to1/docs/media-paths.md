@@ -1,5 +1,16 @@
 # Media paths: Legacy recording vs Canonical consultation assets
 
+## Product rules (current)
+
+| Asset | Who starts | How many / call | Consent |
+|-------|------------|-----------------|---------|
+| **CallAudio** (full session) | **Always auto** after Accept (+ retry on token join) | One active / one Ready | **Not required** (`FEATURE_AUTO_CALL_AUDIO` kill-switch only) |
+| **DentalVideoClip** | Staff button start/stop | **Many sequential** (one active at a time) | Not required (staff action is the gate) |
+| **Snapshot** | Staff request / patient capture | Many | N/A |
+| Legacy full-call MP4 | Staff red record button (optional) | One | Legacy policy `RequireConsent` |
+
+Manager library: `/api/consultations` (canonical) + `/api/recordings` (legacy). Login **A-MGR**.
+
 ## Canonical (product path — prefer)
 
 | Asset | Kind | Catalog | Orchestration | Finalize |
@@ -11,6 +22,7 @@
 - Storage keys: `MediaStorageKeys` (`clinic/{id}/calls/{call}/audio|videos|photos/...`)
 - On call end: `ConsultationMediaLifecycleService.StopAllActiveMediaAsync`
 - Webhook: **try media_assets first** (`Found=true`), else fall through to legacy ledger
+- Auto audio hooks: Accept + `POST /api/calls/{id}/token` (second chance when participants join)
 
 ## Legacy (DEPRECATED — still supported)
 

@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 namespace LiveKitPoc.Api;
 
 /// <summary>
-/// Auto full-session audio after consent. Never fails the call.
+/// Product: full-session CallAudio is always auto-started for Accepted calls
+/// (FEATURE_AUTO_CALL_AUDIO kill-switch only). Consent is NOT required for audio.
+/// Dental clips remain staff-initiated. Never fails the call.
 /// </summary>
 public sealed class ConsultationAudioService(
     IConsultationCatalog catalog,
@@ -14,7 +16,7 @@ public sealed class ConsultationAudioService(
     ILogger<ConsultationAudioService> logger)
 {
     /// <summary>
-    /// Idempotent auto-audio start.
+    /// Idempotent auto-audio start (Accept + join/token retries).
     /// DB unique index prevents duplicate active audio.
     /// </summary>
     public async Task EnsureAutoAudioStartedAsync(CallSession call, CancellationToken ct = default)
@@ -26,12 +28,16 @@ public sealed class ConsultationAudioService(
             return;
         }
 
-        var policy = policies.Get(call.ClinicId);
-        if (policy.RequireConsent && call.ConsentStatus != ConsentStatus.Granted)
+        if (call.Status != CallStatus.Accepted)
             return;
+
+        // Product rule: CallAudio always auto — do not gate on ConsentStatus.
+        // (RequireConsent still applies to legacy composite + optional staff workflows.)
 
         var session = await catalog.GetSessionByCallIdAsync(call.Id, ct);
         if (session is null) return;
+
+        var policy = policies.Get(call.ClinicId);
 
         var existing = await catalog.GetActiveAudioAssetAsync(call.Id, ct);
         if (existing is not null)
@@ -43,6 +49,20 @@ public sealed class ConsultationAudioService(
                     call.AutoAudioStatus = existing.Status == MediaAssetStatus.Recording
                         ? "Recording"
                         : existing.Status == MediaAssetStatus.Finalizing ? "Finalizing" : "Recording";
+            }
+            return;
+        }
+
+        // One successful full-session audio per call (product).
+        var sessionAssets = await catalog.ListAssetsBySessionAsync(session.Id, ct);
+        var readyAudio = sessionAssets.FirstOrDefault(a =>
+            a.Kind == MediaAssetKinds.CallAudio && a.Status == MediaAssetStatus.Ready);
+        if (readyAudio is not null)
+        {
+            lock (call.SyncRoot)
+            {
+                call.ConsultationSessionId = session.Id;
+                call.AutoAudioStatus = "Ready";
             }
             return;
         }

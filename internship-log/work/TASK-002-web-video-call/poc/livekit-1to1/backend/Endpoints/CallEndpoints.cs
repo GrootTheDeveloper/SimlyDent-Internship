@@ -230,13 +230,15 @@ public static class CallEndpoints
         }).RequireAuthorization();
 
 
-        app.MapPost("/api/calls/{id:guid}/token", (
+        app.MapPost("/api/calls/{id:guid}/token", async (
             Guid id,
             HttpRequest request,
             ClaimsPrincipal principal,
             IdentityRegistry identities,
             ConcurrentDictionary<Guid, CallSession> calls,
-            LiveKitTokenService tokens) =>
+            LiveKitTokenService tokens,
+            ConsultationAudioService audioService,
+            CancellationToken cancellationToken) =>
         {
             var current = ClinicAuthorization.CurrentUser(principal, identities);
             if (current is null) return Results.Unauthorized();
@@ -246,6 +248,15 @@ public static class CallEndpoints
             {
                 if (call.Status != CallStatus.Accepted)
                     return Results.Conflict(new { error = "Media token is available only after accept." });
+            }
+            // Second chance for auto CallAudio (Accept may run before anyone is in the room).
+            try
+            {
+                await audioService.EnsureAutoAudioStartedAsync(call, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                endpointLogger.LogWarning(ex, "Auto audio ensure on token failed for {CallId}", id);
             }
             var mediaTtlMinutes = int.TryParse(
                 Environment.GetEnvironmentVariable("LIVEKIT_JOIN_TOKEN_MINUTES"), out var ttl)

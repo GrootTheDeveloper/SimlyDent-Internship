@@ -20,9 +20,10 @@ public sealed class DentalClipService(
         if (call.Status != CallStatus.Accepted)
             throw new InvalidOperationException("Call must be Accepted to record dental clip.");
 
+        // Product: clips are staff-initiated (start/stop). Multiple clips per call are allowed
+        // sequentially — only one active clip at a time (unique partial index).
+        // Consent is not required; staff action is the intentional gate.
         var policy = policies.Get(call.ClinicId);
-        if (policy.RequireConsent && call.ConsentStatus != ConsentStatus.Granted)
-            throw new InvalidOperationException("Consent required before dental clip recording.");
 
         var session = await catalog.GetSessionByCallIdAsync(call.Id, ct)
                       ?? throw new InvalidOperationException("Consultation session not found.");
