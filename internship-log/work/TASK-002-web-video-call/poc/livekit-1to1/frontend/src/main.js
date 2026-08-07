@@ -1800,9 +1800,23 @@ if (isCallRoute) {
       recordingsLoading: false,
       recordingsError: '',
       recordingsFilter: 'all', // all | complete | deleted | failed
-      recordingActionId: null
+      recordingActionId: null,
+      /** Left icon rail — only "call" is implemented */
+      activeNav: 'call',
+      navRailItems: [
+        { id: 'call', label: 'Cuộc gọi' },
+        { id: 'schedule', label: 'Lịch hẹn' },
+        { id: 'patients', label: 'Bệnh nhân' },
+        { id: 'chat', label: 'Tin nhắn' },
+        { id: 'stats', label: 'Thống kê' },
+        { id: 'billing', label: 'Thu chi' },
+        { id: 'settings', label: 'Cài đặt' }
+      ]
     },
     computed: {
+      isCallNav() {
+        return this.activeNav === 'call'
+      },
       identityId() {
         return this.currentUser?.id || ''
       },
@@ -2104,6 +2118,9 @@ if (isCallRoute) {
       recordingStatusLabelVi,
       recordingModeLabel,
       formatViDateTime,
+      selectNav(id) {
+        this.activeNav = id || 'call'
+      },
       isUserOnline(userId) {
         return !!this.onlineMap[userId]
       },
@@ -2562,8 +2579,51 @@ if (isCallRoute) {
         </div>
 
         <!-- MAIN APP -->
-        <main v-else class="app-shell" :class="{ 'has-detail': showDetailPanel }">
-          <aside class="sidebar">
+        <main
+          v-else
+          class="app-shell"
+          :class="{
+            'has-detail': showDetailPanel && isCallNav,
+            'nav-only': !isCallNav
+          }"
+        >
+          <!-- Icon rail (SimlyDent-style app chrome) -->
+          <nav class="nav-rail" aria-label="Menu chính">
+            <div class="nav-rail-brand" title="SimlyDent">S</div>
+            <div class="nav-rail-items">
+              <button
+                v-for="item in navRailItems"
+                :key="item.id"
+                type="button"
+                class="nav-rail-btn"
+                :class="{ active: activeNav === item.id }"
+                :title="item.label"
+                :aria-label="item.label"
+                :aria-current="activeNav === item.id ? 'page' : null"
+                @click="selectNav(item.id)"
+              >
+                <!-- phone / call -->
+                <svg v-if="item.id === 'call'" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>
+                <!-- calendar -->
+                <svg v-else-if="item.id === 'schedule'" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <!-- users -->
+                <svg v-else-if="item.id === 'patients'" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <!-- message -->
+                <svg v-else-if="item.id === 'chat'" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <!-- chart -->
+                <svg v-else-if="item.id === 'stats'" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-3"/></svg>
+                <!-- wallet -->
+                <svg v-else-if="item.id === 'billing'" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M16 15h2"/></svg>
+                <!-- settings -->
+                <svg v-else viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+              </button>
+            </div>
+            <button type="button" class="nav-rail-btn nav-rail-logout" title="Đăng xuất" aria-label="Đăng xuất" @click="logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+            </button>
+          </nav>
+
+          <aside class="sidebar" v-if="isCallNav">
             <header class="sidebar-header">
               <div>
                 <h1>{{ isVisitor ? 'Tư vấn' : 'Đồng nghiệp' }}</h1>
@@ -2617,11 +2677,21 @@ if (isCallRoute) {
                   <span v-if="!isVisitor && !isManager" :class="[selfAgentBadgeClass, 'self-status-badge']">{{ selfAgentBadgeLabel }}</span>
                 </div>
               </div>
-              <button type="button" class="logout-btn" @click="logout">Đăng xuất</button>
             </footer>
           </aside>
 
           <section class="main-stage">
+            <!-- Placeholder for non-call nav icons (no page yet) -->
+            <div v-if="!isCallNav" class="main-body">
+              <div class="idle-placeholder nav-placeholder">
+                <div class="hero-avatar-large hero-logo">S</div>
+                <h2 class="idle-title">{{ (navRailItems.find(i => i.id === activeNav) || {}).label || 'Mục' }}</h2>
+                <p class="idle-desc">Mục này chỉ là khung giao diện — chưa mở trang chi tiết trong PoC.</p>
+                <button type="button" class="btn-secondary-pill" @click="selectNav('call')">Về cuộc gọi</button>
+              </div>
+            </div>
+
+            <template v-else>
             <header class="main-header" v-if="selectedIdentity && !isManager">
               <div class="target-info">
                 <div class="user-avatar accent">
@@ -2814,9 +2884,10 @@ if (isCallRoute) {
                 </button>
               </div>
             </div>
+            </template>
           </section>
 
-          <aside class="right-sidebar" v-if="showDetailPanel">
+          <aside class="right-sidebar" v-if="showDetailPanel && isCallNav">
             <div class="profile-section">
               <div class="right-profile-avatar">{{ userInitials(selectedIdentity) }}</div>
               <div class="right-profile-name">{{ selectedIdentity.displayName }}</div>
@@ -2831,8 +2902,8 @@ if (isCallRoute) {
           </aside>
         </main>
 
-        <!-- Queue dock (staff + manager) -->
-        <div v-if="!isVisitor" class="queue-dock" :class="{ open: queuePanelOpen }">
+        <!-- Queue dock (staff + manager) — only on Call workspace -->
+        <div v-if="!isVisitor && isCallNav" class="queue-dock" :class="{ open: queuePanelOpen }">
           <button
             type="button"
             class="queue-dock-toggle"

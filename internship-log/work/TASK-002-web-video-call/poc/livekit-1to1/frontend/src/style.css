@@ -442,7 +442,7 @@ svg {
    ========================================================================== */
 .app-shell {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: 64px 300px minmax(0, 1fr);
   width: 100vw;
   height: 100vh;
   height: 100dvh;
@@ -450,7 +450,102 @@ svg {
 }
 
 .app-shell.has-detail {
-  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  grid-template-columns: 64px 300px minmax(0, 1fr) 300px;
+}
+
+.app-shell.nav-only {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+/* Left icon rail */
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0 14px;
+  background: var(--navy, #1B3587);
+  background: #1B3587;
+  color: #fff;
+  z-index: 5;
+  min-height: 0;
+}
+
+.nav-rail-brand {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #F26522;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.nav-rail-items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  padding: 0 8px;
+  scrollbar-width: none;
+}
+.nav-rail-items::-webkit-scrollbar { display: none; }
+
+.nav-rail-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, transform 0.1s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.nav-rail-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.nav-rail-btn.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.nav-rail-btn.active svg {
+  stroke-width: 2;
+}
+.nav-rail-logout {
+  margin-top: auto;
+  color: rgba(255, 255, 255, 0.55);
+}
+.nav-rail-logout:hover {
+  color: #fff;
+  background: rgba(255, 59, 48, 0.25);
+}
+
+.nav-placeholder .idle-title {
+  font-size: 28px;
 }
 
 /* Sidebar */
@@ -1965,20 +2060,27 @@ svg {
    RESPONSIVE
    ========================================================================== */
 @media (max-width: 960px) {
-  .app-shell,
+  .app-shell {
+    grid-template-columns: 56px 260px minmax(0, 1fr);
+  }
   .app-shell.has-detail {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 56px 260px minmax(0, 1fr);
+  }
+  .app-shell.nav-only {
+    grid-template-columns: 56px minmax(0, 1fr);
   }
   .right-sidebar { display: none; }
+  .nav-rail-btn { width: 40px; height: 40px; }
 }
 
 @media (max-width: 768px) {
   .app-shell,
-  .app-shell.has-detail {
-    grid-template-columns: 1fr;
+  .app-shell.has-detail,
+  .app-shell.nav-only {
+    grid-template-columns: 52px minmax(0, 1fr);
   }
   .sidebar {
-    /* keep sidebar as full-width column on small when shown */
+    display: none !important;
   }
   .idle-title { font-size: 28px; }
   .login-card {
