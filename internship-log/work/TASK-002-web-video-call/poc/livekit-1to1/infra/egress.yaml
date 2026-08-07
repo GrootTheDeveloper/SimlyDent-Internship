@@ -7,11 +7,10 @@ backup_storage: /out
 health_port: 8080
 prometheus_port: 9090
 
-# VPS lab ~2 vCPU. Defaults (room_composite=4) reject 2nd job:
-# "twirp error unknown: no response from servers".
-# Allow concurrent auto-audio + manual video (and dental track) for PoC.
+# Lab 2 vCPU: measured load often leaves <1 free CPU unit.
+# Concurrent auto-audio + video room composite → "no response from servers".
 cpu_cost:
-  room_composite_cpu_cost: 0.8
-  web_cpu_cost: 0.8
-  track_composite_cpu_cost: 0.5
-  track_cpu_cost: 0.3
+  room_composite_cpu_cost: 0.3
+  web_cpu_cost: 0.3
+  track_composite_cpu_cost: 0.25
+  track_cpu_cost: 0.15

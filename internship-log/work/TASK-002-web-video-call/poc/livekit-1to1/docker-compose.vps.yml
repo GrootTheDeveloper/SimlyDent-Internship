@@ -95,6 +95,8 @@ services:
       RECORDING_STORAGE: ${RECORDING_STORAGE:-local}
       # local = egress /out + API archive; s3 = Egress direct upload (needs minio + RECORDING_STORAGE=s3)
       EGRESS_OUTPUT: ${EGRESS_OUTPUT:-local}
+      # Lab 2 vCPU: set FEATURE_AUTO_CALL_AUDIO=0 so manual video recording is not blocked by auto room-composite audio.
+      FEATURE_AUTO_CALL_AUDIO: ${FEATURE_AUTO_CALL_AUDIO:-1}
       EGRESS_CONTROL_TIMEOUT_SECONDS: ${EGRESS_CONTROL_TIMEOUT_SECONDS:-8}
       RECORDING_FINALIZE_TIMEOUT_SECONDS: ${RECORDING_FINALIZE_TIMEOUT_SECONDS:-300}
       RECORDING_RECONCILE_SECONDS: ${RECORDING_RECONCILE_SECONDS:-30}

@@ -16,6 +16,16 @@ public sealed class ConsultationAudioService(
     /// </summary>
     public async Task EnsureAutoAudioStartedAsync(CallSession call, CancellationToken ct = default)
     {
+        // Lab 2 vCPU: FEATURE_AUTO_CALL_AUDIO=0 skips room-composite audio so manual video record can start.
+        var autoFlag = Environment.GetEnvironmentVariable("FEATURE_AUTO_CALL_AUDIO");
+        if (string.Equals(autoFlag, "0", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(autoFlag, "false", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(autoFlag, "off", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogInformation("Auto CallAudio skipped (FEATURE_AUTO_CALL_AUDIO={Flag})", autoFlag);
+            return;
+        }
+
         var policy = policies.Get(call.ClinicId);
         if (policy.RequireConsent && call.ConsentStatus != ConsentStatus.Granted)
             return;
