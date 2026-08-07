@@ -96,10 +96,15 @@ public sealed class CallDispatcher(
 
     public bool IsClinicOpen(string clinicId) => _alwaysOpen;
 
-    public async Task<CallSession> EnqueueAsync(TestIdentity visitor, CancellationToken ct = default)
+    public async Task<CallSession> EnqueueAsync(
+        TestIdentity visitor,
+        string initialMediaMode = "Video",
+        CancellationToken ct = default)
     {
         if (visitor.Role != IdentityRoles.Visitor && visitor.Role != IdentityRoles.Staff)
             throw new InvalidOperationException("Only clinic principals may enqueue.");
+
+        var mediaMode = CallSession.NormalizeMediaMode(initialMediaMode);
 
         if (!IsClinicOpen(visitor.ClinicId))
         {
@@ -114,7 +119,8 @@ public sealed class CallDispatcher(
                 RoomName = CallSession.BuildRoomName(visitor.ClinicId, closedId),
                 Status = CallStatus.Closed,
                 VisitorLastSeenAt = DateTimeOffset.UtcNow,
-                RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode
+                RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode,
+                InitialMediaMode = mediaMode
             };
             calls[closedId] = closed;
             await NotifyCallAsync(closed);
@@ -151,7 +157,8 @@ public sealed class CallDispatcher(
                     RoomName = CallSession.BuildRoomName(visitor.ClinicId, id),
                     Status = CallStatus.Queued,
                     VisitorLastSeenAt = DateTimeOffset.UtcNow,
-                    RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode
+                    RecordingMode = recordingPolicies.Get(visitor.ClinicId).DefaultMode,
+                    InitialMediaMode = mediaMode
                 };
                 calls[id] = call;
                 created = true;

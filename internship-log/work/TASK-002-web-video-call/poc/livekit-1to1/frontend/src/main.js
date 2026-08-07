@@ -1126,17 +1126,33 @@ if (isCallRoute) {
   const cached = readCachedUser()
   const callQuery = new URLSearchParams(window.location.search)
   const userId = cached?.id || callQuery.get('user') || ''
-  /** Preferred local media: video (default) | audio — set by staff/visitor before join. */
-  const preferredMediaMode = (callQuery.get('media') || 'video').toLowerCase() === 'audio'
-    ? 'audio'
-    : 'video'
+  /**
+   * URL/sessionStorage media= is a cache/hint only.
+   * Authoritative source is call.initialMediaMode from the backend (set at call creation).
+   */
+  function normalizeMediaMode(value) {
+    const v = String(value || '').toLowerCase()
+    return v === 'audio' ? 'audio' : 'video'
+  }
+  let preferredMediaHint = normalizeMediaMode(callQuery.get('media') || 'video')
+  try {
+    const stored = sessionStorage.getItem('simlydent_preferred_media')
+    if (stored && !callQuery.get('media')) preferredMediaHint = normalizeMediaMode(stored)
+  } catch { /* ignore */ }
+
+  function rtLog(event, detail) {
+    const ts = new Date().toISOString()
+    const extra = detail !== undefined ? ` ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''
+    console.info(`[rt ${ts}] ${event}${extra}`)
+  }
 
   new Vue({
     el: '#app',
     data: {
       callId,
       userId,
-      preferredMediaMode,
+      /** Resolved authoritative mode: audio | video — prefer server call.initialMediaMode */
+      preferredMediaMode: preferredMediaHint,
       currentUser: cached || null,
       identities: [],
       call: null,
@@ -1149,8 +1165,11 @@ if (isCallRoute) {
       connected: false,
       joining: false,
       mediaPermissionState: 'idle',
-      cameraEnabled: preferredMediaMode !== 'audio',
+      cameraEnabled: preferredMediaHint !== 'audio',
       microphoneEnabled: true,
+      cameraToggleBusy: false,
+      intentionalLeave: false,
+      reconnectNotice: '',
       remoteVideoConnected: false,
       needsAudioPermission: false,
       /** Consultation media (M2–M4) */
@@ -1198,15 +1217,28 @@ if (isCallRoute) {
         return 'Đối phương đang tắt camera'
       },
       mediaSetupLabel() {
-        if (this.mediaPermissionState === 'requesting') return 'Đang xin quyền camera và micro…'
-        if (this.mediaPermissionState === 'connecting') return 'Đang kết nối video…'
+        if (this.mediaPermissionState === 'requesting') {
+          return this.preferredMediaMode === 'audio'
+            ? 'Đang xin quyền micro (thoại)…'
+            : 'Đang xin quyền camera và micro…'
+        }
+        if (this.mediaPermissionState === 'connecting') {
+          return this.preferredMediaMode === 'audio'
+            ? 'Đang kết nối thoại…'
+            : 'Đang kết nối video…'
+        }
+        if (this.mediaPermissionState === 'reconnecting') {
+          return this.reconnectNotice || 'Đang kết nối lại media…'
+        }
         if (this.mediaPermissionState === 'error') return this.error || 'Không kết nối được hình ảnh / âm thanh'
         if (this.mediaPermissionState === 'connected' && !this.remoteVideoConnected) {
           return this.isEmbedPeer
             ? 'Khách đang tắt camera (vẫn nghe được tiếng).'
             : 'Đối phương đang tắt camera.'
         }
-        return 'Đang chuẩn bị camera và micro…'
+        return this.preferredMediaMode === 'audio'
+          ? 'Đang chuẩn bị micro…'
+          : 'Đang chuẩn bị camera và micro…'
       },
       callStatusLabel() {
         if (!this.call) return 'Đang tải…'
@@ -1293,6 +1325,32 @@ if (isCallRoute) {
           console.error(e)
         }
       },
+      /**
+       * Authoritative initial media from server CallView.
+       * URL/sessionStorage is only a fallback when older backend lacks the field.
+       */
+      applyAuthoritativeMediaMode(call) {
+        const serverMode = call?.initialMediaMode || call?.InitialMediaMode
+        if (serverMode) {
+          this.preferredMediaMode = normalizeMediaMode(serverMode)
+        } else if (this.preferredMediaMode) {
+          // keep URL/session hint
+        } else {
+          this.preferredMediaMode = 'video'
+        }
+        // Only seed cameraEnabled before join; after connect LiveKit is truth.
+        if (!this.room) {
+          this.cameraEnabled = this.preferredMediaMode !== 'audio'
+        }
+        try {
+          sessionStorage.setItem('simlydent_preferred_media', this.preferredMediaMode)
+        } catch { /* ignore */ }
+        rtLog('media_mode_resolved', {
+          preferred: this.preferredMediaMode,
+          server: serverMode || null,
+          urlHint: preferredMediaHint
+        })
+      },
       async verifyAndConnect() {
         try {
           // Connect SignalR first for realtime updates
@@ -1306,6 +1364,7 @@ if (isCallRoute) {
             throw new Error('Cuộc gọi không tồn tại hoặc bạn không có quyền truy cập.')
           }
           this.call = await res.json()
+          this.applyAuthoritativeMediaMode(this.call)
 
           // If Call is accepted, join LiveKit room
           if (this.call.status === 'Accepted') {
@@ -1330,10 +1389,14 @@ if (isCallRoute) {
           if (call.id !== this.callId) return
           const prevStatus = this.call?.status
           this.call = call
+          this.applyAuthoritativeMediaMode(call)
+          rtLog('CallUpdated', { status: call.status, initialMediaMode: call.initialMediaMode })
 
           if (call.status === 'Accepted' && prevStatus !== 'Accepted') {
             await this.joinRoom()
           } else if (['Rejected', 'Cancelled', 'Ended'].includes(call.status)) {
+            // Business call terminal — not the same as WebRTC blip
+            this.intentionalLeave = true
             this.handleCallEnded()
           }
         })
@@ -1343,7 +1406,12 @@ if (isCallRoute) {
       async joinRoom() {
         if (this.room || this.joining) return
         this.joining = true
+        this.intentionalLeave = false
+        this.reconnectNotice = ''
         try {
+          // Re-resolve media mode from latest call (server wins)
+          if (this.call) this.applyAuthoritativeMediaMode(this.call)
+
           // Fetch Media Token
           const res = await apiFetch(`/api/calls/${this.callId}/token`, {
             method: 'POST',
@@ -1358,6 +1426,7 @@ if (isCallRoute) {
           this.mediaPermissionState = 'requesting'
           let localTracks = []
           const audioOnly = this.preferredMediaMode === 'audio'
+          rtLog('joinRoom_media', { audioOnly, preferredMediaMode: this.preferredMediaMode })
           try {
             if (audioOnly) {
               localTracks = await createLocalTracks({
@@ -1418,34 +1487,104 @@ if (isCallRoute) {
               videoSimulcastLayers: portraitPublish ? [] : preferredSimulcastLayers()
             }
           })
-          room.on(RoomEvent.TrackSubscribed, track => this.attachRemoteTrack(track))
+          room.on(RoomEvent.TrackSubscribed, track => {
+            rtLog('TrackSubscribed', { kind: track?.kind, sid: track?.sid })
+            this.attachRemoteTrack(track)
+          })
           room.on(RoomEvent.TrackPublished, publication => {
+            rtLog('TrackPublished', { kind: publication?.kind, sid: publication?.trackSid })
             publication.setSubscribed(true)
           })
           room.on(RoomEvent.TrackSubscriptionFailed, () => {
             this.remoteVideoConnected = false
           })
           room.on(RoomEvent.TrackUnsubscribed, track => {
+            rtLog('TrackUnsubscribed', { kind: track?.kind, sid: track?.sid })
             track.detach().forEach(node => node.remove())
             if (track.kind === Track.Kind.Video) this.remoteVideoConnected = false
           })
           // Mid-call cam toggle: muted → placeholder; unmuted → video again.
-          room.on(RoomEvent.TrackMuted, (publication) => {
+          room.on(RoomEvent.TrackMuted, (publication, participant) => {
+            rtLog('TrackMuted', {
+              kind: publication?.kind,
+              local: participant?.isLocal,
+              sid: publication?.trackSid
+            })
+            if (participant?.isLocal) {
+              this.reconcileLocalMediaUi()
+              return
+            }
             if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
               this.remoteVideoConnected = false
             }
           })
-          room.on(RoomEvent.TrackUnmuted, (publication) => {
+          room.on(RoomEvent.TrackUnmuted, (publication, participant) => {
+            rtLog('TrackUnmuted', {
+              kind: publication?.kind,
+              local: participant?.isLocal,
+              sid: publication?.trackSid
+            })
+            if (participant?.isLocal) {
+              this.reconcileLocalMediaUi()
+              if (this.cameraEnabled) this.attachLocalVideo()
+              return
+            }
             if (publication?.kind === Track.Kind.Video || publication?.track?.kind === Track.Kind.Video) {
               if (publication.track) this.attachRemoteTrack(publication.track)
               else this.remoteVideoConnected = true
             }
           })
+          room.on(RoomEvent.LocalTrackPublished, (publication) => {
+            rtLog('LocalTrackPublished', { kind: publication?.kind, sid: publication?.trackSid })
+            this.reconcileLocalMediaUi()
+            if (publication?.kind === Track.Kind.Video) this.attachLocalVideo()
+          })
+          room.on(RoomEvent.LocalTrackUnpublished, (publication) => {
+            rtLog('LocalTrackUnpublished', { kind: publication?.kind, sid: publication?.trackSid })
+            this.reconcileLocalMediaUi()
+            if (publication?.kind === Track.Kind.Video && this.$refs.localMedia) {
+              this.$refs.localMedia.replaceChildren()
+            }
+          })
+          room.on(RoomEvent.ParticipantConnected, (p) => {
+            rtLog('ParticipantConnected', p?.identity)
+          })
+          room.on(RoomEvent.ParticipantDisconnected, (p) => {
+            rtLog('ParticipantDisconnected', p?.identity)
+          })
           room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
             this.needsAudioPermission = !room.canPlaybackAudio
           })
-          room.on(RoomEvent.Disconnected, () => {
-            this.handleCallEnded()
+          // WebRTC reconnect ≠ business Call Ended. Only leave UI on intentional hangup
+          // or when CallUpdated says status is terminal.
+          room.on(RoomEvent.Reconnecting, () => {
+            rtLog('Reconnecting')
+            this.mediaPermissionState = 'reconnecting'
+            this.reconnectNotice = 'Mạng media đang reconnect… cuộc gọi business vẫn mở.'
+          })
+          room.on(RoomEvent.Reconnected, () => {
+            rtLog('Reconnected')
+            this.mediaPermissionState = 'connected'
+            this.reconnectNotice = ''
+            this.reconcileLocalMediaUi()
+            this.attachAvailableRemoteTracks()
+          })
+          room.on(RoomEvent.Disconnected, (reason) => {
+            const reasonStr = reason != null ? String(reason) : 'unknown'
+            rtLog('Disconnected', reasonStr)
+            if (this.intentionalLeave || this._endingCall) {
+              this.handleCallEnded()
+              return
+            }
+            if (this.call && ['Rejected', 'Cancelled', 'Ended'].includes(this.call.status)) {
+              this.handleCallEnded()
+              return
+            }
+            // Unexpected permanent media loss — keep call window, allow rejoin
+            this.room = null
+            this.mediaPermissionState = 'error'
+            this.error = `Mất kết nối media (${reasonStr}). Cuộc gọi chưa kết thúc — bấm Tham gia lại.`
+            this.stopQualityMonitoring?.()
           })
           // Snapshot command from backend RoomService.SendData (targeted to patient)
           room.on(RoomEvent.DataReceived, async (payload, participant, kind) => {
@@ -1536,9 +1675,7 @@ if (isCallRoute) {
       },
       attachLocalVideo() {
         if (!this.$refs.localMedia) return
-        const publication = this.room
-          ? [...this.room.localParticipant.videoTrackPublications.values()][0]
-          : null
+        const publication = this.getLocalCameraPublication()
         const track = this.localTracks.find(item => item.kind === Track.Kind.Video) || publication?.track
         if (!track) return
         const element = track.attach()
@@ -1551,17 +1688,76 @@ if (isCallRoute) {
         this.$refs.localMedia.replaceChildren(element)
         element.play().catch(() => {})
       },
+      getLocalCameraPublication() {
+        if (!this.room?.localParticipant) return null
+        const pubs = [...this.room.localParticipant.videoTrackPublications.values()]
+        return pubs[0] || null
+      },
+      /** Read camera/mic truth from LiveKit publications — not Vue flags. */
+      reconcileLocalMediaUi() {
+        if (!this.room?.localParticipant) return
+        const camPub = this.getLocalCameraPublication()
+        const camOn = !!(
+          camPub &&
+          !camPub.isMuted &&
+          camPub.track &&
+          !camPub.track.isMuted
+        )
+        this.cameraEnabled = camOn
+        const micPubs = [...this.room.localParticipant.audioTrackPublications.values()]
+        const micPub = micPubs[0]
+        if (micPub) {
+          this.microphoneEnabled = !micPub.isMuted && !!micPub.track && !micPub.track.isMuted
+        }
+      },
+      /**
+       * Single path for camera on/off. Operates on LocalParticipant, then
+       * re-reads publication state into UI. Do not flip Vue flags first.
+       */
+      async ensureCameraEnabled(wantEnabled) {
+        if (!this.room?.localParticipant) return false
+        if (this.cameraToggleBusy) return this.cameraEnabled
+        this.cameraToggleBusy = true
+        try {
+          this.reconcileLocalMediaUi()
+          if (this.cameraEnabled === !!wantEnabled) {
+            if (wantEnabled) this.attachLocalVideo()
+            else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
+            return this.cameraEnabled
+          }
+          rtLog('ensureCameraEnabled', { want: !!wantEnabled, before: this.cameraEnabled })
+          await this.room.localParticipant.setCameraEnabled(!!wantEnabled)
+          // Re-read actual publication/mute after LiveKit settles
+          this.reconcileLocalMediaUi()
+          if (this.cameraEnabled) this.attachLocalVideo()
+          else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
+          rtLog('ensureCameraEnabled_done', { after: this.cameraEnabled })
+          return this.cameraEnabled
+        } catch (e) {
+          console.warn('ensureCameraEnabled failed', e)
+          this.reconcileLocalMediaUi()
+          this.error = wantEnabled
+            ? (e?.message || 'Không bật được camera — đã giữ trạng thái thoại.')
+            : (e?.message || 'Không tắt được camera.')
+          return this.cameraEnabled
+        } finally {
+          this.cameraToggleBusy = false
+        }
+      },
       async toggleCamera() {
         if (!this.room) return
-        this.cameraEnabled = !this.cameraEnabled
-        await this.room.localParticipant.setCameraEnabled(this.cameraEnabled)
-        if (this.cameraEnabled) this.attachLocalVideo()
-        else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
+        await this.ensureCameraEnabled(!this.cameraEnabled)
       },
       async toggleMicrophone() {
-        if (!this.room) return
-        this.microphoneEnabled = !this.microphoneEnabled
-        await this.room.localParticipant.setMicrophoneEnabled(this.microphoneEnabled)
+        if (!this.room?.localParticipant) return
+        try {
+          const want = !this.microphoneEnabled
+          await this.room.localParticipant.setMicrophoneEnabled(want)
+          this.reconcileLocalMediaUi()
+        } catch (e) {
+          console.warn('toggleMicrophone failed', e)
+          this.reconcileLocalMediaUi()
+        }
       },
       async enableAudioPlayback() {
         if (this.room) {
@@ -1905,6 +2101,7 @@ if (isCallRoute) {
         // Prevent double-tap / concurrent hangup paths hanging the UI
         if (this._endingCall) return
         this._endingCall = true
+        this.intentionalLeave = true
         try {
           // Never block hangup on recording/telemetry (was a source of "tắt call không được")
           const sideWork = []
@@ -1939,7 +2136,21 @@ if (isCallRoute) {
           this._endingCall = false
         }
       },
+      /** Explicit rejoin after unexpected media disconnect (business call still Accepted). */
+      async rejoinMedia() {
+        this.error = ''
+        this.reconnectNotice = ''
+        try {
+          await this.disconnectRoom()
+        } catch { /* ignore */ }
+        this.room = null
+        await this.joinRoom()
+      },
       handleCallEnded() {
+        rtLog('handleCallEnded', {
+          intentional: this.intentionalLeave,
+          status: this.call?.status
+        })
         try {
           this.disconnectRoom()
         } catch (e) {
@@ -1984,6 +2195,7 @@ if (isCallRoute) {
         this.mediaPermissionState = 'idle'
       },
       handleBeforeUnload() {
+        this.intentionalLeave = true
         this.flushQualityLog(true)
         if (this.call && ['Accepted', 'Ringing'].includes(this.call.status)) {
           const action = this.call.status === 'Accepted' ? 'end' : 'cancel'
@@ -2099,8 +2311,8 @@ if (isCallRoute) {
               <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi (quản lý)">
                 <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
               </button>
-              <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="joinRoom">
-                Thử kết nối lại
+              <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="rejoinMedia">
+                Tham gia lại media
               </button>
               <button class="ctrl-btn danger" @click="endCall" title="Kết thúc cuộc gọi">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 6 6l2-2a2 2 0 0 1 2-.48c.68.23 1.37.39 2.08.48A2 2 0 0 1 24 19.3V22a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 4.55 6.73 2 2 0 0 1 6.53 4.55h2.7a2 2 0 0 1 2 1.72c.09.71.25 1.4.48 2.08a2 2 0 0 1-.47 2zM23 1 1 23"/></svg>
@@ -2718,16 +2930,21 @@ if (isCallRoute) {
         const media = mediaMode === 'audio' ? 'audio' : 'video'
         return `/call/${callId}?user=${encodeURIComponent(this.identityId)}&media=${media}`
       },
+      mediaModeFromCall(call, fallback = 'video') {
+        const m = call?.initialMediaMode || call?.InitialMediaMode || fallback
+        return String(m).toLowerCase() === 'audio' ? 'audio' : 'video'
+      },
       async startQueueCall(mediaMode = 'video') {
         if (this.isCallActive) return
         try {
+          const media = mediaMode === 'audio' ? 'audio' : 'video'
           try {
-            sessionStorage.setItem('simlydent_preferred_media', mediaMode === 'audio' ? 'audio' : 'video')
+            sessionStorage.setItem('simlydent_preferred_media', media)
           } catch { /* ignore */ }
           const res = await apiFetch('/api/queue/calls', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: '{}'
+            body: JSON.stringify({ initialMediaMode: media === 'audio' ? 'Audio' : 'Video' })
           })
           const body = await res.json().catch(() => ({}))
           if (!res.ok) {
@@ -2737,8 +2954,8 @@ if (isCallRoute) {
           }
           this.call = body
           this.popupState = body.status === 'Ringing' ? 'ringing' : 'ringing'
-          // Demo visitor (VA): open call window when accepted — media stored for join
-          this._queuePreferredMedia = mediaMode === 'audio' ? 'audio' : 'video'
+          // Demo visitor (VA): open call window when accepted — media from server call
+          this._queuePreferredMedia = this.mediaModeFromCall(body, media)
         } catch (e) {
           this.popupErrorMessage = e.message
           this.popupState = 'error'
@@ -2815,7 +3032,10 @@ if (isCallRoute) {
           const res = await apiFetch(`/api/calls`, {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ calleeId: targetId })
+            body: JSON.stringify({
+              calleeId: targetId,
+              initialMediaMode: media === 'audio' ? 'Audio' : 'Video'
+            })
           })
 
           if (!res.ok) {
@@ -2834,7 +3054,9 @@ if (isCallRoute) {
           this.call = call
           this.popupState = 'ringing'
 
-          const callUrl = this.callUrlFor(call.id, media)
+          // Prefer server authoritative mode; URL is cache only
+          const resolved = this.mediaModeFromCall(call, media)
+          const callUrl = this.callUrlFor(call.id, resolved)
           if (isMobile) {
             window.location.href = callUrl
           } else {
@@ -2854,11 +3076,9 @@ if (isCallRoute) {
       async acceptCall() {
         if (!this.call) return
         const isMobile = window.innerWidth < 768
-        // Callee joins with video by default; can mute cam. Prefer stored if any.
-        let media = 'video'
-        try {
-          media = sessionStorage.getItem('simlydent_preferred_media') || 'video'
-        } catch { /* ignore */ }
+        // Authoritative media is call.initialMediaMode from the ringing CallView (set by caller).
+        // sessionStorage is only a stale cache — do not let callee default to video on audio calls.
+        const media = this.mediaModeFromCall(this.call, 'video')
 
         let popupWin = null
         if (!isMobile) {
@@ -2883,7 +3103,11 @@ if (isCallRoute) {
           this.call = call
           this.popupState = 'active_window'
 
-          const callUrl = this.callUrlFor(call.id, media)
+          const resolved = this.mediaModeFromCall(call, media)
+          try {
+            sessionStorage.setItem('simlydent_preferred_media', resolved)
+          } catch { /* ignore */ }
+          const callUrl = this.callUrlFor(call.id, resolved)
           if (isMobile) {
             window.location.href = callUrl
           } else {
@@ -2929,10 +3153,13 @@ if (isCallRoute) {
       reopenCallWindow() {
         if (!this.call) return
         const isMobile = window.innerWidth < 768
-        let media = 'video'
-        try {
-          media = sessionStorage.getItem('simlydent_preferred_media') || 'video'
-        } catch { /* ignore */ }
+        const media = this.mediaModeFromCall(this.call, (() => {
+          try {
+            return sessionStorage.getItem('simlydent_preferred_media') || 'video'
+          } catch {
+            return 'video'
+          }
+        })())
         const callUrl = this.callUrlFor(this.call.id, media)
         if (isMobile) {
           window.location.href = callUrl

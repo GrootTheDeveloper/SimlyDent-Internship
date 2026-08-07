@@ -567,12 +567,14 @@ app.MapPost("/api/agents/ready", async (
 app.MapPost("/api/queue/calls", async (
     ClaimsPrincipal principal,
     IdentityRegistry identities,
-    CallDispatcher dispatcher) =>
+    CallDispatcher dispatcher,
+    CreateQueueCallRequest? body) =>
 {
     var visitor = ClinicAuthorization.CurrentUser(principal, identities);
     if (visitor is null) return Results.Unauthorized();
     // Phase 1: demo visitors VA/VB. Staff may also enqueue for manual testing.
-    var call = await dispatcher.EnqueueAsync(visitor);
+    var mediaMode = CallSession.NormalizeMediaMode(body?.InitialMediaMode);
+    var call = await dispatcher.EnqueueAsync(visitor, mediaMode);
     if (call.Status == CallStatus.Closed)
         return Results.Json(new { error = "Clinic is closed.", call = call.ToView() }, statusCode: 403);
     return Results.Created($"/api/calls/{call.Id}", call.ToView());
@@ -632,6 +634,7 @@ app.MapPost("/api/calls", async (
 
     var id = Guid.NewGuid();
     var policy = recordingPolicies.Get(caller.ClinicId);
+    var mediaMode = CallSession.NormalizeMediaMode(body.InitialMediaMode);
     var session = new CallSession
     {
         Id = id,
@@ -640,7 +643,8 @@ app.MapPost("/api/calls", async (
         CalleeId = callee.Id,
         Origin = CallOrigin.Direct,
         RoomName = CallSession.BuildRoomName(caller.ClinicId, id),
-        RecordingMode = policy.DefaultMode
+        RecordingMode = policy.DefaultMode,
+        InitialMediaMode = mediaMode
     };
     if (!dispatcher.TryAssignDirect(session, callee.Id))
         return Results.Conflict(new { error = "Callee is not available (busy)." });
@@ -703,7 +707,8 @@ app.MapPost("/api/calls/{id:guid}/accept", async (
                 call.Id, call.ClinicId, call.RoomName,
                 call.CallerId, caller?.DisplayName ?? call.CallerId,
                 staff?.Id ?? current.Id, staff?.DisplayName ?? current.DisplayName,
-                initialMediaMode: "Audio", cancellationToken);
+                initialMediaMode: CallSession.NormalizeMediaMode(call.InitialMediaMode),
+                cancellationToken);
             lock (call.SyncRoot) { call.ConsultationSessionId = session.Id; }
             // Best-effort auto audio (consent gate inside)
             await audioService.EnsureAutoAudioStartedAsync(call, cancellationToken);

@@ -98,6 +98,13 @@ public sealed class CallSession
     /// <summary>Idle | Recording | Finalizing | Ready | Failed</summary>
     public string AutoAudioStatus { get; set; } = "Idle";
 
+    /// <summary>
+    /// Authoritative initial realtime media for this call: Audio | Video.
+    /// Set once at creation; both participants derive camera on/off from this — not from URL/query alone.
+    /// Runtime camera toggles do not change this value.
+    /// </summary>
+    public string InitialMediaMode { get; set; } = "Video";
+
     public object SyncRoot { get; } = new();
 
     public bool Contains(string userId)
@@ -126,7 +133,15 @@ public sealed class CallSession
         RecordingStatus,
         ConsentStatus.ToString(),
         RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(RecordingStorageKey),
-        Origin.ToString(), AssignedStaffId);
+        Origin.ToString(), AssignedStaffId,
+        NormalizeMediaMode(InitialMediaMode));
+
+    /// <summary>Normalize client/server media mode strings to Audio | Video.</summary>
+    public static string NormalizeMediaMode(string? mode) =>
+        string.Equals(mode, "Audio", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(mode, "audio", StringComparison.OrdinalIgnoreCase)
+            ? "Audio"
+            : "Video";
 
     /// <summary>
     /// Deterministic clinic-scoped LiveKit room name.
@@ -164,13 +179,15 @@ public sealed record CallView(
     string ConsentStatus,
     bool RecordingAvailable,
     string Origin = "Direct",
-    string? AssignedStaffId = null)
+    string? AssignedStaffId = null,
+    string InitialMediaMode = "Video")
 {
     /// <summary>Deprecated alias of ClinicId for older clients / scripts.</summary>
     public string TenantId => ClinicId;
 }
 
-public sealed record CreateCallRequest(string CalleeId);
+public sealed record CreateCallRequest(string CalleeId, string? InitialMediaMode = null);
+public sealed record CreateQueueCallRequest(string? InitialMediaMode = null);
 public sealed record TokenResponse(string Url, string Token, DateTimeOffset ExpiresAt);
 
 /// <summary>
