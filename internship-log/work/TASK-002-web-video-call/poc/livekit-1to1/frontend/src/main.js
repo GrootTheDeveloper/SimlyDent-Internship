@@ -1311,7 +1311,13 @@ if (isCallRoute) {
       this.disconnectRoom()
       if (this.hub) this.hub.stop()
       if (this.broadcastChannel) {
-        this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
+        try {
+          this.broadcastChannel.postMessage({
+            type: 'CALL_WINDOW_CLOSED',
+            callId: this.callId,
+            intentional: !!this.intentionalLeave
+          })
+        } catch { /* ignore */ }
         this.broadcastChannel.close()
       }
       window.removeEventListener('beforeunload', this.handleBeforeUnload)
@@ -1613,8 +1619,31 @@ if (isCallRoute) {
           this.room = room
           this.attachAvailableRemoteTracks()
 
+          // Publish with explicit sources so remote clients treat them as mic/camera.
           for (const track of localTracks) {
-            await room.localParticipant.publishTrack(track)
+            const source = track.kind === Track.Kind.Audio
+              ? Track.Source.Microphone
+              : track.kind === Track.Kind.Video
+                ? Track.Source.Camera
+                : undefined
+            try {
+              await room.localParticipant.publishTrack(
+                track,
+                source ? { source } : undefined
+              )
+              rtLog('published_local', { kind: track.kind, source: source || null })
+            } catch (pubErr) {
+              console.warn('publishTrack failed', track.kind, pubErr)
+              rtLog('publish_failed', { kind: track.kind, err: String(pubErr?.message || pubErr) })
+            }
+          }
+          this.reconcileLocalMediaUi()
+          // Browser autoplay policy: unlock remote audio (esp. Safari).
+          try {
+            await room.startAudio()
+            this.needsAudioPermission = !room.canPlaybackAudio
+          } catch {
+            this.needsAudioPermission = true
           }
 
           this.mediaPermissionState = 'connected'
@@ -1656,19 +1685,42 @@ if (isCallRoute) {
             this.remoteVideoConnected = true
             element.play().catch(() => {})
           }
-        } else if (this.$refs.remoteAudio) {
-          this.$refs.remoteAudio.querySelectorAll('audio').forEach(n => n.remove())
-          this.$refs.remoteAudio.appendChild(element)
-          element.play().catch(() => {
-            this.needsAudioPermission = true
-          })
+        } else {
+          // Remote audio — never muted; keep element in DOM for Safari.
+          element.muted = false
+          element.volume = 1
+          element.setAttribute('playsinline', '')
+          const host = this.$refs.remoteAudio
+          if (host) {
+            host.querySelectorAll('audio').forEach(n => n.remove())
+            host.appendChild(element)
+          } else {
+            element.style.display = 'none'
+            document.body.appendChild(element)
+          }
+          const tryPlay = () => {
+            element.play().catch(() => {
+              this.needsAudioPermission = true
+            })
+          }
+          tryPlay()
+          if (this.room) {
+            this.room.startAudio().then(() => {
+              this.needsAudioPermission = !this.room.canPlaybackAudio
+              tryPlay()
+            }).catch(() => {
+              this.needsAudioPermission = true
+            })
+          }
         }
       },
       attachAvailableRemoteTracks() {
         if (!this.room) return
         for (const participant of this.room.remoteParticipants.values()) {
           for (const publication of participant.trackPublications.values()) {
-            publication.setSubscribed(true)
+            try {
+              publication.setSubscribed(true)
+            } catch { /* ignore */ }
             if (publication.track) this.attachRemoteTrack(publication.track)
           }
         }
@@ -1760,9 +1812,23 @@ if (isCallRoute) {
         }
       },
       async enableAudioPlayback() {
-        if (this.room) {
-          await this.room.startAudio()
-          this.needsAudioPermission = !this.room.canPlaybackAudio
+        try {
+          if (this.room) {
+            await this.room.startAudio()
+            this.needsAudioPermission = !this.room.canPlaybackAudio
+          }
+          // Re-kick every remote <audio> after user gesture (Safari/Opera).
+          document.querySelectorAll('audio').forEach(el => {
+            try {
+              el.muted = false
+              el.volume = 1
+              el.play().catch(() => {})
+            } catch { /* ignore */ }
+          })
+          this.attachAvailableRemoteTracks()
+        } catch (e) {
+          console.warn('enableAudioPlayback', e)
+          this.needsAudioPermission = true
         }
       },
       /** LiveKit participant identity for remote patient (clinicId:userId). */
@@ -2158,7 +2224,11 @@ if (isCallRoute) {
         }
         if (this.broadcastChannel) {
           try {
-            this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
+            this.broadcastChannel.postMessage({
+              type: 'CALL_WINDOW_CLOSED',
+              callId: this.callId,
+              intentional: true
+            })
           } catch {
             /* ignore */
           }
@@ -2195,14 +2265,26 @@ if (isCallRoute) {
         this.mediaPermissionState = 'idle'
       },
       handleBeforeUnload() {
-        this.intentionalLeave = true
         this.flushQualityLog(true)
-        if (this.call && ['Accepted', 'Ringing'].includes(this.call.status)) {
+        // Only end the *business* call if user already pressed Hang up.
+        // Do NOT sendBeacon end/cancel on every unload — "Mở lại" reuses the
+        // same window name and was killing the call (reload → beforeunload → end).
+        if (this.intentionalLeave && this.call && ['Accepted', 'Ringing'].includes(this.call.status)) {
           const action = this.call.status === 'Accepted' ? 'end' : 'cancel'
-          navigator.sendBeacon(`${API_URL}/api/calls/${this.callId}/${action}?access_token=${encodeURIComponent(getAccessToken())}`)
+          try {
+            navigator.sendBeacon(
+              `${API_URL}/api/calls/${this.callId}/${action}?access_token=${encodeURIComponent(getAccessToken())}`
+            )
+          } catch { /* ignore */ }
         }
         if (this.broadcastChannel) {
-          this.broadcastChannel.postMessage({ type: 'CALL_WINDOW_CLOSED', callId: this.callId })
+          try {
+            this.broadcastChannel.postMessage({
+              type: 'CALL_WINDOW_CLOSED',
+              callId: this.callId,
+              intentional: !!this.intentionalLeave
+            })
+          } catch { /* ignore */ }
         }
       }
     },
@@ -2495,17 +2577,25 @@ if (isCallRoute) {
       if ('BroadcastChannel' in window) {
         this.broadcastChannel = new BroadcastChannel('livekit_call_channel')
         this.broadcastChannel.onmessage = (event) => {
-          const { type, callId } = event.data || {}
+          const { type, callId, intentional } = event.data || {}
           if (type === 'CALL_WINDOW_OPENED' || type === 'CALL_WINDOW_READY') {
             if (this.call && this.call.id === callId) {
               this.popupState = 'active_window'
             }
           } else if (type === 'CALL_WINDOW_CLOSED') {
-            // Must clear call state — previously popup closed but this.call stayed set,
-            // which blocked selectUser() ("call xong chọn user không được").
-            if (!this.call || this.call.id === callId || !callId) {
+            // Reload/"Mở lại" also fires CLOSED briefly — keep Accepted call so reopen works.
+            // Only clear UI when hangup was intentional or call is no longer active.
+            if (this.call && callId && this.call.id !== callId) return
+            if (intentional) {
               this.clearCallUiState({ showEndedToast: false })
+              return
             }
+            if (this.call && this.isCallActive) {
+              this.callWindowRef = null
+              this.popupState = 'active_window'
+              return
+            }
+            this.clearCallUiState({ showEndedToast: false })
           }
         }
       }
@@ -3163,13 +3253,30 @@ if (isCallRoute) {
         const callUrl = this.callUrlFor(this.call.id, media)
         if (isMobile) {
           window.location.href = callUrl
-        } else {
-          this.callWindowRef = window.open(callUrl, `Call_${this.call.id}`, 'width=960,height=680,scrollbars=no,resizable=yes')
-          if (!this.callWindowRef) {
-            this.popupState = 'popup_blocked'
-          } else {
+          return
+        }
+
+        // If the call popup is still open, only focus — do NOT navigate/reload.
+        // Navigating the same window name reloads the call page and used to
+        // fire beforeunload → sendBeacon end → "Mở lại = tự ngắt".
+        try {
+          if (this.callWindowRef && !this.callWindowRef.closed) {
+            this.callWindowRef.focus()
             this.popupState = 'active_window'
+            return
           }
+        } catch { /* cross-origin or stale ref */ }
+
+        // Window was closed: open a fresh call window (business call stays Accepted).
+        const winName = `Call_${this.call.id}`
+        this.callWindowRef = window.open(callUrl, winName, 'width=960,height=680,scrollbars=no,resizable=yes')
+        if (!this.callWindowRef) {
+          this.popupState = 'popup_blocked'
+        } else {
+          try {
+            this.callWindowRef.focus()
+          } catch { /* ignore */ }
+          this.popupState = 'active_window'
         }
       },
       closePopup() {

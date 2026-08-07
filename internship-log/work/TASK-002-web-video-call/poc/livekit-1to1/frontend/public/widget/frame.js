@@ -449,6 +449,45 @@
   }
 
   /**
+   * Attach remote staff video/audio. Always try play() for audio (Safari autoplay).
+   */
+  function attachRemoteTrackEmbed(LivekitClient, track) {
+    if (!track) return;
+    var kind = track.kind;
+    var isVideo = kind === 'video' ||
+      (LivekitClient.Track && kind === LivekitClient.Track.Kind.Video);
+    if (isVideo) {
+      try {
+        track.attach(els.remoteVideo);
+        if (els.mediaHint) els.mediaHint.classList.add('hidden');
+      } catch (eVid) {
+        console.warn('[embed] attach remote video', eVid);
+      }
+      return;
+    }
+    try {
+      var audioEl = track.attach();
+      audioEl.autoplay = true;
+      audioEl.muted = false;
+      audioEl.volume = 1;
+      audioEl.setAttribute('playsinline', '');
+      audioEl.setAttribute('webkit-playsinline', '');
+      audioEl.style.display = 'none';
+      // Avoid stacking duplicate elements for same track re-attach.
+      document.querySelectorAll('audio[data-lk-remote="1"]').forEach(function (n) {
+        try { n.remove(); } catch (eRem) { /* ignore */ }
+      });
+      audioEl.setAttribute('data-lk-remote', '1');
+      document.body.appendChild(audioEl);
+      audioEl.play().catch(function () {
+        setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên (trình duyệt chặn autoplay).');
+      });
+    } catch (eAud) {
+      console.warn('[embed] attach remote audio', eAud);
+    }
+  }
+
+  /**
    * Progressive device acquisition — never throws for permission deny.
    * Returns { tracks, note }.
    */
@@ -596,19 +635,12 @@
       els.mediaHint.textContent = 'Đang vào cuộc gọi…';
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
       room.on(LivekitClient.RoomEvent.TrackSubscribed, function (track) {
-        var kind = track.kind;
-        var isVideo = kind === 'video' ||
-          (LivekitClient.Track && kind === LivekitClient.Track.Kind.Video);
-        if (isVideo) {
-          track.attach(els.remoteVideo);
-          els.mediaHint.classList.add('hidden');
-          return;
+        attachRemoteTrackEmbed(LivekitClient, track);
+      });
+      room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, function () {
+        if (room && !room.canPlaybackAudio) {
+          setDeviceBanner('Trình duyệt chặn tiếng staff. Chạm vào màn hình cuộc gọi để bật tiếng.');
         }
-        var audioEl = track.attach();
-        audioEl.autoplay = true;
-        audioEl.setAttribute('playsinline', '');
-        audioEl.style.display = 'none';
-        document.body.appendChild(audioEl);
       });
       room.on(LivekitClient.RoomEvent.Disconnected, function () {
         onMediaDisconnected();
@@ -621,12 +653,67 @@
       });
 
       await room.connect(tok.body.url, tok.body.token);
+
+      // Attach any tracks already published by staff before we joined.
+      try {
+        room.remoteParticipants.forEach(function (p) {
+          p.trackPublications.forEach(function (pub) {
+            try { pub.setSubscribed(true); } catch (eSub) { /* ignore */ }
+            if (pub.track) attachRemoteTrackEmbed(LivekitClient, pub.track);
+          });
+        });
+      } catch (eAttach) {
+        console.warn('[embed] attach existing remote failed', eAttach);
+      }
+
+      var TrackSource = LivekitClient.Track && LivekitClient.Track.Source;
       for (var i = 0; i < localTracks.length; i++) {
         try {
-          await room.localParticipant.publishTrack(localTracks[i]);
+          var t = localTracks[i];
+          var pubOpts = undefined;
+          if (TrackSource) {
+            if (t.kind === 'audio' || (LivekitClient.Track && t.kind === LivekitClient.Track.Kind.Audio)) {
+              pubOpts = { source: TrackSource.Microphone };
+            } else if (t.kind === 'video' || (LivekitClient.Track && t.kind === LivekitClient.Track.Kind.Video)) {
+              pubOpts = { source: TrackSource.Camera };
+            }
+          }
+          await room.localParticipant.publishTrack(t, pubOpts);
         } catch (pubErr) {
           console.warn('[embed] publish failed', pubErr);
         }
+      }
+
+      // Safari / autoplay: unlock remote staff audio after join (user already clicked Join).
+      try {
+        await room.startAudio();
+        document.querySelectorAll('audio').forEach(function (el) {
+          try {
+            el.muted = false;
+            el.volume = 1;
+            el.play().catch(function () { /* need another gesture */ });
+          } catch (ePlay) { /* ignore */ }
+        });
+        if (!room.canPlaybackAudio) {
+          setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên (trình duyệt chặn autoplay).');
+        }
+      } catch (eStart) {
+        console.warn('[embed] startAudio failed', eStart);
+        setDeviceBanner('Chạm vào màn hình để nghe tiếng nhân viên.');
+      }
+
+      // One-time unlock on first tap/click inside media pane (Safari).
+      if (els.mediaPane && !els.mediaPane._audioUnlockBound) {
+        els.mediaPane._audioUnlockBound = true;
+        els.mediaPane.addEventListener('click', function unlockAudioOnce() {
+          if (!room) return;
+          room.startAudio().then(function () {
+            document.querySelectorAll('audio').forEach(function (el) {
+              try { el.muted = false; el.volume = 1; el.play().catch(function () {}); } catch (e2) {}
+            });
+            if (room.canPlaybackAudio) setDeviceBanner('');
+          }).catch(function () {});
+        }, { passive: true });
       }
 
       setStatus('Đang tư vấn');
