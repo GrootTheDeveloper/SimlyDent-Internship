@@ -51,7 +51,6 @@ import {
   peerAvatarText,
   normalizeMediaMode,
   callStatusVi,
-  recordingModeLabel,
   formatViDateTime,
   createClientSessionId,
 } from '../../shared/call-helpers.js'
@@ -102,7 +101,7 @@ export function mountCallWindowApp(opts = {}) {
       currentUser: cached || null,
       identities: [],
       call: null,
-      recordingCaps: { canStart: false, canStop: false, canDownload: false, canDelete: false },
+
       hub: null,
       room: null,
       /** @type {import('./domain/media/media-engine.js').MediaEngine|null} */
@@ -140,7 +139,7 @@ export function mountCallWindowApp(opts = {}) {
       qualityFlushInFlight: false,
       qualityFlushPromise: null,
       showQualityPanel: false,
-      recordingBusy: false,
+
       error: '',
       broadcastChannel: null,
       guestAvatarUrl: GUEST_AVATAR_URL
@@ -203,20 +202,10 @@ export function mountCallWindowApp(opts = {}) {
         if (/640×360|360×640/.test(resolution)) return 'SD'
         return this.remoteVideoConnected ? 'LOW' : '--'
       },
-      isRecording() {
-        return this.call?.recordingStatus === 'Recording'
-      },
-      recordingInProgress() {
-        return ['Starting', 'Stopping'].includes(this.call?.recordingStatus)
-      },
-      recordingAvailable() {
-        // Download is Manager-only; never offer staff default download.
-        return this.isManagerRole && (this.recordingCaps?.canDownload || this.call?.recordingAvailable === true)
-      },
       isManagerRole() {
         return String(this.currentUser?.role || this.userRole || '').toLowerCase() === 'manager'
       },
-      /** Product: session audio is always auto (CallAudio), independent of legacy red record button. */
+      /** Product: session audio is always auto (CallAudio). */
       autoAudioStatus() {
         return this.call?.autoAudioStatus || this._polledAutoAudioStatus || 'Idle'
       },
@@ -226,18 +215,6 @@ export function mountCallWindowApp(opts = {}) {
         if (s === 'Finalizing') return 'Đang lưu audio…'
         if (s === 'Ready') return 'Đã có audio phiên'
         if (s === 'Failed') return 'Ghi âm phiên lỗi'
-        return ''
-      },
-      recordingStatusLabel() {
-        const s = this.call?.recordingStatus
-        if (s === 'Recording') {
-          return this.call?.recordingMode === 'AudioOnly' ? 'Đang ghi âm (legacy)' : 'Đang ghi hình (legacy)'
-        }
-        if (s === 'Starting') return 'Đang bắt đầu ghi…'
-        if (s === 'Stopping') return 'Đang dừng ghi…'
-        if (s === 'Complete') return 'Đã có bản ghi hình'
-        if (s === 'Failed') return 'Ghi hình không thành công'
-        if (s === 'Deleted') return 'Đã xóa bản ghi'
         return ''
       }
     },
@@ -998,88 +975,16 @@ export function mountCallWindowApp(opts = {}) {
           window.prompt('Copy Call ID:', text)
         }
       },
-      applyRecordingView(body) {
-        if (!body || !this.call) return
-        // Recording endpoints return actor-aware RecordingView, not full CallView.
-        if (body.recordingStatus != null || body.recordingMode != null) {
-          this.call = {
-            ...this.call,
-            recordingMode: body.recordingMode ?? this.call.recordingMode,
-            recordingStatus: body.recordingStatus ?? this.call.recordingStatus,
-            consentStatus: body.consentStatus ?? this.call.consentStatus,
-            recordingAvailable: body.canDownload === true
-          }
-          this.recordingCaps = {
-            canStart: !!body.canStart,
-            canStop: !!body.canStop,
-            canDownload: !!body.canDownload,
-            canDelete: !!body.canDelete
-          }
-          return
-        }
-        if (body.id) this.call = body
-      },
-      async toggleRecording() {
-        if (this.recordingBusy || this.recordingInProgress) return
-        const start = !this.isRecording
-        if (start && !window.confirm('Bắt đầu ghi cuộc gọi? Khách/đồng nghiệp sẽ thấy trạng thái đang ghi. Cần đồng ý ghi trước khi bắt đầu.')) return
-        this.recordingBusy = true
-        this.error = ''
-        try {
-          if (start) {
-            // Snapshot mode Video (default policy is None) + staff consent evidence.
-            let res = await apiFetch(`/api/calls/${this.callId}/recording/mode`, {
-              method: 'POST',
-              headers: authHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ mode: 'Video' })
-            })
-            let body = await res.json().catch(() => ({}))
-            if (!res.ok) throw new Error(body.error || 'Không đặt được chế độ ghi.')
-            this.applyRecordingView(body)
-            res = await apiFetch(`/api/calls/${this.callId}/recording/consent`, {
-              method: 'POST',
-              headers: authHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ status: 'Granted' })
-            })
-            body = await res.json().catch(() => ({}))
-            if (!res.ok) throw new Error(body.error || 'Không ghi nhận đồng ý ghi.')
-            this.applyRecordingView(body)
-          }
-          const action = start ? 'start' : 'stop'
-          const res = await apiFetch(`/api/calls/${this.callId}/recording/${action}`, {
-            method: 'POST',
-            headers: authHeaders()
-          })
-          const body = await res.json().catch(() => ({}))
-          if (!res.ok) throw new Error(body.error || 'Không thể thay đổi trạng thái ghi.')
-          this.applyRecordingView(body)
-          if (body.call) this.call = { ...this.call, ...body.call }
-        } catch (err) {
-          this.error = err.message
-        } finally {
-          this.recordingBusy = false
-        }
-      },
-      async downloadRecording() {
-        try {
-          if (!this.callId) throw new Error('Thiếu callId.')
-          await fetchAndSaveRecording(this.callId)
-        } catch (err) {
-          this.error = err.message
-        }
-      },
       async endCall() {
         // Prevent double-tap / concurrent hangup paths hanging the UI
         if (this._endingCall) return
         this._endingCall = true
         this.intentionalLeave = true
         try {
-          // Never block hangup on recording/telemetry (was a source of "tắt call không được")
-          const sideWork = []
-          if (this.isRecording) {
-            sideWork.push(this.toggleRecording().catch(err => console.warn('stop recording on end', err)))
-          }
-          sideWork.push(this.flushQualityLog().catch(err => console.warn('flush quality on end', err)))
+          // Never block hangup on telemetry (was a source of "tắt call không được")
+          const sideWork = [
+            this.flushQualityLog().catch(err => console.warn('flush quality on end', err))
+          ]
           await Promise.race([
             Promise.all(sideWork),
             new Promise(resolve => setTimeout(resolve, 1500))

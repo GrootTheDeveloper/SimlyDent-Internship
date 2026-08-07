@@ -36,7 +36,7 @@
     return (typeof window !== 'undefined' && window.SimlyDentMediaPrimitives) || null;
   }
 
-  /** idle | waiting | ready | media | reconnect | perm | ended | error */
+  /** idle | waiting | media | reconnect | perm | ended | error */
   var uiState = 'idle';
   var lastServerStatus = '';
 
@@ -46,7 +46,6 @@
     statusLine: $('statusLine'),
     idlePane: $('idlePane'),
     waitPane: $('waitPane'),
-    readyPane: $('readyPane'),
     mediaPane: $('mediaPane'),
     permPane: $('permPane'),
     reconnectPane: $('reconnectPane'),
@@ -54,7 +53,6 @@
     errorPane: $('errorPane'),
     waitText: $('waitText'),
     waitMeta: $('waitMeta'),
-    readyMeta: $('readyMeta'),
     reconnectMeta: $('reconnectMeta'),
     endedText: $('endedText'),
     errorText: $('errorText'),
@@ -68,9 +66,7 @@
     btnCallVideo: $('btnCallVideo'),
     btnCallAudio: $('btnCallAudio'),
     btnCancel: $('btnCancel'),
-    btnJoin: $('btnJoin'),
     btnEnd: $('btnEnd'),
-    btnEndFromReady: $('btnEndFromReady'),
     btnEndFromPerm: $('btnEndFromPerm'),
     btnEndFromReconnect: $('btnEndFromReconnect'),
     btnRetryMedia: $('btnRetryMedia'),
@@ -80,10 +76,7 @@
     btnRetry: $('btnRetry'),
     btnClose: $('btnClose'),
     btnMic: $('btnMic'),
-    btnCam: $('btnCam'),
-    consentRow: $('consentRow'),
-    chkConsent: $('chkConsent'),
-    btnConsent: $('btnConsent')
+    btnCam: $('btnCam')
   };
 
   function storageKey(part) {
@@ -124,7 +117,6 @@
     var map = {
       idle: els.idlePane,
       waiting: els.waitPane,
-      ready: els.readyPane,
       media: els.mediaPane,
       reconnect: els.reconnectPane,
       perm: els.permPane,
@@ -296,49 +288,6 @@
       : 'Vui lòng giữ cửa sổ này mở';
   }
 
-  function showReady(call) {
-    showPane('ready');
-    setStatus('Sẵn sàng tham gia');
-    els.readyMeta.textContent = 'Nhân viên đã nhận — bấm Tham gia khi bạn sẵn sàng.';
-    var mode = (call && call.recordingMode) || 'None';
-    var consent = (call && call.consentStatus) || 'Pending';
-    var needConsent = mode && mode !== 'None' && consent !== 'Granted';
-    if (els.consentRow) els.consentRow.classList.toggle('hidden', !needConsent);
-    if (els.btnConsent) els.btnConsent.classList.toggle('hidden', !needConsent);
-    if (needConsent && els.readyMeta) {
-      els.readyMeta.textContent = consent === 'Declined'
-        ? 'Bạn đã từ chối ghi. Vẫn có thể tham gia (không ghi).'
-        : 'Phòng khám có thể ghi cuộc gọi — vui lòng đồng ý bên dưới nếu bạn đồng ý.';
-    }
-    postParent({ type: 'state', state: 'Accepted' });
-  }
-
-  async function submitConsent() {
-    if (!callId || !accessToken) return;
-    if (els.chkConsent && !els.chkConsent.checked) {
-      els.readyMeta.textContent = 'Vui lòng tick ô đồng ý trước khi gửi.';
-      return;
-    }
-    els.btnConsent.disabled = true;
-    try {
-      var res = await api('/embed/calls/' + callId + '/recording/consent', {
-        method: 'POST',
-        body: JSON.stringify({ status: 'Granted' })
-      });
-      if (!res.ok) {
-        els.readyMeta.textContent = (res.body && res.body.error) || 'Không gửi được đồng ý.';
-        return;
-      }
-      els.readyMeta.textContent = 'Đã ghi nhận đồng ý ghi. Bạn có thể tham gia cuộc gọi.';
-      if (els.consentRow) els.consentRow.classList.add('hidden');
-      if (els.btnConsent) els.btnConsent.classList.add('hidden');
-    } catch (err) {
-      els.readyMeta.textContent = err.message || String(err);
-    } finally {
-      els.btnConsent.disabled = false;
-    }
-  }
-
   async function refreshCall() {
     if (!callId || !accessToken) return;
     var res = await api('/embed/calls/' + callId);
@@ -374,9 +323,9 @@
         els.reconnectMeta.textContent = 'Cuộc gọi vẫn đang mở — thử nối lại hình ảnh / âm thanh.';
         return;
       }
-      // Stay on perm/reconnect manual retry UI; otherwise auto-join once.
+      // Stay on perm manual retry UI; otherwise auto-join once.
       if (uiState === 'perm') return;
-      if (uiState === 'media' || uiState === 'ready') return;
+      if (uiState === 'media') return;
       if (joining) return;
       postParent({ type: 'state', state: 'Accepted' });
       // Keep wait spinner until joinMedia swaps to media pane.
@@ -886,7 +835,7 @@
 
   /**
    * Cancel only clears local state when backend confirms terminal (Cancelled)
-   * or when still Queued/Ringing response. 409 Accepted → show ready / keep call.
+   * or when still Queued/Ringing response. 409 Accepted → auto-join.
    */
   async function cancelCall() {
     if (!callId) {
@@ -957,7 +906,6 @@
       intentionalLeave = false;
       if (!pollTimer) startPoll();
       await refreshCall();
-      els.readyMeta && (els.readyMeta.textContent = (res.body && res.body.error) || 'Kết thúc chưa xác nhận — đang đồng bộ…');
     } catch (err) {
       intentionalLeave = false;
       if (!pollTimer) startPoll();
@@ -1040,8 +988,6 @@
     els.btnCall.addEventListener('click', function () { startCall('video'); });
   }
   els.btnCancel.addEventListener('click', cancelCall);
-  if (els.btnConsent) els.btnConsent.addEventListener('click', submitConsent);
-  els.btnJoin.addEventListener('click', joinMedia);
   els.btnRetryMedia.addEventListener('click', joinMedia);
   if (els.btnRetryDevices) els.btnRetryDevices.addEventListener('click', retryDevices);
   els.btnReconnect.addEventListener('click', function () {
@@ -1050,7 +996,6 @@
     else joinMedia();
   });
   els.btnEnd.addEventListener('click', endCall);
-  els.btnEndFromReady.addEventListener('click', endCall);
   els.btnEndFromPerm.addEventListener('click', endCall);
   els.btnEndFromReconnect.addEventListener('click', endCall);
   els.btnAgain.addEventListener('click', resetIdle);

@@ -40,19 +40,6 @@
         <button type="button" id="btnCancel" class="secondary">Hủy cuộc gọi</button>
       </div>
 
-      <!-- Fallback only (auto-join on Accept is the product path). Kept for rare manual retry. -->
-      <div id="readyPane" class="pane hidden">
-        <p class="lead">Nhân viên đã nhận. Đang vào cuộc gọi tự động…</p>
-        <p id="readyMeta" class="meta">Nếu chưa vào được, bấm Thử lại bên dưới.</p>
-        <label id="consentRow" class="consent-row hidden">
-          <input type="checkbox" id="chkConsent" />
-          <span>Tôi đồng ý cho phòng khám ghi âm hoặc ghi hình cuộc tư vấn này (nếu được bật).</span>
-        </label>
-        <button type="button" id="btnConsent" class="secondary hidden">Gửi đồng ý ghi</button>
-        <button type="button" id="btnJoin" class="primary">Thử vào cuộc gọi</button>
-        <button type="button" id="btnEndFromReady" class="secondary">Kết thúc</button>
-      </div>
-
       <div id="mediaPane" class="pane media hidden">
         <div class="stage">
           <video id="remoteVideo" autoplay playsinline></video>
