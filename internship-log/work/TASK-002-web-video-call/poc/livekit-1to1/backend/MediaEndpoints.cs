@@ -407,8 +407,9 @@ public static class MediaEndpoints
             if (!MediaAssetStatus.IsDownloadable(asset.Status))
                 return Results.Conflict(new { error = "Media not ready." });
 
-            var obj = await catalog.GetObjectByAssetAndKindAsync(assetId, MediaObjectKinds.Original, ct);
-            if (obj is null) return Results.NotFound();
+            var obj = await catalog.GetObjectByAssetAndKindAsync(assetId, MediaObjectKinds.Playback, ct)
+                      ?? await catalog.GetObjectByAssetAndKindAsync(assetId, MediaObjectKinds.Original, ct);
+            if (obj is null || string.IsNullOrWhiteSpace(obj.StorageKey)) return Results.NotFound();
 
             var stream = await storage.OpenReadAsync(obj.StorageKey, ct);
             if (stream is null) return Results.NotFound();
@@ -420,7 +421,15 @@ public static class MediaEndpoints
                 MediaAssetKinds.Snapshot => "image/jpeg",
                 _ => "application/octet-stream"
             };
-            return Results.File(stream, contentType, enableRangeProcessing: true);
+            var ext = contentType switch
+            {
+                "audio/mpeg" => "mp3",
+                "video/mp4" => "mp4",
+                "image/jpeg" => "jpg",
+                _ => "bin"
+            };
+            var downloadName = $"{asset.Kind.ToLowerInvariant()}-{assetId:N}.{ext}";
+            return Results.File(stream, contentType, fileDownloadName: downloadName, enableRangeProcessing: true);
         }).RequireAuthorization();
 
         // Manager: mark delete pending only

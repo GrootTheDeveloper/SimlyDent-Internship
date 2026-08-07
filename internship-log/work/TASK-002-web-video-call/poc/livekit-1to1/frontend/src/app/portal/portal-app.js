@@ -18,6 +18,7 @@ import {
   authHeaders,
 } from '../../shared/auth.js'
 import { apiFetch } from '../../shared/api-client.js'
+import { fetchAndSaveMediaAsset } from '../../shared/media-download.js'
 import {
   clinicIdOf,
   isEmbedVisitorId,
