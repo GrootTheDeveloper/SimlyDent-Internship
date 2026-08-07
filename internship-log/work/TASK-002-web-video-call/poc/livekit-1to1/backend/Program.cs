@@ -3,11 +3,13 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using LiveKitPoc.Api;
+using LiveKitPoc.Api.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddPocOptions(builder.Configuration);
 
 // Trust reverse proxy (Caddy) so RemoteIpAddress reflects client — rate limit must not read spoofable XFF alone.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -118,14 +120,14 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Capability fail-fast for S3 modes (Phase C hard rules).
+// Typed options + S3 capability fail-fast (never log secret values).
 try
 {
-    RecordingS3Config.ValidateOrThrow(app.Configuration, app.Logger);
+    PocOptionsRegistration.ValidatePocOptionsOrThrow(app);
 }
 catch (Exception ex)
 {
-    app.Logger.LogCritical(ex, "Fatal recording S3 configuration error.");
+    app.Logger.LogCritical(ex, "Fatal configuration error (options / S3).");
     throw;
 }
 

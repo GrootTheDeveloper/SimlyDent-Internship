@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -15,11 +17,13 @@ public enum DentalQualityProfile
 
 public sealed class LiveKitEgressService(
     HttpClient httpClient,
+    IOptions<LiveKitOptions> liveKitOptions,
+    IOptions<RecordingRuntimeOptions> recordingOptions,
     IConfiguration configuration,
     LiveKitTokenService tokens)
 {
-    private readonly Uri _baseUri = new(configuration["LIVEKIT_HTTP_URL"] ?? "http://livekit:7880");
-    private readonly string _recordingsPath = configuration["RECORDINGS_PATH"] ?? "/recordings";
+    private readonly Uri _baseUri = new(liveKitOptions.Value.HttpUrl);
+    private readonly string _recordingsPath = recordingOptions.Value.RecordingsPath;
     private readonly IConfiguration _configuration = configuration;
 
     /// <summary>

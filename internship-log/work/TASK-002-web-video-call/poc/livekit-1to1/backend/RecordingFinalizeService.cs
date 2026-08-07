@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
 namespace LiveKitPoc.Api;
@@ -31,10 +33,13 @@ public sealed class RecordingFinalizeService(
     RecordingAuditService audit,
     IConfiguration configuration,
     ILogger<RecordingFinalizeService> logger,
+    IOptions<RecordingRuntimeOptions>? recordingOptions = null,
     IConsultationCatalog? consultationCatalog = null)
 {
     private int FinalizeTimeoutSeconds =>
-        int.TryParse(configuration["RECORDING_FINALIZE_TIMEOUT_SECONDS"], out var n) && n > 0 ? n : 300;
+        recordingOptions?.Value.FinalizeTimeoutSeconds > 0
+            ? recordingOptions.Value.FinalizeTimeoutSeconds
+            : (int.TryParse(configuration["RECORDING_FINALIZE_TIMEOUT_SECONDS"], out var n) && n > 0 ? n : 300);
 
     /// <summary>
     /// Apply terminal (or terminal-like) egress status for a known egress_id.

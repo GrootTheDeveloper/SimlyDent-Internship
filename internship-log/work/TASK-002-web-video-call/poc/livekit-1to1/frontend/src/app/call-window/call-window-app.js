@@ -60,6 +60,7 @@ import {
   writePreferredMediaHint,
 } from '../../shared/storage-helpers.js'
 import { handleCapturePhotoCommand } from '../../domain/consultation/snapshots.js'
+import { rtLog, safeWarn, safeError } from '../../shared/safe-log.js'
 
 const GUEST_AVATAR_URL = '/assets/guest-avatar.svg'
 
@@ -76,12 +77,6 @@ const initialQualityStats = () => ({
   qualityLimitationReason: 'none',
   codec: 'Ch?a c?'
 })
-
-function rtLog(event, detail) {
-  const ts = new Date().toISOString()
-  const extra = detail !== undefined ? ` ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''
-  console.info(`[rt ${ts}] ${event}${extra}`)
-}
 
 /** Mount call-window Vue on #app */
 export function mountCallWindowApp(opts = {}) {

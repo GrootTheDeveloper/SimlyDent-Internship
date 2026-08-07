@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,11 +11,12 @@ namespace LiveKitPoc.Api;
 /// LiveKit webhook: Authorization JWT must be verified against the exact raw POST body
 /// (sha256 claim). Never deserialize → re-serialize → hash.
 /// </summary>
-public sealed class LiveKitWebhookValidator(IConfiguration configuration)
+public sealed class LiveKitWebhookValidator(IOptions<LiveKitOptions> liveKitOptions, IConfiguration configuration)
 {
-    private readonly string _apiKey = configuration["LIVEKIT_API_KEY"] ?? "devkey";
-    private readonly string _apiSecret = configuration["LIVEKIT_API_SECRET"]
-        ?? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.");
+    private readonly string _apiKey = liveKitOptions.Value.ApiKey;
+    private readonly string _apiSecret = string.IsNullOrWhiteSpace(liveKitOptions.Value.ApiSecret)
+        ? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.")
+        : liveKitOptions.Value.ApiSecret;
 
     public bool TryValidate(string? authorizationHeader, string rawBody, out string? error)
     {

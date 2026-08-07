@@ -1,14 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 
 namespace LiveKitPoc.Api;
 
-public sealed class LiveKitTokenService(IConfiguration configuration)
+public sealed class LiveKitTokenService(IOptions<LiveKitOptions> liveKitOptions)
 {
-    private readonly string _apiKey = configuration["LIVEKIT_API_KEY"] ?? "devkey";
-    private readonly string _apiSecret = configuration["LIVEKIT_API_SECRET"]
-        ?? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.");
+    private readonly string _apiKey = liveKitOptions.Value.ApiKey;
+    private readonly string _apiSecret = string.IsNullOrWhiteSpace(liveKitOptions.Value.ApiSecret)
+        ? throw new InvalidOperationException("LIVEKIT_API_SECRET is required.")
+        : liveKitOptions.Value.ApiSecret;
 
     /// <summary>
     /// Join token for an exact authorized room only — no wildcards.

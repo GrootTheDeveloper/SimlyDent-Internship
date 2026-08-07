@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -11,10 +13,11 @@ namespace LiveKitPoc.Api;
 /// </summary>
 public sealed class LiveKitRoomService(
     HttpClient httpClient,
+    IOptions<LiveKitOptions> liveKitOptions,
     IConfiguration configuration,
     LiveKitTokenService tokens)
 {
-    private readonly Uri _baseUri = new(configuration["LIVEKIT_HTTP_URL"] ?? "http://livekit:7880");
+    private readonly Uri _baseUri = new(liveKitOptions.Value.HttpUrl);
 
     /// <summary>
     /// Find patient participant's camera track SID.

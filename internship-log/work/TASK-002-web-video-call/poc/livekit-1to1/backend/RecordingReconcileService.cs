@@ -1,3 +1,5 @@
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 namespace LiveKitPoc.Api;
 
 /// <summary>
@@ -18,16 +20,23 @@ public sealed class RecordingReconcileService(
     RecordingFinalizeService finalize,
     IConfiguration configuration,
     ILogger<RecordingReconcileService> logger,
+    IOptions<RecordingRuntimeOptions>? recordingOptions = null,
     IConsultationCatalog? consultationCatalog = null) : BackgroundService
 {
     private int IntervalSeconds =>
-        int.TryParse(configuration["RECORDING_RECONCILE_SECONDS"], out var n) && n > 0 ? n : 30;
+        recordingOptions?.Value.ReconcileSeconds > 0
+            ? recordingOptions.Value.ReconcileSeconds
+            : (int.TryParse(configuration["RECORDING_RECONCILE_SECONDS"], out var n) && n > 0 ? n : 30);
 
     private int BatchLimit =>
-        int.TryParse(configuration["RECORDING_RECONCILE_BATCH"], out var n) && n > 0 ? n : 40;
+        recordingOptions?.Value.ReconcileBatch > 0
+            ? recordingOptions.Value.ReconcileBatch
+            : (int.TryParse(configuration["RECORDING_RECONCILE_BATCH"], out var n) && n > 0 ? n : 40);
 
     private int GraceSeconds =>
-        int.TryParse(configuration["RECORDING_RECONCILE_GRACE_SECONDS"], out var n) && n >= 0 ? n : 10;
+        recordingOptions?.Value.ReconcileGraceSeconds >= 0
+            ? recordingOptions.Value.ReconcileGraceSeconds
+            : (int.TryParse(configuration["RECORDING_RECONCILE_GRACE_SECONDS"], out var n) && n >= 0 ? n : 10);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
