@@ -7,9 +7,10 @@
 | **CallAudio** (full session) | **Always auto** after Accept (+ retry on token join) | One active / one Ready | **Not required** (`FEATURE_AUTO_CALL_AUDIO` kill-switch only) |
 | **DentalVideoClip** | Staff button start/stop | **Many sequential** (one active at a time) | Not required (staff action is the gate) |
 | **Snapshot** | Staff request / patient capture | Many | N/A |
-| Legacy full-call MP4 | Staff red record button (optional) | One | Legacy policy `RequireConsent` |
+| Legacy full-call MP4 | **Retired from UI** (backend APIs may still exist) | — | — |
 
-Manager library: `/api/consultations` (canonical) + `/api/recordings` (legacy). Login **A-MGR**.
+Manager library UI: **only** `/api/consultations` (canonical). Login **A-MGR**.  
+Legacy `/api/recordings` + red record button removed from SPA (backend kept for finalize/webhook safety until a later cleanup PR).
 
 ## Canonical (product path — prefer)
 
@@ -32,7 +33,7 @@ Manager library: `/api/consultations` (canonical) + `/api/recordings` (legacy). 
 
 - Storage keys: `RecordingStorageKeys` / `IRecordingStorage.BuildKey`
 - CallSession fields: `RecordingStatus`, `RecordingEgressId`, `RecordingStorageKey`, …
-- UI Manager library still lists legacy catalog rows
+- **UI retired** — do not surface in manager SPA; prefer CallAudio + clips
 
 ## Invariants
 

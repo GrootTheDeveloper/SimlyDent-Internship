@@ -1196,7 +1196,6 @@ export function mountCallWindowApp(opts = {}) {
           </div>
           <div class="call-header-actions">
             <span v-if="autoAudioLabel" class="recording-indicator" :title="'Audio phiên (tự động) · ' + autoAudioStatus"><span></span> {{ autoAudioLabel }}</span>
-            <span v-if="isRecording || recordingStatusLabel" class="recording-indicator" style="opacity:.9"><span></span> {{ recordingStatusLabel || 'Đang ghi' }}</span>
             <span v-if="dentalClipStatus === 'Recording'" class="recording-indicator"><span></span> Clip răng</span>
             <span v-else-if="dentalClipReadyCount > 0" class="recording-indicator" style="opacity:.8"><span></span> {{ dentalClipReadyCount }} clip</span>
             <span v-if="photoStatus" class="recording-indicator" style="opacity:.85">{{ photoStatus }}</span>
@@ -1267,9 +1266,6 @@ export function mountCallWindowApp(opts = {}) {
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !cameraEnabled && 'off']" @click="toggleCamera" :title="cameraEnabled ? 'Tắt camera' : 'Bật camera'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', 'record-btn', isRecording && 'recording']" :disabled="recordingBusy || recordingInProgress" @click="toggleRecording" :title="isRecording ? 'Dừng ghi hình full (legacy)' : 'Ghi hình full cuộc gọi (legacy, tuỳ chọn — audio phiên đã tự ghi)'">
-                <span class="record-dot"></span>
-              </button>
               <button
                 v-if="mediaPermissionState === 'connected' && !isManagerRole"
                 :class="['ctrl-btn', dentalClipStatus === 'Recording' && 'recording']"
@@ -1291,9 +1287,6 @@ export function mountCallWindowApp(opts = {}) {
                 title="Chụp ảnh (gửi lệnh cho bệnh nhân)"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </button>
-              <button v-if="recordingAvailable" class="ctrl-btn download-btn" @click="downloadRecording" title="Tải bản ghi (quản lý)">
-                <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
               </button>
               <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="rejoinMedia">
                 Tham gia lại media

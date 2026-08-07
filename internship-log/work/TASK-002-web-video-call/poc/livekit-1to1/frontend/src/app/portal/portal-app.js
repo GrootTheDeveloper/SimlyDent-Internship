@@ -35,8 +35,6 @@ import {
   queueStatusVi,
   clinicDisplayName,
   roleDisplayName,
-  recordingModeLabel,
-  recordingStatusLabelVi,
   formatViDateTime,
   formatWaitSeconds,
 } from '../../shared/call-helpers.js'
@@ -79,14 +77,7 @@ export function mountPortalApp() {
       heartbeatTimer: null,
       showOtherClinics: false,
       guestAvatarUrl: GUEST_AVATAR_URL,
-      /** Manager library */
-      recordings: [],
-      recordingsTotal: 0,
-      recordingsLoading: false,
-      recordingsError: '',
-      recordingsFilter: 'all', // all | complete | deleted | failed
-      recordingActionId: null,
-      /** Manager consultations (M5) */
+      /** Manager consultations (canonical media catalog) */
       consultations: [],
       consultationsLoading: false,
       consultationsError: '',
@@ -172,17 +163,6 @@ export function mountPortalApp() {
       },
       queueMineCount() {
         return (this.queueItems || []).filter(i => this.isQueueAssignedToMe(i)).length
-      },
-      filteredRecordings() {
-        const list = this.recordings || []
-        const f = this.recordingsFilter
-        if (f === 'complete') return list.filter(r => r.recordingStatus === 'Complete')
-        if (f === 'deleted') return list.filter(r => r.recordingStatus === 'Deleted')
-        if (f === 'failed') return list.filter(r => r.recordingStatus === 'Failed')
-        return list
-      },
-      completeRecordingsCount() {
-        return (this.recordings || []).filter(r => r.recordingStatus === 'Complete').length
       },
       /** Group demo accounts by clinic so login stays short + scannable. */
       loginAccountGroups() {
@@ -313,15 +293,13 @@ export function mountPortalApp() {
         this.currentUser = user
         this.isLoggedIn = true
         this.onlineMap = {}
-        this.recordings = []
-        this.recordingsError = ''
         history.replaceState(null, '', `?user=${encodeURIComponent(user.id)}`)
         await this.loadIdentities()
         const sameClinicPeers = this.identities.filter(i => i.id !== user.id)
         this.targetId = sameClinicPeers[0]?.id || ''
         await this.connectRealtime()
         if (String(user.role || '').toLowerCase() === 'manager') {
-          await Promise.all([this.loadConsultations(), this.loadRecordings()])
+          await this.loadConsultations()
         }
       },
       async logout() {
@@ -340,10 +318,6 @@ export function mountPortalApp() {
         this.queueItems = []
         this.queuePanelOpen = false
         this.identities = []
-        this.recordings = []
-        this.recordingsTotal = 0
-        this.recordingsError = ''
-        this.recordingActionId = null
         this.consultations = []
         this.consultationDetail = null
         history.replaceState(null, '', location.pathname)
@@ -423,63 +397,6 @@ export function mountPortalApp() {
           this.mediaActionId = null
         }
       },
-      async loadRecordings() {
-        if (!this.isManager) return
-        this.recordingsLoading = true
-        this.recordingsError = ''
-        try {
-          const res = await apiFetch('/api/recordings', { headers: authHeaders() })
-          const body = await res.json().catch(() => ({}))
-          if (!res.ok) {
-            throw new Error(body.error || `Không tải được danh sách (HTTP ${res.status})`)
-          }
-          this.recordings = body.items || []
-          this.recordingsTotal = body.total ?? this.recordings.length
-        } catch (e) {
-          this.recordingsError = e.message || 'Lỗi tải bản ghi'
-          this.recordings = []
-          this.recordingsTotal = 0
-        } finally {
-          this.recordingsLoading = false
-        }
-      },
-      async downloadRecordingByCallId(callId) {
-        if (!callId || this.recordingActionId) return
-        this.recordingActionId = callId
-        try {
-          await fetchAndSaveRecording(callId)
-        } catch (e) {
-          this.popupErrorMessage = e.message
-          this.popupState = 'error'
-          this.error = e.message
-        } finally {
-          this.recordingActionId = null
-        }
-      },
-      async deleteRecordingByCallId(callId) {
-        if (!callId || this.recordingActionId) return
-        const ok = window.confirm('Xóa bản ghi này? Thao tác không hoàn tác được.')
-        if (!ok) return
-        this.recordingActionId = callId
-        try {
-          const res = await apiFetch(`/api/calls/${callId}/recording`, {
-            method: 'DELETE',
-            headers: authHeaders()
-          })
-          const body = await res.json().catch(() => ({}))
-          if (!res.ok) {
-            throw new Error(body.error || `Không xóa được (HTTP ${res.status})`)
-          }
-          await this.loadRecordings()
-        } catch (e) {
-          this.popupErrorMessage = e.message
-          this.popupState = 'error'
-        } finally {
-          this.recordingActionId = null
-        }
-      },
-      recordingStatusLabelVi,
-      recordingModeLabel,
       formatViDateTime,
       selectNav(id) {
         this.activeNav = id || 'call'
@@ -1176,14 +1093,14 @@ export function mountPortalApp() {
                 </div>
               </div>
 
-              <!-- Manager: consultations + legacy recordings -->
+              <!-- Manager: consultations (canonical media catalog only) -->
               <div v-else-if="isManager" class="manager-library">
                 <header class="library-header">
                   <div>
                     <p class="library-kicker">{{ clinicLabel(currentUser.clinicId || currentUser.tenantId) }} · Quản lý</p>
                     <h2 class="library-title">Thư viện tư vấn</h2>
                     <p class="library-desc">
-                      Media theo phiên tư vấn (audio + clip răng + ảnh). Chỉ quản lý đúng phòng khám.
+                      Audio phiên (tự ghi) · clip răng · ảnh. Chỉ quản lý đúng phòng khám.
                     </p>
                   </div>
                   <div class="library-actions">
@@ -1193,15 +1110,15 @@ export function mountPortalApp() {
                     <button
                       type="button"
                       class="btn-secondary-pill"
-                      :disabled="consultationsLoading || recordingsLoading"
-                      @click="loadConsultations(); loadRecordings()"
+                      :disabled="consultationsLoading"
+                      @click="loadConsultations()"
                     >
-                      {{ (consultationsLoading || recordingsLoading) ? 'Đang tải…' : 'Làm mới' }}
+                      {{ consultationsLoading ? 'Đang tải…' : 'Làm mới' }}
                     </button>
                   </div>
                 </header>
 
-                <h3 class="library-section-title" style="margin: 16px 0 8px; font-size: 15px;">Consultations</h3>
+                <h3 class="library-section-title" style="margin: 16px 0 8px; font-size: 15px;">Phiên tư vấn</h3>
                 <p v-if="consultationsError" class="library-error">{{ consultationsError }}</p>
                 <div v-if="consultationsLoading && !consultations.length" class="library-empty">
                   Đang tải consultations…
@@ -1301,92 +1218,6 @@ export function mountPortalApp() {
                       </section>
                     </template>
                   </div>
-                </div>
-
-                <h3 class="library-section-title" style="margin: 28px 0 8px; font-size: 15px;">Legacy recordings (trước media catalog)</h3>
-                <div class="library-filters" role="tablist" aria-label="Lọc bản ghi cũ">
-                  <button
-                    type="button"
-                    role="tab"
-                    :class="['filter-chip', recordingsFilter === 'all' && 'active']"
-                    @click="recordingsFilter = 'all'"
-                  >Tất cả ({{ recordings.length }})</button>
-                  <button
-                    type="button"
-                    role="tab"
-                    :class="['filter-chip', recordingsFilter === 'complete' && 'active']"
-                    @click="recordingsFilter = 'complete'"
-                  >Sẵn sàng tải ({{ completeRecordingsCount }})</button>
-                  <button
-                    type="button"
-                    role="tab"
-                    :class="['filter-chip', recordingsFilter === 'failed' && 'active']"
-                    @click="recordingsFilter = 'failed'"
-                  >Lỗi</button>
-                  <button
-                    type="button"
-                    role="tab"
-                    :class="['filter-chip', recordingsFilter === 'deleted' && 'active']"
-                    @click="recordingsFilter = 'deleted'"
-                  >Đã xóa</button>
-                </div>
-
-                <p v-if="recordingsError" class="library-error">{{ recordingsError }}</p>
-
-                <div v-if="recordingsLoading && !recordings.length" class="library-empty">
-                  Đang tải danh sách bản ghi cũ…
-                </div>
-                <div v-else-if="!filteredRecordings.length" class="library-empty">
-                  <p class="library-empty-title">Không có legacy recording</p>
-                </div>
-                <div v-else class="library-table-wrap">
-                  <table class="library-table">
-                    <thead>
-                      <tr>
-                        <th>Khách / cuộc gọi</th>
-                        <th>Chế độ</th>
-                        <th>Trạng thái</th>
-                        <th>Cập nhật</th>
-                        <th class="col-actions">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="row in filteredRecordings" :key="row.callId">
-                        <td>
-                          <div class="library-primary">{{ row.callerLabel || row.callerId }}</div>
-                          <div class="library-secondary">
-                            {{ row.assignedStaffId ? ('NV: ' + row.assignedStaffId) : 'Chưa gán NV' }}
-                            · <span class="mono" :title="row.callId">{{ String(row.callId).slice(0, 8) }}…</span>
-                          </div>
-                        </td>
-                        <td>{{ recordingModeLabel(row.recordingMode) }}</td>
-                        <td>
-                          <span
-                            class="status-pill"
-                            :class="'status-pill--' + String(row.recordingStatus || '').toLowerCase()"
-                          >{{ recordingStatusLabelVi(row.recordingStatus) }}</span>
-                        </td>
-                        <td class="library-secondary">{{ formatViDateTime(row.updatedAt) }}</td>
-                        <td class="col-actions">
-                          <button
-                            v-if="row.canDownload"
-                            type="button"
-                            class="row-btn row-btn--primary"
-                            :disabled="recordingActionId === row.callId"
-                            @click="downloadRecordingByCallId(row.callId)"
-                          >Tải</button>
-                          <button
-                            v-if="row.canDelete && row.recordingStatus !== 'Deleted'"
-                            type="button"
-                            class="row-btn row-btn--danger"
-                            :disabled="recordingActionId === row.callId"
-                            @click="deleteRecordingByCallId(row.callId)"
-                          >Xóa</button>
-                          <span v-if="!row.canDownload && row.recordingStatus === 'Deleted'" class="library-secondary">—</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
                 </div>
               </div>
 
