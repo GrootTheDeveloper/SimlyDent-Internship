@@ -15,7 +15,6 @@ import {
 } from '../../domain/media/media-utils.js'
 import {
   MediaEngineEvent,
-  MediaConnectionState,
   createMediaEngine,
 } from '../../domain/media/media-engine.js'
 import {
@@ -28,12 +27,17 @@ import {
   subscribeAvailableRemoteTracks,
 } from '../../domain/media/livekit-adapter.js'
 import {
-  MediaModeAction,
-  normalizeSessionMediaMode,
+  CameraRequestAction,
+  CameraRequestState,
   isMediaModeMessage,
-  buildMediaModeMessage,
-  publishMediaModeMessage,
+  isCameraRequestMessage,
+  isObsoleteModeSyncMessage,
+  normalizeCameraRequestAction,
+  publishCameraRequest,
   parseDataPayload,
+  reduceCameraRequestState,
+  shouldJoinAudioOnly,
+  desiredCameraFromInitialMode,
 } from '../../domain/media/media-mode.js'
 import {
   readConnectionStats,
@@ -104,17 +108,25 @@ export function mountCallWindowApp(opts = {}) {
     data: {
       callId,
       userId,
-      /** Initial join preference (from URL / create call) */
+      /**
+       * Join preference only (URL / server initialMediaMode).
+       * After media connects, never used as a runtime "session mode".
+       */
       preferredMediaMode: preferredMediaHint,
-      /** Runtime session mode — may switch mid-call via UI / peer request */
-      sessionMediaMode: preferredMediaHint === 'audio' ? 'audio' : 'video',
+      /**
+       * Local desired camera after connect / for reconnect.
+       * Independent of remote camera and of initialMediaMode once mediaSessionStarted.
+       */
+      desiredCameraEnabled: preferredMediaHint !== 'audio',
+      /** True after first successful LiveKit connect this window lifetime. */
+      mediaSessionStarted: false,
       currentUser: cached || null,
       identities: [],
       call: null,
 
       hub: null,
       room: null,
-      /** @type {import('./domain/media/media-engine.js').MediaEngine|null} */
+      /** @type {import('../../domain/media/media-engine.js').MediaEngine|null} */
       mediaEngine: null,
       localTracks: [],
       /** Stops canvas portrait pipeline (if used) */
@@ -122,19 +134,23 @@ export function mountCallWindowApp(opts = {}) {
       connected: false,
       joining: false,
       mediaPermissionState: 'idle',
+      /** Derived from MediaEngine / LiveKit publications after ops complete. */
       cameraEnabled: preferredMediaHint !== 'audio',
       microphoneEnabled: true,
       cameraToggleBusy: false,
       intentionalLeave: false,
       reconnectNotice: '',
+      /** Remote camera track currently attached / unmuted (LiveKit-derived). */
       remoteVideoConnected: false,
       needsAudioPermission: false,
-      /** Peer asked us to enable camera */
-      incomingVideoRequest: false,
-      /** We asked peer; waiting for accept/reject */
-      outgoingVideoRequest: false,
-      mediaModeBusy: false,
-      /** Consultation media (M2–M4) */
+      /**
+       * Camera request FSM — application state only (LiveKit has no request semantic).
+       * idle | sent | received | accepted | rejected | expired
+       */
+      cameraRequestState: CameraRequestState.Idle,
+      cameraRequestBusy: false,
+      _cameraRequestExpireTimer: null,
+      /** Consultation media (M2–M4) — secondary tools, not primary controls */
       dentalClipBusy: false,
       dentalClipStatus: 'Idle',
       dentalClipAssetId: null,
@@ -154,6 +170,10 @@ export function mountCallWindowApp(opts = {}) {
       qualityFlushInFlight: false,
       qualityFlushPromise: null,
       showQualityPanel: false,
+      showClinicalTools: false,
+      showMoreMenu: false,
+      callDurationSeconds: 0,
+      _callDurationTimer: null,
 
       error: '',
       broadcastChannel: null,
@@ -176,44 +196,63 @@ export function mountCallWindowApp(opts = {}) {
       isEmbedPeer() {
         return isEmbedVisitorId(this.peerId)
       },
-      isAudioSession() {
-        return this.sessionMediaMode === 'audio'
-      },
+      /** Presentation only: neither side has remote video track visible. */
       showRemotePlaceholder() {
-        if (this.isAudioSession) return false
         return this.mediaPermissionState === 'connected' && !this.remoteVideoConnected
+      },
+      /** Large phone-style stage when remote has no camera (not a global session mode). */
+      showVoiceStage() {
+        return (
+          this.mediaPermissionState === 'connected' &&
+          !this.remoteVideoConnected &&
+          this.call?.status === 'Accepted'
+        )
       },
       remotePlaceholderText() {
         if (this.isEmbedPeer) return 'Khách đang tắt camera'
         return 'Đối phương đang tắt camera'
       },
       mediaSetupLabel() {
+        const wantCam = this.desiredCameraEnabled
         if (this.mediaPermissionState === 'requesting') {
-          return this.preferredMediaMode === 'audio'
-            ? 'Đang xin quyền micro (thoại)…'
-            : 'Đang xin quyền camera và micro…'
+          return wantCam
+            ? 'Đang xin quyền camera và micro…'
+            : 'Đang xin quyền micro…'
         }
         if (this.mediaPermissionState === 'connecting') {
-          return this.preferredMediaMode === 'audio'
-            ? 'Đang kết nối thoại…'
-            : 'Đang kết nối video…'
+          return wantCam ? 'Đang kết nối…' : 'Đang kết nối thoại…'
         }
         if (this.mediaPermissionState === 'reconnecting') {
           return this.reconnectNotice || 'Đang kết nối lại media…'
         }
-        if (this.mediaPermissionState === 'error') return this.error || 'Không kết nối được hình ảnh / âm thanh'
+        if (this.mediaPermissionState === 'error') {
+          return this.error || 'Không kết nối được hình ảnh / âm thanh'
+        }
         if (this.mediaPermissionState === 'connected' && !this.remoteVideoConnected) {
           return this.isEmbedPeer
             ? 'Khách đang tắt camera (vẫn nghe được tiếng).'
             : 'Đối phương đang tắt camera.'
         }
-        return this.preferredMediaMode === 'audio'
-          ? 'Đang chuẩn bị micro…'
-          : 'Đang chuẩn bị camera và micro…'
+        return wantCam ? 'Đang chuẩn bị camera và micro…' : 'Đang chuẩn bị micro…'
       },
       callStatusLabel() {
         if (!this.call) return 'Đang tải…'
         return callStatusVi(this.call.status)
+      },
+      callDurationLabel() {
+        const s = Math.max(0, this.callDurationSeconds | 0)
+        const m = Math.floor(s / 60)
+        const r = s % 60
+        return `${m}:${String(r).padStart(2, '0')}`
+      },
+      connectionHint() {
+        if (this.mediaPermissionState === 'reconnecting') return 'Đang kết nối lại…'
+        if (this.mediaPermissionState === 'error') return 'Mất media — cuộc gọi vẫn mở'
+        if (this.mediaPermissionState === 'connected') return 'Đã kết nối'
+        if (this.mediaPermissionState === 'connecting' || this.mediaPermissionState === 'requesting') {
+          return 'Đang kết nối…'
+        }
+        return this.callStatusLabel
       },
       qualityBadge() {
         const resolution = this.qualityStats.incomingResolution
@@ -224,13 +263,19 @@ export function mountCallWindowApp(opts = {}) {
       isManagerRole() {
         return String(this.currentUser?.role || this.userRole || '').toLowerCase() === 'manager'
       },
+      incomingCameraRequest() {
+        return this.cameraRequestState === CameraRequestState.Received
+      },
+      outgoingCameraRequest() {
+        return this.cameraRequestState === CameraRequestState.Sent
+      },
       /** Product: session audio is always auto (CallAudio). */
       autoAudioStatus() {
         return this.call?.autoAudioStatus || this._polledAutoAudioStatus || 'Idle'
       },
       autoAudioLabel() {
         const s = this.autoAudioStatus
-        if (s === 'Recording') return 'Đang ghi âm phiên'
+        if (s === 'Recording') return 'Đang ghi âm'
         if (s === 'Finalizing') return 'Đang lưu audio…'
         if (s === 'Ready') return 'Đã có audio phiên'
         if (s === 'Failed') return 'Ghi âm phiên lỗi'
@@ -270,6 +315,8 @@ export function mountCallWindowApp(opts = {}) {
     },
     beforeDestroy() {
       this.stopMediaStatePolling()
+      this.stopCallDurationTimer()
+      this.clearCameraRequestExpireTimer()
       this.disconnectRoom()
       if (this.hub) this.hub.stop()
       if (this.broadcastChannel) {
@@ -294,32 +341,64 @@ export function mountCallWindowApp(opts = {}) {
         }
       },
       /**
-       * Authoritative initial media from server CallView.
-       * URL/sessionStorage is only a fallback when older backend lacks the field.
+       * Authoritative *initial* media preference from server CallView.
+       * Only seeds join preference / desiredCamera before the first media session.
+       * Never resets runtime camera after mediaSessionStarted (reconnect-safe).
        */
       applyAuthoritativeMediaMode(call) {
         const serverMode = call?.initialMediaMode || call?.InitialMediaMode
         if (serverMode) {
           this.preferredMediaMode = normalizeMediaMode(serverMode)
-        } else if (this.preferredMediaMode) {
-          // keep URL/session hint
-        } else {
+        } else if (!this.preferredMediaMode) {
           this.preferredMediaMode = 'video'
         }
-        // Seed session mode only before first media connect (mid-call switches are runtime).
-        if (!this.room && !this.mediaEngine?.room) {
-          this.sessionMediaMode = normalizeSessionMediaMode(this.preferredMediaMode)
-          this.cameraEnabled = this.sessionMediaMode !== 'audio'
+        if (!this.mediaSessionStarted) {
+          this.desiredCameraEnabled = desiredCameraFromInitialMode(this.preferredMediaMode)
+          this.cameraEnabled = this.desiredCameraEnabled
         }
         try {
           sessionStorage.setItem('simlydent_preferred_media', this.preferredMediaMode)
         } catch { /* ignore */ }
-        rtLog('media_mode_resolved', {
+        rtLog('initial_media_resolved', {
           preferred: this.preferredMediaMode,
-          session: this.sessionMediaMode,
+          desiredCamera: this.desiredCameraEnabled,
+          mediaSessionStarted: this.mediaSessionStarted,
           server: serverMode || null,
           urlHint: preferredMediaHint
         })
+      },
+      startCallDurationTimer() {
+        this.stopCallDurationTimer()
+        this.callDurationSeconds = 0
+        this._callDurationTimer = setInterval(() => {
+          this.callDurationSeconds += 1
+        }, 1000)
+      },
+      stopCallDurationTimer() {
+        if (this._callDurationTimer) {
+          clearInterval(this._callDurationTimer)
+          this._callDurationTimer = null
+        }
+      },
+      clearCameraRequestExpireTimer() {
+        if (this._cameraRequestExpireTimer) {
+          clearTimeout(this._cameraRequestExpireTimer)
+          this._cameraRequestExpireTimer = null
+        }
+      },
+      setCameraRequestState(event) {
+        this.cameraRequestState = reduceCameraRequestState(this.cameraRequestState, event)
+        if (this.cameraRequestState === CameraRequestState.Accepted ||
+            this.cameraRequestState === CameraRequestState.Rejected ||
+            this.cameraRequestState === CameraRequestState.Expired) {
+          // Terminal request outcomes → idle after a short UI beat
+          const snap = this.cameraRequestState
+          setTimeout(() => {
+            if (this.cameraRequestState === snap) {
+              this.cameraRequestState = CameraRequestState.Idle
+            }
+          }, 1200)
+        }
       },
       async verifyAndConnect() {
         try {
@@ -383,22 +462,36 @@ export function mountCallWindowApp(opts = {}) {
           case MediaEngineEvent.Connected:
             this.mediaPermissionState = 'connected'
             this.reconnectNotice = ''
+            this.mediaSessionStarted = true
             this.syncRoomFromEngine()
             this.reconcileLocalMediaUi()
             this.attachAvailableRemoteTracks()
-            this.$nextTick(() => this.attachLocalVideo())
+            this.$nextTick(() => {
+              if (this.cameraEnabled) this.attachLocalVideo()
+            })
             this.startQualityMonitoring()
+            if (!this._callDurationTimer) this.startCallDurationTimer()
             break
           case MediaEngineEvent.Reconnecting:
+            // Media blip only — business call stays Accepted
             this.mediaPermissionState = 'reconnecting'
-            this.reconnectNotice = 'Mạng media đang reconnect… cuộc gọi business vẫn mở.'
+            this.reconnectNotice = 'Mạng media đang reconnect… cuộc gọi vẫn mở.'
             break
           case MediaEngineEvent.Reconnected:
             this.mediaPermissionState = 'connected'
             this.reconnectNotice = ''
             this.syncRoomFromEngine()
             this.reconcileLocalMediaUi()
+            // Restore local camera from desired state if SDK dropped it
+            if (this.desiredCameraEnabled && !this.cameraEnabled) {
+              this.ensureCameraEnabled(true).catch(() => {})
+            } else if (!this.desiredCameraEnabled && this.cameraEnabled) {
+              this.ensureCameraEnabled(false).catch(() => {})
+            }
             this.attachAvailableRemoteTracks()
+            this.$nextTick(() => {
+              if (this.cameraEnabled) this.attachLocalVideo()
+            })
             break
           case MediaEngineEvent.Disconnected: {
             const reasonStr = payload?.reason || 'unknown'
@@ -410,6 +503,7 @@ export function mountCallWindowApp(opts = {}) {
               this.handleCallEnded()
               break
             }
+            // Keep desiredCameraEnabled — rejoin must restore runtime intent, not initialMediaMode
             this.room = null
             this.mediaEngine = null
             this.mediaPermissionState = 'error'
@@ -501,7 +595,7 @@ export function mountCallWindowApp(opts = {}) {
             const msg = parseDataPayload(payload.payload)
             if (!msg) break
             if (isMediaModeMessage(msg)) {
-              this.handleMediaModeMessage(msg)
+              this.handleCameraRequestMessage(msg)
               break
             }
             if (msg?.type !== 'capture_photo') break
@@ -534,7 +628,10 @@ export function mountCallWindowApp(opts = {}) {
         this.reconnectNotice = ''
         this.error = ''
         try {
-          if (this.call) this.applyAuthoritativeMediaMode(this.call)
+          // Seed preferred only before first media session — never overwrite desiredCamera mid-call
+          if (this.call && !this.mediaSessionStarted) {
+            this.applyAuthoritativeMediaMode(this.call)
+          }
 
           const res = await apiFetch(`/api/calls/${this.callId}/token`, {
             method: 'POST',
@@ -547,13 +644,19 @@ export function mountCallWindowApp(opts = {}) {
           const credentials = await res.json()
 
           this.mediaPermissionState = 'requesting'
-          if (this.call) {
-            this.sessionMediaMode = normalizeSessionMediaMode(
-              this.call.initialMediaMode || this.preferredMediaMode
-            )
-          }
-          const audioOnly = this.sessionMediaMode === 'audio'
-          rtLog('joinRoom_media', { audioOnly, sessionMediaMode: this.sessionMediaMode, via: 'MediaEngine' })
+          // audioOnly from desiredCamera / initial preference — NOT a global session mode
+          const audioOnly = shouldJoinAudioOnly({
+            mediaSessionStarted: this.mediaSessionStarted,
+            desiredCameraEnabled: this.desiredCameraEnabled,
+            initialMediaMode: this.preferredMediaMode
+          })
+          rtLog('joinRoom_media', {
+            audioOnly,
+            desiredCamera: this.desiredCameraEnabled,
+            mediaSessionStarted: this.mediaSessionStarted,
+            preferred: this.preferredMediaMode,
+            via: 'MediaEngine'
+          })
 
           if (this.mediaEngine) {
             try { await this.mediaEngine.destroy() } catch { /* ignore */ }
@@ -567,24 +670,31 @@ export function mountCallWindowApp(opts = {}) {
           this.mediaPermissionState = 'connecting'
           await this.mediaEngine.connect(credentials.url, credentials.token, { audioOnly })
           this.syncRoomFromEngine()
+          this.mediaSessionStarted = true
           this.reconcileLocalMediaUi()
-          // Connected event also sets state; ensure UI settled
           if (this.mediaPermissionState !== 'error') {
             this.mediaPermissionState = 'connected'
           }
           this.startMediaStatePolling()
-          // Enforce mic-only when session is audio (never leave a cam track up)
-          if (this.sessionMediaMode === 'audio') {
+
+          // Reconcile actual publications to desired local camera (independent of peer)
+          if (this.desiredCameraEnabled) {
+            try {
+              await this.mediaEngine.ensureCameraEnabled(true)
+            } catch (e) {
+              safeWarn('join restore camera', e)
+              this.error = e?.message || 'Không bật được camera — micro vẫn hoạt động.'
+            }
+          } else {
             try {
               await this.mediaEngine.ensureCameraEnabled(false)
             } catch { /* ignore */ }
-            this.cameraEnabled = false
           }
+          this.reconcileLocalMediaUi()
           this.$nextTick(() => {
-            if (!this.isAudioSession && this.cameraEnabled) this.attachLocalVideo()
+            if (this.cameraEnabled) this.attachLocalVideo()
           })
-          // Announce mode so peer can align UI after late join
-          this.publishModeSync()
+          // No mode_sync — remote UI derives video from LiveKit publications
         } catch (err) {
           try {
             if (this.mediaEngine) await this.mediaEngine.destroy()
@@ -663,163 +773,134 @@ export function mountCallWindowApp(opts = {}) {
           rtLog('ensureCameraEnabled', { want: !!wantEnabled, via: 'MediaEngine' })
           const after = await this.mediaEngine.ensureCameraEnabled(!!wantEnabled)
           this.reconcileLocalMediaUi()
-          if (this.cameraEnabled && !this.isAudioSession) this.attachLocalVideo()
+          if (this.cameraEnabled) this.attachLocalVideo()
           else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
           return after
         } catch (e) {
           console.warn('ensureCameraEnabled failed', e)
           this.reconcileLocalMediaUi()
           this.error = wantEnabled
-            ? (e?.message || 'Không bật được camera — đã giữ trạng thái thoại.')
+            ? (e?.message || 'Không bật được camera.')
             : (e?.message || 'Không tắt được camera.')
           return this.cameraEnabled
         }
       },
+      /**
+       * Local camera toggle only — never changes peer camera and never
+       * broadcasts a global session mode.
+       */
       async toggleCamera() {
-        if (!this.mediaEngine?.room) return
-        // In audio session, camera toggle promotes/demotes session mode.
-        if (this.isAudioSession) {
-          await this.switchToVideoSession({ selfInitiated: true })
-          return
-        }
-        const next = !this.cameraEnabled
-        await this.ensureCameraEnabled(next)
-        if (!next) await this.switchToAudioSession({ selfInitiated: true })
-      },
-      async publishModeSync() {
-        const room = this.mediaEngine?.room || this.room
-        await publishMediaModeMessage(
-          room,
-          buildMediaModeMessage(MediaModeAction.ModeSync, {
-            mode: this.sessionMediaMode,
-            from: this.userId
-          })
-        )
-      },
-      async switchToVideoSession({ selfInitiated = false, fromAccept = false } = {}) {
-        if (this.mediaModeBusy) return
-        this.mediaModeBusy = true
+        if (!this.mediaEngine?.room || this.cameraToggleBusy) return
+        this.cameraToggleBusy = true
         this.error = ''
         try {
+          const next = !this.cameraEnabled
+          this.desiredCameraEnabled = next
+          const ok = await this.ensureCameraEnabled(next)
+          if (ok !== next) {
+            // Revert desire if operation failed
+            this.desiredCameraEnabled = this.cameraEnabled
+          }
+        } finally {
+          this.cameraToggleBusy = false
+        }
+      },
+      /**
+       * Business request: ask remote participant to enable *their* camera.
+       * Does not change local camera.
+       */
+      async requestPeerCamera() {
+        if (this.cameraRequestBusy || this.outgoingCameraRequest) return
+        const room = this.mediaEngine?.room || this.room
+        if (!room) return
+        this.cameraRequestBusy = true
+        try {
+          this.setCameraRequestState('send')
+          this.clearCameraRequestExpireTimer()
+          await publishCameraRequest(room, CameraRequestAction.Request, {
+            from: this.userId
+          })
+          this._cameraRequestExpireTimer = setTimeout(() => {
+            if (this.cameraRequestState === CameraRequestState.Sent) {
+              this.setCameraRequestState('expire')
+              this.error = 'Yêu cầu bật camera hết hạn — đối phương chưa phản hồi.'
+            }
+          }, 45000)
+        } finally {
+          this.cameraRequestBusy = false
+        }
+      },
+      /** Patient/staff accepts: enable *local* camera only; notify peer. */
+      async acceptCameraRequest() {
+        if (this.cameraRequestBusy) return
+        this.cameraRequestBusy = true
+        this.error = ''
+        try {
+          this.desiredCameraEnabled = true
           const ok = await this.ensureCameraEnabled(true)
-          if (!ok && selfInitiated) {
+          if (!ok) {
+            this.desiredCameraEnabled = this.cameraEnabled
             this.error = this.error || 'Không bật được camera.'
             return
           }
-          this.sessionMediaMode = 'video'
-          this.incomingVideoRequest = false
-          this.outgoingVideoRequest = false
-          this.$nextTick(() => this.attachLocalVideo())
+          this.setCameraRequestState('accept')
+          this.clearCameraRequestExpireTimer()
           const room = this.mediaEngine?.room || this.room
-          const action = fromAccept ? MediaModeAction.AcceptVideo : MediaModeAction.SwitchVideo
-          await publishMediaModeMessage(
-            room,
-            buildMediaModeMessage(action, { mode: 'video', from: this.userId })
-          )
+          await publishCameraRequest(room, CameraRequestAction.Accept, {
+            from: this.userId
+          })
+          this.$nextTick(() => this.attachLocalVideo())
         } finally {
-          this.mediaModeBusy = false
+          this.cameraRequestBusy = false
         }
       },
-      async switchToAudioSession({ selfInitiated = false } = {}) {
-        if (this.mediaModeBusy) return
-        this.mediaModeBusy = true
-        try {
-          if (this.cameraEnabled) {
-            await this.ensureCameraEnabled(false)
-          }
-          this.sessionMediaMode = 'audio'
-          this.incomingVideoRequest = false
-          this.outgoingVideoRequest = false
-          if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
-          if (this.$refs.remoteMedia) {
-            // keep audio elements; video nodes may remain muted off — clear video children only
-            const vids = this.$refs.remoteMedia.querySelectorAll('video')
-            vids.forEach((v) => {
-              try { v.srcObject = null } catch { /* ignore */ }
-              v.remove()
-            })
-          }
-          this.remoteVideoConnected = false
-          if (selfInitiated) {
-            const room = this.mediaEngine?.room || this.room
-            await publishMediaModeMessage(
-              room,
-              buildMediaModeMessage(MediaModeAction.SwitchAudio, {
-                mode: 'audio',
-                from: this.userId
-              })
-            )
-          }
-        } finally {
-          this.mediaModeBusy = false
-        }
-      },
-      async requestPeerVideo() {
-        if (this.mediaModeBusy || this.outgoingVideoRequest) return
+      /** Decline request — no local or remote camera side effects. */
+      async rejectCameraRequest() {
+        this.setCameraRequestState('reject')
+        this.clearCameraRequestExpireTimer()
         const room = this.mediaEngine?.room || this.room
-        if (!room) return
-        this.outgoingVideoRequest = true
-        await publishMediaModeMessage(
-          room,
-          buildMediaModeMessage(MediaModeAction.RequestVideo, { from: this.userId })
-        )
-        // auto-clear waiting after 45s
-        setTimeout(() => {
-          if (this.outgoingVideoRequest && this.isAudioSession) {
-            this.outgoingVideoRequest = false
-          }
-        }, 45000)
+        await publishCameraRequest(room, CameraRequestAction.Reject, {
+          from: this.userId
+        })
+        this.setCameraRequestState('clear')
       },
-      async acceptIncomingVideoRequest() {
-        await this.switchToVideoSession({ selfInitiated: true, fromAccept: true })
-      },
-      async rejectIncomingVideoRequest() {
-        this.incomingVideoRequest = false
-        const room = this.mediaEngine?.room || this.room
-        await publishMediaModeMessage(
-          room,
-          buildMediaModeMessage(MediaModeAction.RejectVideo, { from: this.userId })
-        )
-      },
-      handleMediaModeMessage(msg) {
+      /**
+       * Handle camera_request (and legacy media_mode request/accept/reject).
+       * Obsolete switch_audio / switch_video / mode_sync never mutate local camera.
+       */
+      handleCameraRequestMessage(msg) {
         if (!msg || msg.from === this.userId) return
-        const action = msg.action
-        if (action === MediaModeAction.RequestVideo) {
-          this.incomingVideoRequest = true
+
+        if (isObsoleteModeSyncMessage(msg)) {
+          // Legacy peers may still send these — ignore for local media.
+          // Remote video appearance is derived from LiveKit publications only.
+          rtLog('ignored_legacy_mode_sync', { action: msg.action, mode: msg.mode })
           return
         }
-        if (action === MediaModeAction.AcceptVideo || action === MediaModeAction.SwitchVideo) {
-          // Peer is (or will be) on video — show video layout.
-          // Do NOT auto-enable our camera (audio call must stay mic-only until we opt in).
-          this.outgoingVideoRequest = false
-          this.incomingVideoRequest = false
-          this.sessionMediaMode = 'video'
-          if (this.cameraEnabled) {
-            this.$nextTick(() => this.attachLocalVideo())
-          }
+
+        if (!isCameraRequestMessage(msg) && !isMediaModeMessage(msg)) return
+
+        const action = normalizeCameraRequestAction(msg.action)
+        if (!action) {
+          rtLog('ignored_unknown_media_msg', { type: msg.type, action: msg.action })
           return
         }
-        if (action === MediaModeAction.RejectVideo) {
-          this.outgoingVideoRequest = false
+
+        if (action === CameraRequestAction.Request) {
+          this.setCameraRequestState('receive')
+          return
+        }
+        if (action === CameraRequestAction.Accept) {
+          // Peer accepted our request — their camera will appear via LiveKit.
+          // Do NOT enable our local camera.
+          this.clearCameraRequestExpireTimer()
+          this.setCameraRequestState('accept')
+          return
+        }
+        if (action === CameraRequestAction.Reject) {
+          this.clearCameraRequestExpireTimer()
+          this.setCameraRequestState('reject')
           this.error = 'Đối phương từ chối bật camera.'
-          return
-        }
-        if (action === MediaModeAction.SwitchAudio) {
-          this.sessionMediaMode = 'audio'
-          this.incomingVideoRequest = false
-          this.outgoingVideoRequest = false
-          // Keep local cam off in audio session
-          if (this.cameraEnabled) this.ensureCameraEnabled(false).catch(() => {})
-          this.remoteVideoConnected = false
-          return
-        }
-        if (action === MediaModeAction.ModeSync && msg.mode) {
-          const mode = normalizeSessionMediaMode(msg.mode)
-          this.sessionMediaMode = mode
-          // Sync UI only — never force-open local camera from peer sync
-          if (mode === 'audio' && this.cameraEnabled) {
-            this.ensureCameraEnabled(false).catch(() => {})
-          }
         }
       },
       async toggleMicrophone() {
@@ -1207,6 +1288,8 @@ export function mountCallWindowApp(opts = {}) {
           intentional: this.intentionalLeave,
           status: this.call?.status
         })
+        this.stopCallDurationTimer()
+        this.clearCameraRequestExpireTimer()
         try {
           this.disconnectRoom()
         } catch (e) {
@@ -1241,6 +1324,7 @@ export function mountCallWindowApp(opts = {}) {
       },
       disconnectRoom() {
         this.stopQualityMonitoring()
+        this.clearCameraRequestExpireTimer()
         if (this.mediaEngine) {
           try { this.mediaEngine.destroy() } catch (e) { console.warn(e) }
           this.mediaEngine = null
@@ -1258,6 +1342,7 @@ export function mountCallWindowApp(opts = {}) {
         this.qualityStats = initialQualityStats()
         this.qualityStatsPrevious = { inbound: {}, outbound: {} }
         this.mediaPermissionState = 'idle'
+        // Keep desiredCameraEnabled + mediaSessionStarted so rejoin restores runtime intent
       },
       handleBeforeUnload() {
         this.flushQualityLog(true)
@@ -1290,20 +1375,50 @@ export function mountCallWindowApp(opts = {}) {
             <div class="call-header-avatar" :title="peerId">{{ peerAvatar }}</div>
             <div>
               <div class="call-header-title">{{ peerName }}</div>
-              <div class="call-header-status">{{ callStatusLabel }}</div>
+              <div class="call-header-status">
+                <span>{{ connectionHint }}</span>
+                <span v-if="call && call.status === 'Accepted' && mediaPermissionState === 'connected'" class="call-duration"> · {{ callDurationLabel }}</span>
+              </div>
             </div>
           </div>
           <div class="call-header-actions">
-            <span v-if="autoAudioLabel" class="recording-indicator" :title="'Audio phiên (tự động) · ' + autoAudioStatus"><span></span> {{ autoAudioLabel }}</span>
-            <span v-if="dentalClipStatus === 'Recording'" class="recording-indicator"><span></span> Clip răng</span>
-            <span v-else-if="dentalClipReadyCount > 0" class="recording-indicator" style="opacity:.8"><span></span> {{ dentalClipReadyCount }} clip</span>
-            <span v-if="photoStatus" class="recording-indicator" style="opacity:.85">{{ photoStatus }}</span>
-            <button v-if="mediaPermissionState === 'connected'" class="quality-badge" @click="showQualityPanel = !showQualityPanel" title="Xem chất lượng hình ảnh">{{ qualityBadge }}</button>
-            <button v-if="needsAudioPermission" class="audio-fallback-btn" @click="enableAudioPlayback">Bật tiếng</button>
+            <span
+              v-if="autoAudioStatus === 'Recording'"
+              class="recording-indicator"
+              title="Phiên đang được ghi âm tự động"
+            ><span></span> Đang ghi âm</span>
+            <button
+              v-if="needsAudioPermission"
+              type="button"
+              class="audio-fallback-btn"
+              @click="enableAudioPlayback"
+            >Bật tiếng</button>
+            <div class="call-more-wrap">
+              <button
+                type="button"
+                class="call-more-btn"
+                title="Thêm"
+                @click="showMoreMenu = !showMoreMenu; showClinicalTools = false; showQualityPanel = false"
+              >⋯</button>
+              <div v-if="showMoreMenu" class="call-more-menu" @click.stop>
+                <button type="button" class="call-more-item" @click="showQualityPanel = true; showMoreMenu = false">
+                  Chi tiết kết nối ({{ qualityBadge }})
+                </button>
+                <button
+                  v-if="mediaPermissionState === 'connected' && !isManagerRole"
+                  type="button"
+                  class="call-more-item"
+                  @click="showClinicalTools = !showClinicalTools; showMoreMenu = false"
+                >Công cụ tư vấn</button>
+                <button type="button" class="call-more-item" @click="copyCallId(); showMoreMenu = false">
+                  Sao chép mã cuộc gọi
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
-        <main class="call-window-body">
+        <main class="call-window-body" @click="showMoreMenu = false">
           <!-- Connecting / Waiting State -->
           <div v-if="!call || call.status !== 'Accepted'" class="call-connecting-state">
             <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
@@ -1313,35 +1428,27 @@ export function mountCallWindowApp(opts = {}) {
             <p v-else>Đang kết nối…</p>
           </div>
 
-          <!-- In-call: audio strip or video grid -->
-          <div v-else class="call-video-grid" :class="{ 'call-audio-mode': isAudioSession }">
-            <!-- Audio-only session UI -->
-            <div v-if="isAudioSession" class="audio-session-bar" aria-label="Cuộc gọi thoại">
-              <div class="audio-session-bar-inner">
-                <div class="audio-session-avatar">{{ peerAvatar }}</div>
-                <div class="audio-session-meta">
-                  <div class="audio-session-name">{{ peerName }}</div>
-                  <div class="audio-session-label">
-                    <span class="audio-live-dot"></span> Chỉ thoại · micro
-                  </div>
-                </div>
-                <div class="audio-waveform" aria-hidden="true">
-                  <span v-for="n in 9" :key="n" class="audio-wave-bar" :style="{ animationDelay: (n * 0.08) + 's' }"></span>
-                </div>
+          <!-- Unified in-call surface (audio vs video = track state, not two machines) -->
+          <div v-else class="call-video-grid" :class="{ 'call-voice-stage': showVoiceStage }">
+            <!-- Voice presentation when remote has no video (not a global session mode) -->
+            <div v-if="showVoiceStage" class="voice-stage" aria-label="Cuộc gọi">
+              <div class="voice-stage-avatar" :title="peerName">
+                <img v-if="isEmbedPeer" :src="guestAvatarUrl" alt="" />
+                <span v-else>{{ peerAvatar }}</span>
+              </div>
+              <div class="voice-stage-name">{{ peerName }}</div>
+              <div class="voice-stage-meta">
+                <span class="audio-live-dot"></span>
+                {{ callDurationLabel }} · {{ remotePlaceholderText }}
               </div>
             </div>
 
-            <!-- Video stage (hidden layout when audio mode; keep refs for track attach) -->
-            <div class="remote-video-container" ref="remoteMedia" :class="{ 'is-hidden-stage': isAudioSession }">
+            <div class="remote-video-container" ref="remoteMedia" :class="{ 'is-voice-underlay': showVoiceStage }">
               <div
-                v-if="showRemotePlaceholder"
+                v-if="showRemotePlaceholder && !showVoiceStage"
                 class="remote-avatar-placeholder"
               >
-                <img
-                  v-if="isEmbedPeer"
-                  :src="guestAvatarUrl"
-                  alt="Khách"
-                />
+                <img v-if="isEmbedPeer" :src="guestAvatarUrl" alt="Khách" />
                 <div v-else class="initials-avatar">{{ peerAvatar }}</div>
                 <p>{{ remotePlaceholderText }}</p>
               </div>
@@ -1350,113 +1457,136 @@ export function mountCallWindowApp(opts = {}) {
                 class="remote-video-status"
               >{{ mediaSetupLabel }}</span>
             </div>
-            <div class="local-video-container" ref="localMedia" :class="{ 'is-hidden-stage': isAudioSession }"></div>
+
+            <!-- Local PiP only when local camera is actually on -->
+            <div
+              class="local-video-container"
+              ref="localMedia"
+              :class="{ 'is-hidden-stage': !cameraEnabled }"
+            ></div>
             <div ref="remoteAudio"></div>
 
-            <!-- Incoming video request banner -->
-            <div v-if="incomingVideoRequest" class="media-mode-banner">
-              <p>Đối phương muốn bật <strong>camera</strong> (chuyển video call).</p>
+            <!-- Camera request (business interaction — not session mode sync) -->
+            <div v-if="incomingCameraRequest" class="media-mode-banner">
+              <p>Tư vấn viên muốn bạn <strong>bật camera</strong> để hỗ trợ tư vấn.</p>
               <div class="media-mode-banner-actions">
-                <button type="button" class="media-mode-btn primary" :disabled="mediaModeBusy" @click="acceptIncomingVideoRequest">Đồng ý</button>
-                <button type="button" class="media-mode-btn" :disabled="mediaModeBusy" @click="rejectIncomingVideoRequest">Từ chối</button>
+                <button type="button" class="media-mode-btn primary" :disabled="cameraRequestBusy" @click="acceptCameraRequest">Bật camera</button>
+                <button type="button" class="media-mode-btn" :disabled="cameraRequestBusy" @click="rejectCameraRequest">Để sau</button>
               </div>
             </div>
-            <div v-else-if="outgoingVideoRequest" class="media-mode-banner soft">
+            <div v-else-if="outgoingCameraRequest" class="media-mode-banner soft">
               <p>Đã gửi yêu cầu bật camera — đang chờ phản hồi…</p>
-              <button type="button" class="media-mode-btn" @click="outgoingVideoRequest = false">Ẩn</button>
+              <button type="button" class="media-mode-btn" @click="setCameraRequestState('clear')">Ẩn</button>
             </div>
 
-            <section v-if="showQualityPanel" class="quality-panel" aria-label="Chất lượng hình ảnh">
-              <div class="quality-panel-title">Chất lượng hình ảnh <span class="quality-auto-hint">(tự cập nhật)</span></div>
-              <p class="quality-call-id" title="Mã cuộc gọi (hỗ trợ kỹ thuật)">
-                Mã cuộc gọi:
+            <!-- Secondary: clinical tools -->
+            <aside v-if="showClinicalTools && !isManagerRole" class="clinical-tools-panel" aria-label="Công cụ tư vấn">
+              <div class="clinical-tools-title">Công cụ tư vấn</div>
+              <div class="clinical-tools-row">
+                <button
+                  type="button"
+                  class="clinical-tool-btn"
+                  :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing' || mediaPermissionState !== 'connected'"
+                  @click="toggleDentalClip"
+                >
+                  {{ dentalClipStatus === 'Recording' ? 'Dừng clip' : 'Quay clip răng' }}
+                </button>
+                <button
+                  type="button"
+                  class="clinical-tool-btn"
+                  :disabled="photoBusy || mediaPermissionState !== 'connected'"
+                  @click="requestPhoto"
+                >Chụp ảnh</button>
+              </div>
+              <p class="clinical-tools-meta">
+                <span v-if="dentalClipStatus === 'Recording'">● Đang quay clip</span>
+                <span v-else-if="dentalClipReadyCount > 0">{{ dentalClipReadyCount }} clip sẵn sàng</span>
+                <span v-if="photoStatus"> · {{ photoStatus }}</span>
+                <span v-if="!dentalClipReadyCount && dentalClipStatus !== 'Recording' && !photoStatus">Clip / ảnh lưu vào thư viện tư vấn</span>
+              </p>
+              <button type="button" class="clinical-tools-close" @click="showClinicalTools = false">Đóng</button>
+            </aside>
+
+            <section v-if="showQualityPanel" class="quality-panel" aria-label="Chi tiết kết nối">
+              <div class="quality-panel-title">Chi tiết kết nối <span class="quality-auto-hint">(hỗ trợ kỹ thuật)</span></div>
+              <p class="quality-call-id" title="Mã cuộc gọi">
+                Mã:
                 <button type="button" class="quality-call-id-btn" @click="copyCallId">{{ callId }}</button>
               </p>
               <dl>
-                <div><dt>Hình nhận</dt><dd>{{ qualityStats.incomingResolution }} · {{ qualityStats.incomingFps }} khung/giây</dd></div>
-                <div><dt>Tốc độ nhận</dt><dd>{{ qualityStats.incomingBitrateKbps }} kbps</dd></div>
-                <div><dt>Hình gửi</dt><dd>{{ qualityStats.outgoingResolution }} · {{ qualityStats.outgoingFps }} khung/giây</dd></div>
-                <div><dt>Tốc độ gửi</dt><dd>{{ qualityStats.outgoingBitrateKbps }} kbps</dd></div>
-                <div><dt>Mất tín hiệu</dt><dd>{{ qualityStats.packetLossPercent }}%</dd></div>
-                <div><dt>Độ trễ</dt><dd>{{ qualityStats.roundTripTimeMs }} ms</dd></div>
-                <div><dt>Định dạng</dt><dd>{{ qualityStats.codec }}</dd></div>
-                <div><dt>Hạn chế mạng</dt><dd>{{ qualityStats.qualityLimitationReason }}</dd></div>
+                <div><dt>Hình nhận</dt><dd>{{ qualityStats.incomingResolution }} · {{ qualityStats.incomingFps }} fps</dd></div>
+                <div><dt>Bitrate nhận</dt><dd>{{ qualityStats.incomingBitrateKbps }} kbps</dd></div>
+                <div><dt>Hình gửi</dt><dd>{{ qualityStats.outgoingResolution }} · {{ qualityStats.outgoingFps }} fps</dd></div>
+                <div><dt>Bitrate gửi</dt><dd>{{ qualityStats.outgoingBitrateKbps }} kbps</dd></div>
+                <div><dt>Mất gói</dt><dd>{{ qualityStats.packetLossPercent }}%</dd></div>
+                <div><dt>RTT</dt><dd>{{ qualityStats.roundTripTimeMs }} ms</dd></div>
+                <div><dt>Codec</dt><dd>{{ qualityStats.codec }}</dd></div>
+                <div><dt>Hạn chế</dt><dd>{{ qualityStats.qualityLimitationReason }}</dd></div>
               </dl>
               <div class="quality-export-actions">
-                <button type="button" class="quality-export-primary" @click="downloadQualityLog('csv')" title="Tải báo cáo chất lượng">Tải báo cáo</button>
-                <button type="button" class="quality-export-end" @click="endCallAndExport" title="Tải báo cáo rồi kết thúc">Kết thúc và tải</button>
+                <button type="button" class="quality-export-primary" @click="downloadQualityLog('csv')">Tải báo cáo</button>
+                <button type="button" class="quality-export-end" @click="endCallAndExport">Kết thúc và tải</button>
+                <button type="button" class="quality-export-primary" style="background:transparent;border-color:rgba(255,255,255,.2)" @click="showQualityPanel = false">Đóng</button>
               </div>
             </section>
 
+            <!-- Primary controls: mic, camera, request camera, hangup -->
             <div class="call-window-controls">
-              <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !microphoneEnabled && 'off']" @click="toggleMicrophone" :title="microphoneEnabled ? 'Tắt micro' : 'Bật micro'">
+              <button
+                v-if="mediaPermissionState === 'connected'"
+                type="button"
+                :class="['ctrl-btn', !microphoneEnabled && 'off']"
+                @click="toggleMicrophone"
+                :title="microphoneEnabled ? 'Tắt micro' : 'Bật micro'"
+                :aria-label="microphoneEnabled ? 'Tắt micro' : 'Bật micro'"
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
               </button>
-              <!-- Audio session: text actions (clearer than icon-only) -->
               <button
-                v-if="mediaPermissionState === 'connected' && isAudioSession"
+                v-if="mediaPermissionState === 'connected'"
                 type="button"
-                class="ctrl-text-btn"
-                :disabled="mediaModeBusy"
-                @click="switchToVideoSession({ selfInitiated: true })"
-              >Bật camera của tôi</button>
-              <button
-                v-if="mediaPermissionState === 'connected' && isAudioSession"
-                type="button"
-                class="ctrl-text-btn secondary"
-                :disabled="mediaModeBusy || outgoingVideoRequest"
-                @click="requestPeerVideo"
-              >{{ outgoingVideoRequest ? 'Đang chờ…' : 'Yêu cầu camera đối phương' }}</button>
-              <button
-                v-if="mediaPermissionState === 'connected' && !isAudioSession"
                 :class="['ctrl-btn', !cameraEnabled && 'off']"
+                :disabled="cameraToggleBusy"
                 @click="toggleCamera"
-                :title="cameraEnabled ? 'Tắt camera (chuyển thoại)' : 'Bật camera'"
+                :title="cameraEnabled ? 'Tắt camera của tôi' : 'Bật camera của tôi'"
+                :aria-label="cameraEnabled ? 'Tắt camera của tôi' : 'Bật camera của tôi'"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
               <button
-                v-if="mediaPermissionState === 'connected' && !isAudioSession"
-                class="ctrl-btn mode-switch"
-                :disabled="mediaModeBusy"
-                @click="switchToAudioSession({ selfInitiated: true })"
-                title="Chỉ thoại — tắt camera"
+                v-if="mediaPermissionState === 'connected' && !remoteVideoConnected"
+                type="button"
+                class="ctrl-text-btn secondary"
+                :disabled="cameraRequestBusy || outgoingCameraRequest"
+                @click="requestPeerCamera"
+                title="Gửi yêu cầu — không bật camera của bạn"
+              >{{ outgoingCameraRequest ? 'Đang chờ…' : 'Yêu cầu khách bật camera' }}</button>
+              <button
+                v-if="mediaPermissionState === 'connected' && !isManagerRole"
+                type="button"
+                class="ctrl-btn tools-toggle"
+                :class="{ active: showClinicalTools }"
+                @click="showClinicalTools = !showClinicalTools; showMoreMenu = false"
+                title="Công cụ tư vấn"
+                aria-label="Công cụ tư vấn"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/><path d="M4 4l16 16"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
               <button
-                v-if="mediaPermissionState === 'connected' && !isManagerRole && !isAudioSession"
-                :class="['ctrl-btn', dentalClipStatus === 'Recording' && 'recording']"
-                :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing'"
-                @click="toggleDentalClip"
-                :title="dentalClipStatus === 'Recording'
-                  ? 'Dừng clip răng'
-                  : (dentalClipReadyCount
-                    ? ('Quay clip răng thêm (đã có ' + dentalClipReadyCount + ')')
-                    : 'Quay clip răng (camera bệnh nhân) — có thể nhiều clip / cuộc gọi')"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2"/></svg>
-              </button>
-              <button
-                v-if="mediaPermissionState === 'connected' && !isManagerRole && !isAudioSession"
-                class="ctrl-btn"
-                :disabled="photoBusy"
-                @click="requestPhoto"
-                title="Chụp ảnh (gửi lệnh cho bệnh nhân)"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </button>
-              <button v-if="mediaPermissionState === 'error'" class="start-call-btn" style="padding: 8px 16px; font-size: 13px;" @click="rejoinMedia">
-                Tham gia lại media
-              </button>
-              <button class="ctrl-btn danger" @click="endCall" title="Kết thúc cuộc gọi">
+                v-if="mediaPermissionState === 'error'"
+                type="button"
+                class="start-call-btn"
+                style="padding: 8px 16px; font-size: 13px;"
+                @click="rejoinMedia"
+              >Tham gia lại media</button>
+              <button type="button" class="ctrl-btn danger" @click="endCall" title="Kết thúc cuộc gọi" aria-label="Kết thúc cuộc gọi">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 6 6l2-2a2 2 0 0 1 2-.48c.68.23 1.37.39 2.08.48A2 2 0 0 1 24 19.3V22a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 4.55 6.73 2 2 0 0 1 6.53 4.55h2.7a2 2 0 0 1 2 1.72c.09.71.25 1.4.48 2.08a2 2 0 0 1-.47 2zM23 1 1 23"/></svg>
               </button>
             </div>
           </div>
         </main>
 
-        <div class="toast-error" v-if="error">{{ error }}</div>
+        <div class="toast-error" v-if="error" @click="error = ''">{{ error }}</div>
       </div>
     `
   })

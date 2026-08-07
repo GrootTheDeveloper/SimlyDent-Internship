@@ -153,6 +153,28 @@ export function mountPortalApp() {
       isEmbedPeer() {
         return isEmbedVisitorId(this.peerIdentity?.id)
       },
+      /** Join preference for the active/incoming call (not a runtime session mode). */
+      callInitialMediaMode() {
+        return normalizeMediaMode(
+          this.call?.initialMediaMode || this.call?.InitialMediaMode || 'video'
+        )
+      },
+      incomingCallSubtitle() {
+        if (this.isEmbedPeer) {
+          const kind = this.callInitialMediaMode === 'audio' ? 'thoại' : 'video'
+          return `Khách từ website đang chờ (${kind}) — cuộc gọi dành cho bạn.`
+        }
+        if (this.callInitialMediaMode === 'audio') {
+          return `Cuộc gọi thoại từ ${this.peerName}`
+        }
+        return `Cuộc gọi video từ ${this.peerName}`
+      },
+      ringingCallSubtitle() {
+        if (this.callInitialMediaMode === 'audio') {
+          return 'Đang đổ chuông (thoại)…'
+        }
+        return 'Đang đổ chuông (video)…'
+      },
       selfAgentState() {
         return this.agentStateMap[this.identityId] || (this.identityId ? 'Available' : 'Offline')
       },
@@ -1396,7 +1418,7 @@ export function mountPortalApp() {
           <div class="call-popup-card">
             <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">{{ isEmbedPeer ? 'Khách từ website đang chờ — cuộc gọi dành cho bạn.' : 'Đang gọi video cho bạn…' }}</p>
+            <p class="popup-subtitle">{{ incomingCallSubtitle }}</p>
             <div class="popup-action-buttons">
               <button type="button" class="popup-btn danger" @click="rejectCall">Từ chối</button>
               <button type="button" class="popup-btn success" @click="acceptCall">Nhận cuộc gọi</button>
@@ -1408,7 +1430,7 @@ export function mountPortalApp() {
           <div class="call-popup-card">
             <div class="pulse-ring-avatar" :title="peerName">{{ peerAvatar }}</div>
             <h3 class="popup-title">{{ peerName }}</h3>
-            <p class="popup-subtitle">Đang đổ chuông…</p>
+            <p class="popup-subtitle">{{ ringingCallSubtitle }}</p>
             <div class="popup-action-buttons">
               <button type="button" class="popup-btn danger" @click="cancelCall">Hủy cuộc gọi</button>
             </div>
@@ -1418,7 +1440,7 @@ export function mountPortalApp() {
         <div v-if="popupState === 'popup_blocked'" class="modal-backdrop">
           <div class="call-popup-card">
             <h3 class="popup-title">Trình duyệt chặn cửa sổ gọi</h3>
-            <p class="popup-subtitle">Bấm nút bên dưới để mở cửa sổ video.</p>
+            <p class="popup-subtitle">Trình duyệt chặn cửa sổ cuộc gọi. Bấm bên dưới để mở lại.</p>
             <div class="popup-action-buttons">
               <button type="button" class="popup-btn primary" @click="reopenCallWindow">Mở cuộc gọi</button>
               <button type="button" class="popup-btn secondary" @click="closePopup">Đóng</button>

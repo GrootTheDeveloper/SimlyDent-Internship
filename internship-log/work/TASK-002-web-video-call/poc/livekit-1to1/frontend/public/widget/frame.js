@@ -28,11 +28,15 @@
   var livekitLoadPromise = null;
   var hasLocalVideo = false;
   var hasLocalAudio = false;
-  /** Preferred local media when joining: 'video' | 'audio' */
+  /** Join preference only: 'video' | 'audio' — not a runtime session mode */
   var preferredMedia = 'video';
-  /** Runtime session mode (may switch mid-call) */
-  var sessionMediaMode = 'video';
-  var mediaModeBusy = false;
+  /** Local desired camera after connect / reconnect (independent of peer). */
+  var desiredCameraEnabled = true;
+  /** After first successful LiveKit connect — reconnect must not reset from preferredMedia. */
+  var mediaSessionStarted = false;
+  /** Camera request FSM: idle | sent | received | accepted | rejected | expired */
+  var cameraRequestState = 'idle';
+  var cameraRequestBusy = false;
 
   /** @shared-pair src/domain/media/media-primitives.js via window.SimlyDentMediaPrimitives */
   function mediaP() {
@@ -93,122 +97,147 @@
     btnToAudio: $('btnToAudio')
   };
 
-  function applySessionMediaUi() {
-    var audio = sessionMediaMode === 'audio';
-    if (els.audioSessionPanel) els.audioSessionPanel.classList.toggle('hidden', !audio);
-    if (els.videoStage) els.videoStage.classList.toggle('is-audio-hidden', audio);
-    if (els.btnToVideo) els.btnToVideo.classList.toggle('hidden', !audio);
-    if (els.btnToAudio) els.btnToAudio.classList.toggle('hidden', audio);
-    // Camera button: in audio mode hide (use «Bật camera của tôi»)
-    if (els.btnCam) els.btnCam.classList.toggle('hidden', audio);
-    if (els.btnRetryDevices && audio && hasLocalAudio) {
-      els.btnRetryDevices.classList.add('hidden');
-    }
+  function applyMediaUi() {
+    // Always show video stage; voice vs video is actual track state, not session mode.
+    if (els.audioSessionPanel) els.audioSessionPanel.classList.add('hidden');
+    if (els.videoStage) els.videoStage.classList.remove('is-audio-hidden');
+    // btnToVideo / btnToAudio are legacy session-mode switches — hide permanently
+    if (els.btnToVideo) els.btnToVideo.classList.add('hidden');
+    if (els.btnToAudio) els.btnToAudio.classList.add('hidden');
+    if (els.btnCam) els.btnCam.classList.remove('hidden');
     updateLocalPreview();
+    syncCamButton();
   }
 
-  function hideMediaModeBanner() {
+  function syncCamButton() {
+    if (!els.btnCam) return;
+    if (camEnabled) {
+      els.btnCam.classList.remove('off');
+      els.btnCam.textContent = 'Camera';
+      els.btnCam.title = 'Tắt camera của tôi';
+    } else {
+      els.btnCam.classList.add('off');
+      els.btnCam.textContent = 'Camera tắt';
+      els.btnCam.title = 'Bật camera của tôi';
+    }
+  }
+
+  function hideCameraRequestBanner() {
     if (els.mediaModeBanner) els.mediaModeBanner.classList.add('hidden');
   }
 
-  function showIncomingVideoRequest() {
+  function showIncomingCameraRequest() {
     if (!els.mediaModeBanner) return;
+    cameraRequestState = 'received';
     if (els.mediaModeBannerText) {
-      els.mediaModeBannerText.textContent = 'Phòng khám muốn bật camera (chuyển video call).';
+      els.mediaModeBannerText.textContent = 'Tư vấn viên muốn bạn bật camera để hỗ trợ tư vấn.';
     }
+    if (els.btnAcceptVideo) els.btnAcceptVideo.textContent = 'Bật camera';
+    if (els.btnRejectVideo) els.btnRejectVideo.textContent = 'Để sau';
     els.mediaModeBanner.classList.remove('hidden');
   }
 
-  async function publishMode(action, mode) {
+  async function publishCameraAction(action) {
     var mm = mediaModeApi();
     if (!mm || !room) return;
-    var msg = mm.buildMediaModeMessage(action, { mode: mode || sessionMediaMode, from: 'visitor' });
-    await mm.publishMediaModeMessage(room, msg);
+    if (mm.publishCameraRequest) {
+      await mm.publishCameraRequest(room, action, { from: 'visitor' });
+      return;
+    }
+    var msg = mm.buildCameraRequestMessage
+      ? mm.buildCameraRequestMessage(action, { from: 'visitor' })
+      : mm.buildMediaModeMessage(action, { from: 'visitor' });
+    if (msg) await mm.publishMediaModeMessage(room, msg);
   }
 
-  async function switchToVideoSession(fromAccept) {
-    if (mediaModeBusy || !room) return;
-    mediaModeBusy = true;
+  /** Local camera only — never a global session mode, never forces peer camera. */
+  async function setLocalCameraEnabled(want, opts) {
+    opts = opts || {};
+    if (!room || !room.localParticipant) return false;
     try {
-      camEnabled = true;
-      try {
-        await room.localParticipant.setCameraEnabled(true);
-      } catch (eCam) {
-        console.warn('[embed] enable camera failed', eCam);
-        setDeviceBanner('Không bật được camera. Kiểm tra quyền trình duyệt.');
-        mediaModeBusy = false;
-        return;
-      }
-      sessionMediaMode = 'video';
-      preferredMedia = 'video';
-      try { sessionStorage.setItem(storageKey('preferredMedia'), 'video'); } catch (eS) { /* ignore */ }
-      hideMediaModeBanner();
-      applySessionMediaUi();
+      await room.localParticipant.setCameraEnabled(!!want);
+      camEnabled = !!want;
+      desiredCameraEnabled = !!want;
+      if (els.btnCam) syncCamButton();
       updateLocalPreview();
-      els.btnCam.classList.remove('off');
-      els.btnCam.textContent = 'Camera';
-      var mm = mediaModeApi();
-      var action = fromAccept
-        ? (mm && mm.MediaModeAction.AcceptVideo)
-        : (mm && mm.MediaModeAction.SwitchVideo);
-      if (action) await publishMode(action, 'video');
-    } finally {
-      mediaModeBusy = false;
+      return true;
+    } catch (eCam) {
+      console.warn('[embed] setCameraEnabled failed', eCam);
+      if (opts.showBanner !== false) {
+        setDeviceBanner(want
+          ? 'Không bật được camera. Kiểm tra quyền trình duyệt.'
+          : 'Không tắt được camera.');
+      }
+      return false;
     }
   }
 
-  async function switchToAudioSession(selfInitiated) {
-    if (mediaModeBusy || !room) return;
-    mediaModeBusy = true;
+  async function toggleLocalCamera() {
+    if (cameraRequestBusy || !room) return;
+    cameraRequestBusy = true;
     try {
-      camEnabled = false;
-      try { await room.localParticipant.setCameraEnabled(false); } catch (e) { /* ignore */ }
-      sessionMediaMode = 'audio';
-      preferredMedia = 'audio';
-      try { sessionStorage.setItem(storageKey('preferredMedia'), 'audio'); } catch (eS) { /* ignore */ }
-      hideMediaModeBanner();
-      applySessionMediaUi();
-      updateLocalPreview();
-      if (selfInitiated) {
-        var mm = mediaModeApi();
-        if (mm) await publishMode(mm.MediaModeAction.SwitchAudio, 'audio');
-      }
+      await setLocalCameraEnabled(!camEnabled);
     } finally {
-      mediaModeBusy = false;
+      cameraRequestBusy = false;
     }
   }
 
-  function handleMediaModeMessage(msg) {
+  async function acceptCameraRequest() {
+    if (cameraRequestBusy || !room) return;
+    cameraRequestBusy = true;
+    try {
+      var ok = await setLocalCameraEnabled(true);
+      if (!ok) return;
+      hideCameraRequestBanner();
+      cameraRequestState = 'idle';
+      await publishCameraAction('accept');
+    } finally {
+      cameraRequestBusy = false;
+    }
+  }
+
+  async function rejectCameraRequest() {
+    hideCameraRequestBanner();
+    cameraRequestState = 'idle';
+    // No local camera change on reject
+    await publishCameraAction('reject');
+  }
+
+  function handleCameraRequestMessage(msg) {
     var mm = mediaModeApi();
     if (!mm || !mm.isMediaModeMessage(msg)) return;
-    var A = mm.MediaModeAction;
-    if (msg.action === A.RequestVideo) {
-      showIncomingVideoRequest();
+
+    if (mm.isObsoleteModeSyncMessage && mm.isObsoleteModeSyncMessage(msg)) {
+      // Legacy switch_audio / switch_video / mode_sync — do NOT mutate local camera or preferredMedia.
+      console.info('[embed] ignored legacy mode sync', msg.action);
       return;
     }
-    if (msg.action === A.AcceptVideo || msg.action === A.SwitchVideo) {
-      // Peer on video — show video layout. Do not force our camera on.
-      sessionMediaMode = 'video';
-      preferredMedia = 'video';
-      hideMediaModeBanner();
-      applySessionMediaUi();
+
+    var action = mm.normalizeCameraRequestAction
+      ? mm.normalizeCameraRequestAction(msg.action)
+      : null;
+    if (!action) {
+      // Fallback for older shared module
+      if (msg.action === 'request_video' || msg.action === 'request') action = 'request';
+      else if (msg.action === 'accept_video' || msg.action === 'accept') action = 'accept';
+      else if (msg.action === 'reject_video' || msg.action === 'reject') action = 'reject';
+      else return;
+    }
+
+    if (action === 'request') {
+      showIncomingCameraRequest();
       return;
     }
-    if (msg.action === A.SwitchAudio) {
-      sessionMediaMode = 'audio';
-      preferredMedia = 'audio';
-      camEnabled = false;
-      if (room && room.localParticipant) {
-        try { room.localParticipant.setCameraEnabled(false); } catch (e) { /* ignore */ }
-      }
-      hideMediaModeBanner();
-      applySessionMediaUi();
+    if (action === 'accept') {
+      // Peer accepted our request — their track appears via LiveKit. Never force local cam.
+      hideCameraRequestBanner();
+      cameraRequestState = 'idle';
       return;
     }
-    if (msg.action === A.ModeSync && msg.mode) {
-      sessionMediaMode = mm.normalizeSessionMediaMode(msg.mode);
-      preferredMedia = sessionMediaMode;
-      applySessionMediaUi();
+    if (action === 'reject') {
+      hideCameraRequestBanner();
+      cameraRequestState = 'idle';
+      setDeviceBanner('Đối phương từ chối bật camera.');
     }
   }
 
@@ -379,6 +408,9 @@
     preferredMedia = (mediaP() && mediaP().normalizeMediaModeValue)
       ? mediaP().normalizeMediaModeValue(mediaMode)
       : (mediaMode === 'audio' ? 'audio' : 'video');
+    desiredCameraEnabled = preferredMedia !== 'audio';
+    mediaSessionStarted = false;
+    cameraRequestState = 'idle';
     try {
       sessionStorage.setItem(storageKey('preferredMedia'), preferredMedia);
     } catch { /* ignore */ }
@@ -536,14 +568,14 @@
       }
       if (els.localSample) els.localSample.classList.remove('hidden');
     }
-    // Audio session: missing camera is expected — only prompt for mic.
-    if (sessionMediaMode === 'audio') {
+    // When local camera is not desired, only prompt for mic.
+    if (!desiredCameraEnabled) {
       if (els.btnRetryDevices) {
         els.btnRetryDevices.classList.toggle('hidden', hasLocalAudio);
         els.btnRetryDevices.textContent = 'Thử lại micro';
       }
       if (!hasLocalAudio) {
-        setDeviceBanner('Chưa bật micro. Bấm «Thử lại micro» khi sẵn sàng (không bật camera).');
+        setDeviceBanner('Chưa bật micro. Bấm «Thử lại micro» khi sẵn sàng.');
       } else {
         setDeviceBanner('');
       }
@@ -556,7 +588,7 @@
     if (!hasLocalVideo && !hasLocalAudio) {
       setDeviceBanner('Chưa bật micro/camera — bạn vẫn nghe được. Bấm «Thử lại micro/camera» khi sẵn sàng.');
     } else if (!hasLocalVideo) {
-      setDeviceBanner('Chưa bật camera — đang dùng ảnh đại diện. Micro ' + (hasLocalAudio ? 'đang bật' : 'đang tắt') + '.');
+      setDeviceBanner('Camera đang tắt — micro ' + (hasLocalAudio ? 'đang bật' : 'đang tắt') + '.');
     } else if (!hasLocalAudio) {
       setDeviceBanner('Chưa bật micro — chỉ gửi hình. Bấm «Thử lại micro/camera» để xin lại quyền.');
     } else {
@@ -614,19 +646,24 @@
 
   async function acquireLocalTracks(LivekitClient) {
     var mp = mediaP();
-    var pref = preferredMedia;
-    try {
-      var stored = sessionStorage.getItem(storageKey('preferredMedia'));
-      if (stored === 'audio' || stored === 'video') {
-        preferredMedia = stored;
-        pref = stored;
-      }
-    } catch (ePref) { /* ignore */ }
+    // Join preference: use desiredCamera after session started; else preferredMedia / storage
+    var wantCam = mediaSessionStarted ? !!desiredCameraEnabled : (preferredMedia !== 'audio');
+    if (!mediaSessionStarted) {
+      try {
+        var stored = sessionStorage.getItem(storageKey('preferredMedia'));
+        if (stored === 'audio' || stored === 'video') {
+          preferredMedia = stored;
+          wantCam = stored !== 'audio';
+          desiredCameraEnabled = wantCam;
+        }
+      } catch (ePref) { /* ignore */ }
+    }
+    var pref = wantCam ? 'video' : 'audio';
 
     if (mp && mp.acquireLocalTracks) {
       var res = await mp.acquireLocalTracks(LivekitClient, { preferredMedia: pref });
       if (res.note === 'audio-only' || !res.cameraAvailable) camEnabled = false;
-      if (res.cameraAvailable) camEnabled = true;
+      else if (res.cameraAvailable) camEnabled = true;
       return { tracks: res.tracks || [], note: res.note || '' };
     }
 
@@ -634,10 +671,10 @@
     try {
       var tracks = await LivekitClient.createLocalTracks({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: pref === 'audio' ? false : { facingMode: 'user' }
+        video: wantCam ? { facingMode: 'user' } : false
       });
-      camEnabled = pref !== 'audio';
-      return { tracks: tracks, note: pref === 'audio' ? 'audio-only' : 'av' };
+      camEnabled = wantCam;
+      return { tracks: tracks, note: wantCam ? 'av' : 'audio-only' };
     } catch (e) {
       console.warn('[embed] acquire fallback failed', e);
       return { tracks: [], note: 'receive-only' };
@@ -646,6 +683,7 @@
 
   /**
    * After room connected: re-request devices and publish new tracks (no rejoin).
+   * Respects desiredCameraEnabled — never re-seeds from initial preferredMedia alone.
    */
   async function retryDevices() {
     if (!room || !callId || retryingDevices) return;
@@ -654,17 +692,24 @@
     if (els.btnRetryDevices) els.btnRetryDevices.disabled = true;
     try {
       var LivekitClient = await loadLivekit();
-      // Respect audio session: never re-request camera while in audio-only mode
-      preferredMedia = sessionMediaMode === 'audio' ? 'audio' : preferredMedia;
       var acquired = await acquireLocalTracks(LivekitClient);
       var next = acquired.tracks || [];
-      if (sessionMediaMode === 'audio') {
-        next = next.filter(function (t) {
-          return t && (t.kind === 'audio' || (t.kind && String(t.kind).toLowerCase() === 'audio'));
-        });
+      if (!desiredCameraEnabled) {
+        // Drop any video tracks acquired accidentally; stop them to release camera
+        var kept = [];
+        for (var fi = 0; fi < next.length; fi++) {
+          var tr = next[fi];
+          var isVid = tr && (tr.kind === 'video' || (tr.kind && String(tr.kind).toLowerCase() === 'video'));
+          if (isVid) {
+            try { tr.stop(); } catch (eStop) { /* ignore */ }
+          } else {
+            kept.push(tr);
+          }
+        }
+        next = kept;
       }
       if (!next.length) {
-        setDeviceBanner(sessionMediaMode === 'audio'
+        setDeviceBanner(!desiredCameraEnabled
           ? 'Vẫn chưa bật được micro. Kiểm tra quyền trình duyệt rồi thử lại.'
           : 'Vẫn chưa bật được micro/camera. Kiểm tra quyền trình duyệt rồi thử lại.');
         return;
@@ -688,16 +733,19 @@
           console.warn('[embed] publish after retry failed', pubErr);
         }
       }
-      // Keep camera off in audio session even if a video track slipped through
-      if (sessionMediaMode === 'audio' && room.localParticipant) {
-        try { await room.localParticipant.setCameraEnabled(false); } catch (eOff) { /* ignore */ }
-        camEnabled = false;
+      // Enforce desired camera after republish
+      if (room.localParticipant) {
+        try {
+          await room.localParticipant.setCameraEnabled(!!desiredCameraEnabled);
+          camEnabled = !!desiredCameraEnabled;
+        } catch (eOff) { /* ignore */ }
       }
       updateLocalPreview();
+      syncCamButton();
       setStatus('Đang tư vấn');
     } catch (err) {
       console.warn(err);
-      setDeviceBanner(err.message || (sessionMediaMode === 'audio'
+      setDeviceBanner(err.message || (!desiredCameraEnabled
         ? 'Không bật lại được micro. Vui lòng thử lại.'
         : 'Không bật lại được micro/camera. Vui lòng thử lại.'));
     } finally {
@@ -723,10 +771,12 @@
 
     try {
       var LivekitClient = await loadLivekit();
-      sessionMediaMode = preferredMedia === 'audio' ? 'audio' : 'video';
-      els.mediaHint.textContent = sessionMediaMode === 'audio'
-        ? 'Đang xin quyền micro…'
-        : 'Đang xin quyền micro / camera (camera không bắt buộc)…';
+      if (!mediaSessionStarted) {
+        desiredCameraEnabled = preferredMedia !== 'audio';
+      }
+      els.mediaHint.textContent = desiredCameraEnabled
+        ? 'Đang xin quyền micro / camera (camera không bắt buộc)…'
+        : 'Đang xin quyền micro…';
 
       var tok = await api('/embed/calls/' + callId + '/token', { method: 'POST', body: '{}' });
       if (!tok.ok) {
@@ -735,10 +785,19 @@
 
       var acquired = await acquireLocalTracks(LivekitClient);
       localTracks = acquired.tracks || [];
-      if (sessionMediaMode === 'audio') {
-        localTracks = localTracks.filter(function (t) {
-          return t && (t.kind === 'audio' || (t.kind && String(t.kind).toLowerCase() === 'audio'));
-        });
+      if (!desiredCameraEnabled) {
+        // Filter video tracks and stop them so camera capture does not continue
+        var audioOnlyTracks = [];
+        for (var ti = 0; ti < localTracks.length; ti++) {
+          var t0 = localTracks[ti];
+          var isV = t0 && (t0.kind === 'video' || (t0.kind && String(t0.kind).toLowerCase() === 'video'));
+          if (isV) {
+            try { t0.stop(); } catch (eStop0) { /* ignore */ }
+          } else {
+            audioOnlyTracks.push(t0);
+          }
+        }
+        localTracks = audioOnlyTracks;
         camEnabled = false;
       }
       updateLocalPreview();
@@ -756,12 +815,12 @@
       room.on(LivekitClient.RoomEvent.Disconnected, function () {
         onMediaDisconnected();
       });
-      // Staff-triggered photo + media mode protocol
+      // Staff camera request + photo capture (no global mode sync)
       room.on(LivekitClient.RoomEvent.DataReceived, function (payload) {
         var mm = mediaModeApi();
         var msg = mm ? mm.parseDataPayload(payload) : null;
         if (msg && mm && mm.isMediaModeMessage(msg)) {
-          handleMediaModeMessage(msg);
+          handleCameraRequestMessage(msg);
           return;
         }
         handleCapturePhotoData(payload).catch(function (e) {
@@ -770,12 +829,9 @@
       });
 
       await room.connect(tok.body.url, tok.body.token);
-      sessionMediaMode = preferredMedia === 'audio' ? 'audio' : 'video';
-      applySessionMediaUi();
-      var mmSync = mediaModeApi();
-      if (mmSync) {
-        publishMode(mmSync.MediaModeAction.ModeSync, sessionMediaMode);
-      }
+      mediaSessionStarted = true;
+      applyMediaUi();
+      // No mode_sync — remote UI derives from LiveKit publications
 
       // Attach any tracks already published by staff before we joined.
       try {
@@ -1107,18 +1163,7 @@
   }
 
   function toggleCam() {
-    // Mid-call: use session mode switches (Bật video / Chỉ thoại)
-    if (sessionMediaMode === 'audio') {
-      switchToVideoSession(false);
-      return;
-    }
-    camEnabled = !camEnabled;
-    if (room && room.localParticipant) {
-      try { room.localParticipant.setCameraEnabled(camEnabled); } catch { /* ignore */ }
-    }
-    els.btnCam.classList.toggle('off', !camEnabled);
-    els.btnCam.textContent = camEnabled ? 'Camera' : 'Tắt camera';
-    if (!camEnabled) switchToAudioSession(true);
+    toggleLocalCamera();
   }
 
   function resetIdle() {
@@ -1193,21 +1238,18 @@
   els.btnClose.addEventListener('click', function () { postParent({ type: 'close' }); });
   els.btnMic.addEventListener('click', toggleMic);
   els.btnCam.addEventListener('click', toggleCam);
+  // Legacy session-mode buttons — map to local camera only if still present in DOM
   if (els.btnToVideo) {
-    els.btnToVideo.addEventListener('click', function () { switchToVideoSession(false); });
+    els.btnToVideo.addEventListener('click', function () { setLocalCameraEnabled(true); });
   }
   if (els.btnToAudio) {
-    els.btnToAudio.addEventListener('click', function () { switchToAudioSession(true); });
+    els.btnToAudio.addEventListener('click', function () { setLocalCameraEnabled(false); });
   }
   if (els.btnAcceptVideo) {
-    els.btnAcceptVideo.addEventListener('click', function () { switchToVideoSession(true); });
+    els.btnAcceptVideo.addEventListener('click', function () { acceptCameraRequest(); });
   }
   if (els.btnRejectVideo) {
-    els.btnRejectVideo.addEventListener('click', function () {
-      hideMediaModeBanner();
-      var mm = mediaModeApi();
-      if (mm) publishMode(mm.MediaModeAction.RejectVideo, sessionMediaMode);
-    });
+    els.btnRejectVideo.addEventListener('click', function () { rejectCameraRequest(); });
   }
 
   window.addEventListener('message', onParentMessage);
