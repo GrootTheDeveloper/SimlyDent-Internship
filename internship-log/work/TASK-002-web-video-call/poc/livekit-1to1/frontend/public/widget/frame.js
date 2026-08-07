@@ -28,6 +28,8 @@
   var livekitLoadPromise = null;
   var hasLocalVideo = false;
   var hasLocalAudio = false;
+  /** Preferred local media when joining: 'video' | 'audio' */
+  var preferredMedia = 'video';
   /** idle | waiting | ready | media | reconnect | perm | ended | error */
   var uiState = 'idle';
   var lastServerStatus = '';
@@ -57,6 +59,8 @@
     localVideo: $('localVideo'),
     localSample: $('localSample'),
     btnCall: $('btnCall'),
+    btnCallVideo: $('btnCallVideo'),
+    btnCallAudio: $('btnCallAudio'),
     btnCancel: $('btnCancel'),
     btnJoin: $('btnJoin'),
     btnEnd: $('btnEnd'),
@@ -234,8 +238,18 @@
     postParent({ type: 'state', state: status });
   }
 
-  async function startCall() {
-    els.btnCall.disabled = true;
+  function setCallButtonsDisabled(disabled) {
+    if (els.btnCall) els.btnCall.disabled = disabled;
+    if (els.btnCallVideo) els.btnCallVideo.disabled = disabled;
+    if (els.btnCallAudio) els.btnCallAudio.disabled = disabled;
+  }
+
+  async function startCall(mediaMode) {
+    preferredMedia = mediaMode === 'audio' ? 'audio' : 'video';
+    try {
+      sessionStorage.setItem(storageKey('preferredMedia'), preferredMedia);
+    } catch { /* ignore */ }
+    setCallButtonsDisabled(true);
     try {
       await ensureSessionFromParent();
       var res = await api('/embed/calls', { method: 'POST', body: '{}' });
@@ -251,7 +265,7 @@
     } catch (err) {
       setHardError(err.message || String(err));
     } finally {
-      els.btnCall.disabled = false;
+      setCallButtonsDisabled(false);
     }
   }
 
@@ -445,6 +459,32 @@
       : { width: 1280, height: 720, frameRate: 30 };
     var tracks = [];
     var note = '';
+    var wantAudioOnly = preferredMedia === 'audio';
+    try {
+      var stored = sessionStorage.getItem(storageKey('preferredMedia'));
+      if (stored === 'audio' || stored === 'video') {
+        preferredMedia = stored;
+        wantAudioOnly = preferredMedia === 'audio';
+      }
+    } catch { /* ignore */ }
+
+    if (wantAudioOnly) {
+      try {
+        tracks = await createLocalTracks({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+        camEnabled = false;
+        note = 'audio-only';
+        return { tracks: tracks, note: note };
+      } catch (eAudioPref) {
+        console.warn('[embed] preferred audio-only failed', eAudioPref);
+      }
+    }
 
     try {
       tracks = await createLocalTracks({
@@ -875,7 +915,16 @@
     if (data.type === 'session' && data.session) applySession(data.session);
   }
 
-  els.btnCall.addEventListener('click', startCall);
+  if (els.btnCallVideo) {
+    els.btnCallVideo.addEventListener('click', function () { startCall('video'); });
+  }
+  if (els.btnCallAudio) {
+    els.btnCallAudio.addEventListener('click', function () { startCall('audio'); });
+  }
+  // Legacy single button still maps to video
+  if (els.btnCall) {
+    els.btnCall.addEventListener('click', function () { startCall('video'); });
+  }
   els.btnCancel.addEventListener('click', cancelCall);
   if (els.btnConsent) els.btnConsent.addEventListener('click', submitConsent);
   els.btnJoin.addEventListener('click', joinMedia);

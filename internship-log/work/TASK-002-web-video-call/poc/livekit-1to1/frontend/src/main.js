@@ -1103,13 +1103,19 @@ if (isCallRoute) {
   const callId = path.replace('/call/', '').trim()
   // Identity comes from JWT session (not spoofable query alone).
   const cached = readCachedUser()
-  const userId = cached?.id || new URLSearchParams(window.location.search).get('user') || ''
+  const callQuery = new URLSearchParams(window.location.search)
+  const userId = cached?.id || callQuery.get('user') || ''
+  /** Preferred local media: video (default) | audio — set by staff/visitor before join. */
+  const preferredMediaMode = (callQuery.get('media') || 'video').toLowerCase() === 'audio'
+    ? 'audio'
+    : 'video'
 
   new Vue({
     el: '#app',
     data: {
       callId,
       userId,
+      preferredMediaMode,
       currentUser: cached || null,
       identities: [],
       call: null,
@@ -1122,7 +1128,7 @@ if (isCallRoute) {
       connected: false,
       joining: false,
       mediaPermissionState: 'idle',
-      cameraEnabled: true,
+      cameraEnabled: preferredMediaMode !== 'audio',
       microphoneEnabled: true,
       remoteVideoConnected: false,
       needsAudioPermission: false,
@@ -1330,25 +1336,38 @@ if (isCallRoute) {
 
           this.mediaPermissionState = 'requesting'
           let localTracks = []
+          const audioOnly = this.preferredMediaMode === 'audio'
           try {
-            const captureResolution = preferredVideoCaptureResolution()
-            localTracks = await createLocalTracks({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-              },
-              video: {
-                facingMode: 'user',
-                resolution: captureResolution
-              }
-            })
-            const prepared = await prepareLocalTracksForOrientation(localTracks)
-            localTracks = prepared.tracks
-            if (typeof this.localMediaCleanup === 'function') this.localMediaCleanup()
-            this.localMediaCleanup = prepared.cleanup
+            if (audioOnly) {
+              localTracks = await createLocalTracks({
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                },
+                video: false
+              })
+              this.cameraEnabled = false
+            } else {
+              const captureResolution = preferredVideoCaptureResolution()
+              localTracks = await createLocalTracks({
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                },
+                video: {
+                  facingMode: 'user',
+                  resolution: captureResolution
+                }
+              })
+              const prepared = await prepareLocalTracksForOrientation(localTracks)
+              localTracks = prepared.tracks
+              if (typeof this.localMediaCleanup === 'function') this.localMediaCleanup()
+              this.localMediaCleanup = prepared.cleanup
+            }
           } catch (e) {
-            console.warn('Could not start AV, trying audio only:', e)
+            console.warn('Could not start preferred media, trying audio only:', e)
             try {
               localTracks = await createLocalTracks({ audio: true, video: false })
               this.cameraEnabled = false
@@ -2663,9 +2682,16 @@ if (isCallRoute) {
       agentBadgeLabelFor(userId) {
         return agentBadgeLabel(this.agentStateFor(userId))
       },
-      async startQueueCall() {
+      callUrlFor(callId, mediaMode = 'video') {
+        const media = mediaMode === 'audio' ? 'audio' : 'video'
+        return `/call/${callId}?user=${encodeURIComponent(this.identityId)}&media=${media}`
+      },
+      async startQueueCall(mediaMode = 'video') {
         if (this.isCallActive) return
         try {
+          try {
+            sessionStorage.setItem('simlydent_preferred_media', mediaMode === 'audio' ? 'audio' : 'video')
+          } catch { /* ignore */ }
           const res = await apiFetch('/api/queue/calls', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -2679,6 +2705,8 @@ if (isCallRoute) {
           }
           this.call = body
           this.popupState = body.status === 'Ringing' ? 'ringing' : 'ringing'
+          // Demo visitor (VA): open call window when accepted — media stored for join
+          this._queuePreferredMedia = mediaMode === 'audio' ? 'audio' : 'video'
         } catch (e) {
           this.popupErrorMessage = e.message
           this.popupState = 'error'
@@ -2715,13 +2743,13 @@ if (isCallRoute) {
       isManagerAccount(user) {
         return String(user?.role || '').toLowerCase() === 'manager'
       },
-      async startCall(targetId) {
+      async startCall(targetId, mediaMode = 'video') {
         if (this.isVisitor) {
-          await this.startQueueCall()
+          await this.startQueueCall(mediaMode)
           return
         }
         if (this.isManager) {
-          this.popupErrorMessage = 'Tài khoản Quản lý không gọi video. Hãy dùng tài khoản nhân viên tư vấn để nhận khách.'
+          this.popupErrorMessage = 'Tài khoản Quản lý không đặt cuộc gọi media. Hãy dùng tài khoản nhân viên tư vấn để nhận khách.'
           this.popupState = 'error'
           return
         }
@@ -2739,6 +2767,10 @@ if (isCallRoute) {
           return
         }
         this.targetId = targetId
+        const media = mediaMode === 'audio' ? 'audio' : 'video'
+        try {
+          sessionStorage.setItem('simlydent_preferred_media', media)
+        } catch { /* ignore */ }
         const isMobile = window.innerWidth < 768
 
         // Open blank popup immediately to avoid popup blocker on Desktop
@@ -2770,7 +2802,7 @@ if (isCallRoute) {
           this.call = call
           this.popupState = 'ringing'
 
-          const callUrl = `/call/${call.id}?user=${this.identityId}`
+          const callUrl = this.callUrlFor(call.id, media)
           if (isMobile) {
             window.location.href = callUrl
           } else {
@@ -2790,6 +2822,11 @@ if (isCallRoute) {
       async acceptCall() {
         if (!this.call) return
         const isMobile = window.innerWidth < 768
+        // Callee joins with video by default; can mute cam. Prefer stored if any.
+        let media = 'video'
+        try {
+          media = sessionStorage.getItem('simlydent_preferred_media') || 'video'
+        } catch { /* ignore */ }
 
         let popupWin = null
         if (!isMobile) {
@@ -2814,7 +2851,7 @@ if (isCallRoute) {
           this.call = call
           this.popupState = 'active_window'
 
-          const callUrl = `/call/${call.id}?user=${this.identityId}`
+          const callUrl = this.callUrlFor(call.id, media)
           if (isMobile) {
             window.location.href = callUrl
           } else {
@@ -2860,7 +2897,11 @@ if (isCallRoute) {
       reopenCallWindow() {
         if (!this.call) return
         const isMobile = window.innerWidth < 768
-        const callUrl = `/call/${this.call.id}?user=${this.identityId}`
+        let media = 'video'
+        try {
+          media = sessionStorage.getItem('simlydent_preferred_media') || 'video'
+        } catch { /* ignore */ }
+        const callUrl = this.callUrlFor(this.call.id, media)
         if (isMobile) {
           window.location.href = callUrl
         } else {
@@ -3078,15 +3119,28 @@ if (isCallRoute) {
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                class="header-call-btn"
-                :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
-                @click="startCall(selectedIdentity.id)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-                <span>Gọi video</span>
-              </button>
+              <div class="header-call-actions">
+                <button
+                  type="button"
+                  class="header-call-btn"
+                  :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
+                  @click="startCall(selectedIdentity.id, 'video')"
+                  title="Gọi video (camera + micro)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
+                  <span>Gọi video</span>
+                </button>
+                <button
+                  type="button"
+                  class="header-call-btn header-call-btn--audio"
+                  :disabled="isCallActive || !isUserOnline(selectedIdentity.id) || !sameTenant(selectedIdentity)"
+                  @click="startCall(selectedIdentity.id, 'audio')"
+                  title="Gọi thoại (chỉ micro)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>
+                  <span>Gọi thoại</span>
+                </button>
+              </div>
             </header>
 
             <div class="main-body">
@@ -3101,13 +3155,21 @@ if (isCallRoute) {
                 <h2 class="idle-title">Gọi tư vấn</h2>
                 <p class="idle-desc">
                   Bạn sẽ vào hàng chờ. Nhân viên rảnh của phòng khám sẽ nhận cuộc gọi.
+                  Chọn video (camera + micro) hoặc chỉ thoại.
                 </p>
                 <p v-if="queueItems.length" class="idle-meta">
                   Hiện có {{ queueItems.length }} yêu cầu đang chờ
                 </p>
-                <button type="button" class="start-call-btn" :disabled="isCallActive" @click="startQueueCall">
-                  <span>{{ isCallActive ? ('Đang ' + callStatusVi(call && call.status).toLowerCase()) : 'Bắt đầu gọi tư vấn' }}</span>
-                </button>
+                <div class="call-actions-row">
+                  <button type="button" class="start-call-btn" :disabled="isCallActive" @click="startQueueCall('video')">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
+                    <span>{{ isCallActive ? ('Đang ' + callStatusVi(call && call.status).toLowerCase()) : 'Gọi video' }}</span>
+                  </button>
+                  <button type="button" class="start-call-btn start-call-btn--secondary" :disabled="isCallActive" @click="startQueueCall('audio')">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>
+                    <span>Gọi thoại</span>
+                  </button>
+                </div>
               </div>
 
               <!-- Manager: consultations + legacy recordings -->
@@ -3333,17 +3395,28 @@ if (isCallRoute) {
                 </p>
                 <ul class="idle-steps">
                   <li><span class="idle-step-num">1</span><span>Khách website vào <strong>Khách chờ</strong> (góc dưới phải) — hệ thống mời bạn nhận máy.</span></li>
-                  <li><span class="idle-step-num">2</span><span>Hoặc gọi nội bộ đồng nghiệp khi cả hai đang trực tuyến.</span></li>
+                  <li><span class="idle-step-num">2</span><span>Hoặc gọi nội bộ đồng nghiệp khi cả hai đang trực tuyến (video hoặc chỉ thoại).</span></li>
                 </ul>
-                <button
-                  type="button"
-                  class="start-call-btn"
-                  :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
-                  @click="startCall(selectedIdentity.id)"
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-                  <span>Gọi video với đồng nghiệp</span>
-                </button>
+                <div class="call-actions-row">
+                  <button
+                    type="button"
+                    class="start-call-btn"
+                    :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
+                    @click="startCall(selectedIdentity.id, 'video')"
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
+                    <span>Gọi video</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="start-call-btn start-call-btn--secondary"
+                    :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
+                    @click="startCall(selectedIdentity.id, 'audio')"
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>
+                    <span>Gọi thoại</span>
+                  </button>
+                </div>
               </div>
 
               <!-- Staff empty -->
@@ -3368,8 +3441,22 @@ if (isCallRoute) {
               </div>
               <p class="peer-clinic-line">{{ clinicLabel(selectedIdentity.clinicId || selectedIdentity.tenantId) }}</p>
               <p class="peer-help-text">
-                Gọi video nội bộ giữa nhân viên cùng phòng. Khách từ website được phân công qua hàng chờ — không cần gọi tay.
+                Gọi video hoặc thoại nội bộ giữa nhân viên cùng phòng. Khách từ website được phân công qua hàng chờ — không cần gọi tay.
               </p>
+              <div class="call-actions-row" style="margin-top: 16px;">
+                <button
+                  type="button"
+                  class="start-call-btn"
+                  :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
+                  @click="startCall(selectedIdentity.id, 'video')"
+                >Gọi video</button>
+                <button
+                  type="button"
+                  class="start-call-btn start-call-btn--secondary"
+                  :disabled="isCallActive || !sameTenant(selectedIdentity) || !isUserOnline(selectedIdentity.id)"
+                  @click="startCall(selectedIdentity.id, 'audio')"
+                >Gọi thoại</button>
+              </div>
             </div>
           </aside>
         </main>

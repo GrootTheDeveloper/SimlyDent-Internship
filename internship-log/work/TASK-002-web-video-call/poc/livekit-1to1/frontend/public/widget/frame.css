@@ -35,6 +35,8 @@ body { overflow: hidden; }
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
   background: var(--canvas);
 }
 
@@ -80,12 +82,36 @@ body { overflow: hidden; }
 }
 
 .main {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px 18px;
   background: var(--parchment);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.call-choice-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.call-choice-row .primary,
+.call-choice-row .secondary {
+  width: 100%;
+  justify-content: center;
+}
+
+.call-audio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pane {
