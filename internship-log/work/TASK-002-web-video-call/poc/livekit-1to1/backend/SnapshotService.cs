@@ -41,8 +41,8 @@ public sealed class SnapshotService(
         assetId = await catalog.InsertMediaAssetAsync(new MediaAssetInsert(
             assetId, session.Id, call.Id, call.ClinicId,
             MediaAssetKinds.Snapshot, staff.Id,
-            patientParticipantIdentity, sourceTrackId: null,
-            retentionUntil), ct);
+            patientParticipantIdentity, SourceTrackId: null,
+            RetentionUntil: retentionUntil), ct);
 
         await catalog.UpsertMediaObjectAsync(assetId, MediaObjectKinds.Original, storageKey,
             mimeType: "image/jpeg", bytes: null, etag: null,

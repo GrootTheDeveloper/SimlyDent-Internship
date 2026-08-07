@@ -46,9 +46,9 @@ public sealed class ConsultationAudioService(
             var retentionUntil = DateTimeOffset.UtcNow.AddDays(policy.RetentionDays);
             assetId = await catalog.InsertMediaAssetAsync(new MediaAssetInsert(
                 assetId, session.Id, call.Id, call.ClinicId,
-                MediaAssetKinds.CallAudio, createdBy: null,
-                sourceParticipantId: null, sourceTrackId: null,
-                retentionUntil), ct);
+                MediaAssetKinds.CallAudio, CreatedBy: null,
+                SourceParticipantId: null, SourceTrackId: null,
+                RetentionUntil: retentionUntil), ct);
         }
         catch (MediaAssetConflictException)
         {
