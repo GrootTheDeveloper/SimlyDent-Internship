@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO.Compression;
 using System.Security.Claims;
 
 namespace LiveKitPoc.Api;
@@ -39,7 +40,7 @@ public static class ConsultationEndpoints
                 }
                 items.Add(new ConsultationListItem(
                     s.Id, s.CallId, s.ClinicId,
-                    s.CallerId, s.CallerDisplayName,
+                    s.CallerId, FormatPatientDisplayName(s.CallerId, s.CallerDisplayName),
                     s.StaffId, s.StaffDisplayName,
                     s.StartedAt, s.EndedAt, duration,
                     counts.audio, counts.video, counts.photo,
@@ -75,7 +76,110 @@ public static class ConsultationEndpoints
             return Results.Ok(detail);
         }).RequireAuthorization();
 
+        // Manager: ZIP export — audio + videos/ + images/
+        app.MapGet("/api/consultations/{sessionId:guid}/zip", async (
+            Guid sessionId,
+            ClaimsPrincipal principal,
+            IdentityRegistry identities,
+            IConsultationCatalog catalog,
+            IRecordingStorage storage,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            if (!IsMediaFeatureEnabled(config))
+                return Results.NotFound();
+
+            var current = ClinicAuthorization.CurrentUser(principal, identities);
+            if (current is null) return Results.Unauthorized();
+            if (!ClinicAuthorization.IsManager(current))
+                return Results.Json(new { error = "Manager role required." }, statusCode: 403);
+
+            var session = await catalog.GetSessionByIdAsync(sessionId, ct);
+            if (session is null
+                || !string.Equals(session.ClinicId, current.ClinicId, StringComparison.OrdinalIgnoreCase))
+                return Results.NotFound();
+
+            var assets = await catalog.ListAssetsBySessionAsync(sessionId, ct);
+            var ready = assets
+                .Where(a => MediaAssetStatus.IsDownloadable(a.Status))
+                .OrderBy(a => a.RequestedAt)
+                .ToList();
+            if (ready.Count == 0)
+                return Results.Conflict(new { error = "Chưa có media Ready để đóng gói." });
+
+            var ms = new MemoryStream();
+            var fileCount = 0;
+            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                var videoIdx = 0;
+                var photoIdx = 0;
+                foreach (var a in ready)
+                {
+                    var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
+                              ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
+                    if (obj is null || string.IsNullOrWhiteSpace(obj.StorageKey)) continue;
+                    if (!await storage.ExistsAsync(obj.StorageKey, ct)) continue;
+
+                    await using var stream = await storage.OpenReadAsync(obj.StorageKey, ct);
+                    if (stream is null) continue;
+
+                    string entryName;
+                    if (a.Kind == MediaAssetKinds.CallAudio)
+                    {
+                        entryName = "audio.mp3";
+                    }
+                    else if (a.Kind == MediaAssetKinds.DentalVideoClip)
+                    {
+                        videoIdx++;
+                        entryName = $"videos/clip-{videoIdx:D2}.mp4";
+                    }
+                    else if (a.Kind == MediaAssetKinds.Snapshot)
+                    {
+                        photoIdx++;
+                        entryName = $"images/photo-{photoIdx:D2}.jpg";
+                    }
+                    else
+                    {
+                        entryName = $"other/{a.Kind.ToLowerInvariant()}-{a.Id:N}.bin";
+                    }
+
+                    var entry = zip.CreateEntry(entryName, CompressionLevel.Fastest);
+                    await using (var entryStream = entry.Open())
+                    {
+                        await stream.CopyToAsync(entryStream, ct);
+                    }
+                    fileCount++;
+                }
+            }
+
+            if (fileCount == 0)
+                return Results.Conflict(new { error = "Không đọc được file media trên disk." });
+
+            ms.Position = 0;
+            var patient = FormatPatientDisplayName(session.CallerId, session.CallerDisplayName)
+                .Replace('#', '-')
+                .Replace(' ', '_');
+            var zipName = $"consultation-{patient}-{session.CallId:N}.zip";
+            return Results.File(ms, "application/zip", fileDownloadName: zipName);
+        }).RequireAuthorization();
+
         return app;
+    }
+
+    /// <summary>
+    /// Prefer human labels (Khách #ABC123) over raw visitor:{guid} stored historically.
+    /// </summary>
+    internal static string FormatPatientDisplayName(string? callerId, string? storedName)
+    {
+        var pretty = CallDispatcher.FormatCallerLabel(callerId);
+        if (string.IsNullOrWhiteSpace(storedName)) return pretty;
+        // Stored raw visitor id / same as caller id → use pretty label
+        if (string.Equals(storedName, callerId, StringComparison.OrdinalIgnoreCase))
+            return pretty;
+        if (storedName.StartsWith("visitor:", StringComparison.OrdinalIgnoreCase))
+            return pretty;
+        // Already looks like Khách #… keep it
+        return storedName;
     }
 
     internal static async Task<ConsultationDetailView> BuildDetailViewAsync(
@@ -112,7 +216,8 @@ public static class ConsultationEndpoints
 
         return new ConsultationDetailView(
             session.Id, session.CallId,
-            session.CallerDisplayName, session.StaffDisplayName,
+            FormatPatientDisplayName(session.CallerId, session.CallerDisplayName),
+            session.StaffDisplayName,
             session.StartedAt, session.EndedAt,
             audio, clips, photos);
     }

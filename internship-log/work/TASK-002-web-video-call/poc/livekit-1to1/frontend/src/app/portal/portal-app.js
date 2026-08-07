@@ -18,7 +18,7 @@ import {
   authHeaders,
 } from '../../shared/auth.js'
 import { apiFetch } from '../../shared/api-client.js'
-import { fetchAndSaveMediaAsset } from '../../shared/media-download.js'
+import { fetchAndSaveMediaAsset, fetchAndSaveConsultationZip } from '../../shared/media-download.js'
 import {
   clinicIdOf,
   isEmbedVisitorId,
@@ -363,11 +363,35 @@ export function mountPortalApp() {
       closeConsultationDetail() {
         this.consultationDetail = null
       },
+      patientLabel(row) {
+        // Prefer server pretty name; fall back to Khách #XXXX for visitor ids
+        const name = row?.patientDisplayName || row?.patientId || ''
+        const id = row?.patientId || name
+        if (isEmbedVisitorId(id) || isEmbedVisitorId(name) || String(name).startsWith('visitor:')) {
+          return peerLabel(id, null)
+        }
+        if (name && name !== id) return name
+        return peerLabel(id, { displayName: name }) || name || '—'
+      },
       async downloadMediaAsset(assetId, kind) {
         if (!assetId || this.mediaActionId) return
         this.mediaActionId = assetId
         try {
           await fetchAndSaveMediaAsset(assetId, kind)
+        } catch (e) {
+          this.popupErrorMessage = e.message
+          this.popupState = 'error'
+        } finally {
+          this.mediaActionId = null
+        }
+      },
+      async downloadConsultationZip(sessionId, row) {
+        if (!sessionId || this.mediaActionId) return
+        this.mediaActionId = sessionId
+        try {
+          const label = this.patientLabel(row || this.consultationDetail || {})
+            .replace(/[#\s]+/g, '-')
+          await fetchAndSaveConsultationZip(sessionId, `consultation-${label}.zip`)
         } catch (e) {
           this.popupErrorMessage = e.message
           this.popupState = 'error'
@@ -1142,7 +1166,7 @@ export function mountPortalApp() {
                     <tbody>
                       <tr v-for="row in consultations" :key="row.sessionId">
                         <td>
-                          <div class="library-primary">{{ row.patientDisplayName || row.patientId }}</div>
+                          <div class="library-primary">{{ patientLabel(row) }}</div>
                           <div class="library-secondary mono" :title="row.callId">{{ String(row.callId).slice(0, 8) }}…</div>
                         </td>
                         <td class="library-secondary">{{ row.staffDisplayName || row.staffId || '—' }}</td>
@@ -1157,6 +1181,13 @@ export function mountPortalApp() {
                           <button type="button" class="row-btn row-btn--primary" @click="openConsultationDetail(row.sessionId)">
                             Xem
                           </button>
+                          <button
+                            type="button"
+                            class="row-btn"
+                            :disabled="mediaActionId === row.sessionId || !(row.audioCount || row.videoCount || row.photoCount)"
+                            :title="(row.audioCount || row.videoCount || row.photoCount) ? 'Tải ZIP: audio + videos/ + images/' : 'Chưa có media Ready'"
+                            @click="downloadConsultationZip(row.sessionId, row)"
+                          >ZIP</button>
                         </td>
                       </tr>
                     </tbody>
@@ -1168,16 +1199,27 @@ export function mountPortalApp() {
                   <div class="library-modal" style="background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:85vh;overflow:auto;padding:20px;">
                     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
                       <div>
-                        <h3 style="margin:0;">{{ consultationDetail.patientDisplayName }}</h3>
+                        <h3 style="margin:0;">{{ patientLabel({ patientDisplayName: consultationDetail.patientDisplayName, patientId: consultationDetail.patientId }) }}</h3>
                         <p class="library-secondary" style="margin:4px 0 0;">
                           NV: {{ consultationDetail.staffDisplayName || '—' }} ·
                           {{ formatViDateTime(consultationDetail.startedAt) }}
                         </p>
                       </div>
-                      <button type="button" class="btn-secondary-pill" @click="closeConsultationDetail">Đóng</button>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button
+                          type="button"
+                          class="btn-secondary-pill"
+                          :disabled="mediaActionId === consultationDetail.sessionId"
+                          @click="downloadConsultationZip(consultationDetail.sessionId, { patientDisplayName: consultationDetail.patientDisplayName })"
+                        >Tải ZIP cuộc gọi</button>
+                        <button type="button" class="btn-secondary-pill" @click="closeConsultationDetail">Đóng</button>
+                      </div>
                     </header>
                     <div v-if="consultationDetailLoading">Đang tải…</div>
                     <template v-else>
+                      <p class="library-secondary" style="margin:0 0 12px;">
+                        ZIP gồm: <code>audio.mp3</code>, thư mục <code>videos/</code>, <code>images/</code> (chỉ file Ready).
+                      </p>
                       <section v-if="consultationDetail.audio" style="margin-bottom:14px;">
                         <h4 style="margin:0 0 6px;">Audio phiên</h4>
                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

@@ -141,9 +141,14 @@ public static class CallEndpoints
                 {
                     var caller = identities.Find(call.CallerId);
                     var staff = identities.Find(call.AssignedStaffId ?? call.CalleeId ?? current.Id);
+                    // Never persist raw visitor:{guid} as display name (manager library)
+                    var callerLabel = !string.IsNullOrWhiteSpace(caller?.DisplayName)
+                        && !string.Equals(caller.DisplayName, call.CallerId, StringComparison.OrdinalIgnoreCase)
+                            ? caller!.DisplayName
+                            : CallDispatcher.FormatCallerLabel(call.CallerId);
                     var session = await consultationCatalog.EnsureSessionAsync(
                         call.Id, call.ClinicId, call.RoomName,
-                        call.CallerId, caller?.DisplayName ?? call.CallerId,
+                        call.CallerId, callerLabel,
                         staff?.Id ?? current.Id, staff?.DisplayName ?? current.DisplayName,
                         initialMediaMode: CallSession.NormalizeMediaMode(call.InitialMediaMode),
                         cancellationToken);

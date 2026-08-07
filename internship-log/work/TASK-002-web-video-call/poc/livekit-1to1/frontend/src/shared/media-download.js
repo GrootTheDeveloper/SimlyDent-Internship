@@ -64,3 +64,44 @@ export async function fetchAndSaveMediaAsset(assetId, kind = 'media') {
   if (!blob || blob.size === 0) throw new Error('File rỗng hoặc chưa sẵn sàng.')
   triggerBlobDownload(blob, filename)
 }
+
+/**
+ * Download full consultation package as ZIP:
+ *   audio.mp3 + videos/*.mp4 + images/*.jpg
+ * @param {string} sessionId
+ * @param {string} [suggestedName]
+ */
+export async function fetchAndSaveConsultationZip(sessionId, suggestedName = '') {
+  if (!sessionId) throw new Error('Thiếu sessionId.')
+
+  const res = await apiFetch(`/api/consultations/${sessionId}/zip`, {
+    headers: authHeaders()
+  })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const err = await res.json()
+      detail = err.error || ''
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail || `Tải ZIP thất bại (HTTP ${res.status})`)
+  }
+
+  const blob = await res.blob()
+  if (!blob || blob.size === 0) throw new Error('ZIP rỗng hoặc chưa có media Ready.')
+
+  let filename = suggestedName || `consultation-${String(sessionId).slice(0, 8)}.zip`
+  if (!filename.toLowerCase().endsWith('.zip')) filename += '.zip'
+  // Prefer Content-Disposition filename if present
+  const cd = res.headers.get('Content-Disposition') || ''
+  const m = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(cd)
+  if (m && m[1]) {
+    try {
+      filename = decodeURIComponent(m[1].replace(/"/g, '').trim())
+    } catch {
+      filename = m[1].replace(/"/g, '').trim()
+    }
+  }
+  triggerBlobDownload(blob, filename)
+}
