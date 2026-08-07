@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Demo phòng khám — SimlyDent tư vấn video</title>
+  <meta name="description" content="Landing demo nhúng widget gọi tư vấn video SimlyDent — phong cách simlydent.vn" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Tokens inspired by https://simlydent.vn */
+    :root {
+      --orange: #F26522;
+      --orange-hover: #d9561d;
+      --navy: #1B3587;
+      --navy-deep: #142970;
+      --body: #3D3D4E;
+      --muted: #7A7A8C;
+      --border: #E8E8F0;
+      --bg: #FFFFFF;
+      --bg-alt: #F7F8FC;
+      --bg-orange: #FFF4EE;
+      --bg-navy: #EEF1FB;
+      --success: #00A67E;
+      --radius: 14px;
+      --radius-lg: 22px;
+      --shadow: 0 8px 28px rgba(27, 53, 135, 0.08);
+      --font: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
+      --clinic-accent: var(--orange);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--body);
+      background: var(--bg);
+      font-size: 17px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    /* Nav */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 20px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--navy);
+      letter-spacing: -0.02em;
+    }
+    .nav-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--orange), #ff8a4c);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 16px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .nav-links a:hover { color: var(--navy); background: var(--bg-alt); }
+    .clinic-switch {
+      display: inline-flex;
+      padding: 3px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      gap: 2px;
+    }
+    .clinic-switch button {
+      border: 0;
+      background: transparent;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 7px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .clinic-switch button.active {
+      background: #fff;
+      color: var(--navy);
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 13px 22px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      transition: transform .12s, box-shadow .12s, background .12s;
+      white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn--primary {
+      background: var(--orange);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(242, 101, 34, .32);
+    }
+    .btn--primary:hover { background: var(--orange-hover); }
+    .btn--navy {
+      background: var(--navy);
+      color: #fff;
+    }
+    .btn--navy:hover { background: var(--navy-deep); }
+    .btn--ghost {
+      background: #fff;
+      color: var(--navy);
+      border: 1.5px solid var(--border);
+    }
+    .btn--sm { padding: 10px 16px; font-size: 13px; }
+
+    /* Hero */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 48px 20px 56px;
+      background:
+        radial-gradient(900px 420px at 90% 0%, rgba(242, 101, 34, 0.12), transparent 55%),
+        radial-gradient(700px 360px at 0% 40%, rgba(27, 53, 135, 0.1), transparent 50%),
+        var(--bg);
+    }
+    .hero-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 40px;
+      align-items: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--bg-orange);
+      color: var(--orange);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(0, 166, 126, .2);
+    }
+    .hero h1 {
+      margin: 0 0 14px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--orange);
+    }
+    .hero-lead {
+      margin: 0 0 22px;
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 42ch;
+    }
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .hero-meta {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .hero-meta strong { color: var(--body); font-weight: 600; }
+
+    .hero-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      position: relative;
+    }
+    .hero-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(242,101,34,.35), rgba(27,53,135,.2));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .hero-card h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .hero-card p {
+      margin: 0 0 16px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat {
+      background: var(--bg-alt);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .stat b {
+      display: block;
+      font-size: 20px;
+      color: var(--navy);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .stat span {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* Sections */
+    .section {
+      padding: 56px 20px;
+    }
+    .section--alt { background: var(--bg-alt); }
+    .section--navy {
+      background: linear-gradient(160deg, #1B3587 0%, #142970 100%);
+      color: #fff;
+    }
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    .section-kicker {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin: 0 0 10px;
+    }
+    .section--navy .section-kicker { color: #ffb088; }
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: clamp(24px, 3vw, 32px);
+      line-height: 1.2;
+      letter-spacing: -0.025em;
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .section--navy h2 { color: #fff; }
+    .section-lead {
+      margin: 0 0 28px;
+      color: var(--muted);
+      max-width: 52ch;
+    }
+    .section--navy .section-lead { color: rgba(255,255,255,.78); }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      box-shadow: 0 2px 10px rgba(27, 53, 135, 0.04);
+    }
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--bg-orange);
+      color: var(--orange);
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .card p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      counter-reset: step;
+    }
+    .step {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .step::before {
+      counter-increment: step;
+      content: "0" counter(step);
+      display: block;
+      font-weight: 800;
+      font-size: 13px;
+      color: #ffb088;
+      margin-bottom: 10px;
+    }
+    .step h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .step p {
+      margin: 0;
+      font-size: 14px;
+      color: rgba(255,255,255,.75);
+    }
+
+    .cta-band {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 28px;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(120deg, var(--bg-orange), #fff);
+      border: 1px solid rgba(242, 101, 34, .18);
+    }
+    .cta-band h3 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .cta-band p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .tech-note {
+      margin-top: 28px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: var(--bg-navy);
+      border: 1px solid rgba(27, 53, 135, .12);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .tech-note code {
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--navy);
+    }
+
+    footer {
+      padding: 28px 20px 100px;
+      border-top: 1px solid var(--border);
+      background: #fff;
+    }
+    .footer-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .footer-inner a { color: var(--navy); font-weight: 600; }
+
+    @media (max-width: 860px) {
+      .hero-inner,
+      .grid-3,
+      .steps { grid-template-columns: 1fr; }
+      .nav-links a.hide-sm { display: none; }
+      .hero { padding: 32px 16px 40px; }
+      .section { padding: 40px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-brand">
+      <div class="nav-mark" id="navMark">A</div>
+      <div>
+        <div id="navName">Nha khoa Demo A</div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted)" id="navSub">Landing demo · widget gọi tư vấn</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a class="hide-sm" href="#dich-vu">Dịch vụ</a>
+      <a class="hide-sm" href="#quy-trinh">Quy trình</a>
+      <div class="clinic-switch" role="group" aria-label="Chọn phòng khám demo">
+        <button type="button" id="btnClinicA" class="active" data-clinic="a">Phòng A</button>
+        <button type="button" id="btnClinicB" data-clinic="b">Phòng B</button>
+      </div>
+      <a class="btn btn--primary btn--sm" href="#goi-tu-van">Gọi tư vấn</a>
+    </div>
+  </header>
+
+  <section class="hero" id="goi-tu-van">
+    <div class="hero-inner">
+      <div>
+        <div class="badge"><span class="badge-dot"></span> Demo website phòng khám · SimlyDent Call</div>
+        <h1 id="heroTitle">Nụ cười khỏe mạnh.<br /><em>Tư vấn video ngay hôm nay.</em></h1>
+        <p class="hero-lead" id="heroLead">
+          Trang giả lập website phòng khám — bấm nút <strong>Gọi tư vấn</strong> góc phải để vào hàng chờ
+          và được nhân viên đúng phòng nhận máy.
+        </p>
+        <div class="hero-cta">
+          <button type="button" class="btn btn--primary" id="btnScrollCall">Mở widget gọi tư vấn</button>
+          <a class="btn btn--ghost" id="staffLink" href="/" target="_blank" rel="noopener">Cổng nhân viên</a>
+        </div>
+        <p class="hero-meta">
+          Site key: <strong id="siteKeyLabel">pk_clinic_a</strong>
+          · Staff gợi ý: <strong id="staffHint">A1 / A2</strong>
+        </p>
+      </div>
+      <div class="hero-card">
+        <h2 id="cardTitle">Nha khoa Demo A</h2>
+        <p id="cardDesc">Cuộc gọi queue chỉ vào clinic-a. Manager A-MGR xem bản ghi phòng A.</p>
+        <div class="stat-row">
+          <div class="stat"><b>1:1</b><span>Video tư vấn</span></div>
+          <div class="stat"><b>15s</b><span>Ring timeout</span></div>
+          <div class="stat"><b>24/7</b><span>Demo PoC</span></div>
+          <div class="stat"><b>ACL</b><span>Tách phòng khám</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="dich-vu">
+    <div class="wrap">
+      <p class="section-kicker">Dịch vụ nổi bật</p>
+      <h2>Chăm sóc nha khoa trọn hành trình</h2>
+      <p class="section-lead">Nội dung marketing mẫu — phong cách landing simlydent.vn, gọn trong một trang để demo widget.</p>
+      <div class="grid-3">
+        <article class="card">
+          <div class="card-icon">🦷</div>
+          <h3>Khám &amp; tư vấn</h3>
+          <p>Đặt lịch, tư vấn online qua video — không cần cài app. Camera không bắt buộc.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">✨</div>
+          <h3>Thẩm mỹ nụ cười</h3>
+          <p>Tẩy trắng, veneer, chỉnh nha — giải thích quy trình trước khi đến phòng khám.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">🛡️</div>
+          <h3>An toàn &amp; riêng tư</h3>
+          <p>Call gắn đúng phòng; phòng B không xem được call/recording của phòng A.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--navy" id="quy-trinh">
+    <div class="wrap">
+      <p class="section-kicker">Cách dùng demo</p>
+      <h2>3 bước trên màn hình này</h2>
+      <p class="section-lead">Giống trải nghiệm khách trên website phòng khám thật.</p>
+      <div class="steps">
+        <div class="step">
+          <h3>Chọn phòng A hoặc B</h3>
+          <p>Đổi tab trên thanh nav — mỗi phòng một site_key và hàng chờ riêng.</p>
+        </div>
+        <div class="step">
+          <h3>Bấm Gọi tư vấn</h3>
+          <p>Widget nổi góc phải; đồng ý ghi (nếu bật) rồi tham gia call.</p>
+        </div>
+        <div class="step">
+          <h3>Staff nhận máy</h3>
+          <p>Mở cổng nhân viên, login A1/B1 — cửa sổ “Nhận cuộc gọi” hiện khi được gán.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="wrap">
+      <div class="cta-band">
+        <div>
+          <h3>Sẵn sàng nói chuyện với bác sĩ?</h3>
+          <p id="ctaHint">Dùng nút gọi góc phải màn hình — widget SimlyDent đã nhúng sẵn.</p>
+        </div>
+        <button type="button" class="btn btn--primary" id="btnCtaCall">Gọi tư vấn ngay</button>
+      </div>
+      <div class="tech-note">
+        <strong>Ghi chú kỹ thuật PoC:</strong>
+        Trang này cùng host với portal nếu mở trên
+        <code id="hostLabel">…</code>.
+        Multi-origin thật (2 website giả 2 port): chạy
+        <code>serve-embed-demo-origins.ps1</code>.
+        Origin phải nằm trong allowlist embed của clinic.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <span>Demo landing · design tham chiếu <a href="https://simlydent.vn" target="_blank" rel="noopener">simlydent.vn</a></span>
+      <span id="footerClinic">clinic-a · pk_clinic_a</span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var CLINICS = {
+        a: {
+          id: 'clinic-a',
+          siteKey: 'pk_clinic_a',
+          name: 'Nha khoa Demo A',
+          mark: 'A',
+          color: '#F26522',
+          staff: 'A1 / A2 · Quản lý A-MGR',
+          title: 'Nụ cười khỏe mạnh.<br /><em>Tư vấn video ngay hôm nay.</em>',
+          lead: 'Website demo phòng khám A. Bấm <strong>Gọi tư vấn</strong> góc phải để vào hàng chờ clinic-a — staff A1/A2 nhận máy.',
+          cardDesc: 'Queue & media gắn clinic-a. Staff B không accept; Manager A-MGR tải bản ghi phòng A.',
+          accent: '#F26522'
+        },
+        b: {
+          id: 'clinic-b',
+          siteKey: 'pk_clinic_b',
+          name: 'Nha khoa Demo B',
+          mark: 'B',
+          color: '#1B3587',
+          staff: 'B1 · Quản lý B-MGR',
+          title: 'Phòng khám Demo B.<br /><em>Hàng chờ riêng, tách biệt A.</em>',
+          lead: 'Website demo phòng khám B. Widget dùng <strong>pk_clinic_b</strong> — cuộc gọi không rơi vào queue A.',
+          cardDesc: 'Chứng minh isolation: site_key B + origin allowlist B. Staff A không nhận call B.',
+          accent: '#1B3587'
+        }
+      };
+
+      var params = new URLSearchParams(location.search);
+      var clinic = (params.get('c') || params.get('clinic') || 'a').toLowerCase();
+      if (!CLINICS[clinic]) clinic = 'a';
+
+      var embedLoaded = false;
+      var embedScript = null;
+
+      function applyClinic(key) {
+        clinic = key;
+        var cfg = CLINICS[key];
+        document.documentElement.style.setProperty('--orange', key === 'a' ? '#F26522' : '#1B3587');
+        document.documentElement.style.setProperty('--orange-hover', key === 'a' ? '#d9561d' : '#142970');
+        document.getElementById('navMark').textContent = cfg.mark;
+        document.getElementById('navName').textContent = cfg.name;
+        document.getElementById('heroTitle').innerHTML = cfg.title;
+        document.getElementById('heroLead').innerHTML = cfg.lead;
+        document.getElementById('cardTitle').textContent = cfg.name;
+        document.getElementById('cardDesc').textContent = cfg.cardDesc;
+        document.getElementById('siteKeyLabel').textContent = cfg.siteKey;
+        document.getElementById('staffHint').textContent = cfg.staff;
+        document.getElementById('footerClinic').textContent = cfg.id + ' · ' + cfg.siteKey;
+        document.getElementById('btnClinicA').classList.toggle('active', key === 'a');
+        document.getElementById('btnClinicB').classList.toggle('active', key === 'b');
+        document.title = cfg.name + ' — Demo tư vấn video';
+
+        var url = new URL(location.href);
+        url.searchParams.set('c', key);
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+
+        mountEmbed(cfg);
+      }
+
+      function mountEmbed(cfg) {
+        // Remove previous launcher/panel if any
+        var oldL = document.getElementById('simlydent-embed-launcher');
+        var oldP = document.getElementById('simlydent-embed-panel');
+        if (oldL) oldL.remove();
+        if (oldP) oldP.remove();
+        var oldS = document.getElementById('simlydent-embed-styles');
+        if (oldS) oldS.remove();
+        if (embedScript) {
+          embedScript.remove();
+          embedScript = null;
+        }
+        // Clear session storage keys for both clinics so switch is clean
+        try {
+          Object.keys(sessionStorage).forEach(function (k) {
+            if (k.indexOf('simlydent-embed:') === 0) sessionStorage.removeItem(k);
+          });
+        } catch (e) { /* ignore */ }
+
+        embedScript = document.createElement('script');
+        embedScript.src = '/widget/embed.js';
+        embedScript.async = true;
+        embedScript.setAttribute('data-site-key', cfg.siteKey);
+        embedScript.setAttribute('data-name', cfg.name);
+        embedScript.setAttribute('data-color', cfg.color);
+        embedScript.setAttribute('data-position', 'bottom-right');
+        document.body.appendChild(embedScript);
+        embedLoaded = true;
+      }
+
+      function openWidget() {
+        var launcher = document.getElementById('simlydent-embed-launcher');
+        if (launcher) launcher.click();
+        else window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      document.getElementById('btnClinicA').addEventListener('click', function () { applyClinic('a'); });
+      document.getElementById('btnClinicB').addEventListener('click', function () { applyClinic('b'); });
+      document.getElementById('btnScrollCall').addEventListener('click', openWidget);
+      document.getElementById('btnCtaCall').addEventListener('click', openWidget);
+
+      var staff = document.getElementById('staffLink');
+      staff.href = location.origin + '/';
+      document.getElementById('hostLabel').textContent = location.host;
+
+      applyClinic(clinic);
+    })();
+  </script>
+</body>
+</html>

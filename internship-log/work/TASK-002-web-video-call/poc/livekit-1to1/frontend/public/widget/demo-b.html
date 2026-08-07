@@ -2,53 +2,15 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Demo Clinic B — website phòng khám</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: "Segoe UI", system-ui, sans-serif;
-      background: #fff7ed;
-      color: #0f172a;
-    }
-    header {
-      background: linear-gradient(120deg, #c2410c, #9a3412);
-      color: #fff;
-      padding: 28px 20px;
-    }
-    main { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
-    .card {
-      background: #fff;
-      border-radius: 14px;
-      padding: 18px 20px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-      line-height: 1.5;
-    }
-    code { background: #ffedd5; padding: 2px 6px; border-radius: 6px; font-size: 0.9em; }
-    .note { margin-top: 16px; font-size: 14px; color: #9a3412; }
-  </style>
+  <meta http-equiv="refresh" content="0; url=./demo.html?c=b" />
+  <link rel="canonical" href="./demo.html?c=b" />
+  <title>Chuyển tới Demo phòng B…</title>
+  <script>location.replace('./demo.html?c=b' + location.hash);</script>
 </head>
 <body>
-  <header>
-    <h1 style="margin:0 0 6px;font-size:1.5rem;">Phòng khám Demo B</h1>
-    <p style="margin:0;opacity:.9;">Trang giả lập website phòng khám (clinic-b / pk_clinic_b)</p>
-  </header>
-  <main>
-    <div class="card">
-      <p>Widget dùng <code>pk_clinic_b</code>. Cuộc gọi chỉ vào queue clinic-b; staff A không Accept được.</p>
-      <p class="note">
-        Origin phải nằm trong <code>EMBED_ORIGINS_CLINIC_B</code>. Staff: login <code>B1</code>.
-        Multi-origin harness: port <code>5175</code> qua
-        <code>serve-embed-demo-origins.ps1</code> (widget remote từ SimlyDent host).
-      </p>
-    </div>
-  </main>
-
-  <script
-    src="/widget/embed.js"
-    data-site-key="pk_clinic_b"
-    data-name="Phòng khám Demo B"
-    data-color="#ea580c"
-    async></script>
+  <p style="font-family:system-ui;padding:24px">
+    Đang mở landing demo…
+    <a href="./demo.html?c=b">demo.html?c=b</a>
+  </p>
 </body>
 </html>

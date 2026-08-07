@@ -116,7 +116,7 @@ Snippet nhúng trên website phòng khám (Origin phải nằm trong allowlist e
 ```
 
 - Same-host demo UI (smoke only, **không** phải multi-origin):  
-  `https://YOUR_DOMAIN/widget/demo-a.html` · `…/demo-b.html`  
+  `https://YOUR_DOMAIN/widget/demo.html` (một landing; `?c=a` / `?c=b`) · alias `demo-a.html` / `demo-b.html`  
   (cần `EMBED_PUBLIC_ORIGIN=https://YOUR_DOMAIN` nếu demo cùng host với API)
 - **Multi-origin harness (PR-E)** — hai website PK giả trên port khác nhau; widget/API load **từ** YOUR_DOMAIN:
 

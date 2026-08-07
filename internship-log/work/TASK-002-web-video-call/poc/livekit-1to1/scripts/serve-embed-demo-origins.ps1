@@ -32,8 +32,8 @@ param(
     [string]$NameA = "Nha khoa Demo A",
     [string]$NameB = "Nha khoa Demo B",
 
-    [string]$ColorA = "#0d9488",
-    [string]$ColorB = "#2563eb",
+    [string]$ColorA = "#F26522",
+    [string]$ColorB = "#1B3587",
 
     # Only run 4-way origin binding against API (no HTTP servers)
     [switch]$ProbeOnly,
@@ -67,46 +67,56 @@ function Get-ClinicHtml {
     $apiEsc = [System.Net.WebUtility]::HtmlEncode($ApiBaseUrl)
     $embedEsc = [System.Net.WebUtility]::HtmlEncode("$ApiBaseUrl/widget/embed.js")
 
+    # Landing style tokens from simlydent.vn (orange / navy)
     @"
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>$titleEsc — fake clinic site</title>
+  <title>$titleEsc — multi-origin demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:#f8fafc; color:#0f172a; }
-    header { background:linear-gradient(120deg,$colorEsc,#0f172a); color:#fff; padding:28px 20px; }
-    main { max-width:720px; margin:0 auto; padding:24px 20px 100px; }
-    .card { background:#fff; border-radius:14px; padding:18px 20px;
-            box-shadow:0 8px 24px rgba(15,23,42,.08); line-height:1.55; }
-    code { background:#e2e8f0; padding:2px 6px; border-radius:6px; font-size:.9em; word-break:break-all; }
-    .note { margin-top:14px; font-size:14px; color:#475569; }
-    .warn { margin-top:12px; padding:10px 12px; background:#fff7ed; border-left:4px solid #f97316;
-            border-radius:8px; font-size:13px; color:#9a3412; }
+    :root {
+      --orange:#F26522; --navy:#1B3587; --body:#3D3D4E; --muted:#7A7A8C;
+      --border:#E8E8F0; --bg:#fff; --bg-alt:#F7F8FC; --bg-orange:#FFF4EE;
+      --accent:$colorEsc;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Be Vietnam Pro",system-ui,sans-serif;background:var(--bg);color:var(--body);font-size:17px;line-height:1.6}
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.94);position:sticky;top:0}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--navy);font-size:15px}
+    .mark{width:36px;height:36px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800}
+    .hero{padding:48px 20px 40px;background:radial-gradient(700px 300px at 90% 0%,rgba(242,101,34,.12),transparent 55%),var(--bg)}
+    .wrap{max-width:720px;margin:0 auto}
+    h1{margin:0 0 12px;font-size:clamp(26px,4vw,36px);line-height:1.15;letter-spacing:-.03em;color:var(--navy);font-weight:800}
+    h1 em{font-style:normal;color:var(--accent)}
+    .lead{margin:0 0 18px;color:var(--muted);max-width:42ch}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px 20px;box-shadow:0 8px 28px rgba(27,53,135,.08);margin-top:20px}
+    .card p{margin:0 0 10px;font-size:14px;color:var(--muted)}
+    code{background:var(--bg-alt);border:1px solid var(--border);padding:1px 6px;border-radius:6px;font-size:12px;color:var(--navy);word-break:break-all}
+    .pill{display:inline-flex;padding:6px 12px;border-radius:999px;background:var(--bg-orange);color:var(--orange);font-size:12px;font-weight:700;margin-bottom:14px}
+    .note{font-size:13px;color:var(--muted);margin-top:8px}
   </style>
 </head>
 <body>
-  <header>
-    <h1 style="margin:0 0 6px;font-size:1.5rem;">$titleEsc</h1>
-    <p style="margin:0;opacity:.9;">$subEsc</p>
-  </header>
-  <main>
-    <div class="card">
-      <p>Đây là <strong>website phòng khám giả lập</strong> (chỉ HTML). Widget SimlyDent được tải
-        <strong>từ host SimlyDent</strong>, không host widget trên origin này.</p>
-      <p class="note">
-        <strong>site_key:</strong> <code>$skEsc</code><br/>
-        <strong>widget:</strong> <code>$embedEsc</code><br/>
-        <strong>api-base:</strong> <code>$apiEsc</code>
-      </p>
-      <p class="note">$peerEsc</p>
-      <div class="warn">
-        Origin = scheme + host + port. Path khác trên cùng host <em>không</em> tạo origin khác.
-        Staff portal: mở trên SimlyDent host, không trên cổng clinic giả.
+  <div class="nav">
+    <div class="brand"><div class="mark">S</div>$titleEsc</div>
+  </div>
+  <section class="hero">
+    <div class="wrap">
+      <div class="pill">Multi-origin harness · widget remote</div>
+      <h1>$titleEsc<br /><em>Gọi tư vấn video</em></h1>
+      <p class="lead">$subEsc Website giả lập — bấm nút góc phải để mở widget (tải từ host SimlyDent).</p>
+      <div class="card">
+        <p><strong>site_key:</strong> <code>$skEsc</code></p>
+        <p><strong>api-base:</strong> <code>$apiEsc</code></p>
+        <p><strong>widget:</strong> <code>$embedEsc</code></p>
+        <p class="note">$peerEsc</p>
+        <p class="note">Origin = scheme + host + port. Path khác trên cùng host <em>không</em> tạo origin khác.</p>
       </div>
     </div>
-  </main>
+  </section>
   <script
     src="$embedEsc"
     data-site-key="$skEsc"
