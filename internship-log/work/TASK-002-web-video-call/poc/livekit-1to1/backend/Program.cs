@@ -111,6 +111,17 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Capability fail-fast for S3 modes (Phase C hard rules).
+try
+{
+    RecordingS3Config.ValidateOrThrow(app.Configuration, app.Logger);
+}
+catch (Exception ex)
+{
+    app.Logger.LogCritical(ex, "Fatal recording S3 configuration error.");
+    throw;
+}
+
 // Durable recording catalog schema (no-op for memory backend).
 try
 {
@@ -124,13 +135,19 @@ catch (Exception ex)
         "Recording catalog schema init failed — start/list may degrade until DB is available.");
 }
 
-app.MapGet("/health", (IRecordingCatalog catalog, IRecordingStorage storage) =>
-    Results.Ok(new
+app.MapGet("/health", (IRecordingCatalog catalog, IRecordingStorage storage, IConfiguration config) =>
+{
+    var egressOut = (config["EGRESS_OUTPUT"] ?? "local").Trim().ToLowerInvariant();
+    return Results.Ok(new
     {
         status = "ok",
         recordingCatalog = catalog.BackendName,
-        recordingStorage = storage.BackendName
-    }));
+        recordingStorage = storage.BackendName,
+        egressOutput = egressOut,
+        s3PublicConfigured = !string.IsNullOrWhiteSpace(RecordingS3Config.GetPublicEndpoint(config)),
+        supportsPresignedGet = storage.SupportsPresignedGet
+    });
+});
 
 // ---- Embed bootstrap (anonymous) — Phase 2 PR-A ----
 app.MapPost("/embed/session", (

@@ -54,13 +54,37 @@ fi
 sed "s/TURN_DOMAIN_PLACEHOLDER/${TURN_DOMAIN//\//\\/}/g" "$TEMPLATE" > "$RUNTIME"
 echo "Wrote $RUNTIME (TURN domain: $TURN_DOMAIN)"
 
+# Materialize Caddyfile: optional s3.DOMAIN site (Host+URI preserved for SigV4).
+CADDY_TEMPLATE="$ROOT/infra/Caddyfile.vps"
+CADDY_RUNTIME="$ROOT/infra/Caddyfile.vps.runtime"
+cp "$CADDY_TEMPLATE" "$CADDY_RUNTIME"
+if [[ -n "${S3_DOMAIN:-}" ]]; then
+  cat >> "$CADDY_RUNTIME" <<EOF
+
+# Phase C Direct S3 — dedicated hostname; do NOT rewrite Host or path.
+${S3_DOMAIN} {
+	reverse_proxy minio:9000
+}
+EOF
+  echo "Appended S3 site to Caddyfile.vps.runtime (S3_DOMAIN=$S3_DOMAIN)"
+  export S3_DOMAIN
+else
+  echo "S3_DOMAIN unset — no public MinIO site (local recording default)."
+fi
+# Compose gateway mounts runtime if present; fall back handled in compose via single file — use runtime always.
+export CADDYFILE_RUNTIME=1
+
 # Optional recording stack: RECORDING=1 ./scripts/start-vps.sh
+# Optional MinIO lab: MINIO_LAB=1 ./scripts/start-vps.sh
 PROFILES=()
 if [[ "${RECORDING:-0}" == "1" ]]; then
   PROFILES+=(--profile recording)
   # Egress container runs as uid 1001; host bind-mount is often root-owned.
   mkdir -p "$ROOT/recordings"
   chmod 777 "$ROOT/recordings" || true
+fi
+if [[ "${MINIO_LAB:-0}" == "1" ]]; then
+  PROFILES+=(--profile minio)
 fi
 
 "${COMPOSE[@]}" -f docker-compose.vps.yml "${PROFILES[@]}" up -d --build

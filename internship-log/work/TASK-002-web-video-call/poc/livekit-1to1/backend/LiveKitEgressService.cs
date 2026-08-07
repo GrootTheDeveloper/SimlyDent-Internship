@@ -67,18 +67,21 @@ public sealed class LiveKitEgressService(
         }
 
         // Direct S3: object key is the filepath; Egress worker performs PutObject.
-        // Prefer worker-level credentials when possible; request embeds env for MinIO fixture.
+        // HTTPS public host only — no silent http://minio:9000 fallback (fail-fast at startup).
         var key = string.IsNullOrWhiteSpace(storageKey)
             ? fileName.TrimStart('/')
             : storageKey.Replace('\\', '/').TrimStart('/');
-        // Direct S3 Egress must use HTTPS-capable public endpoint (browser/egress contract).
-        // Do not use plain docker-only http://minio:9000 as the Egress target in production-shaped lab.
-        var endpoint = (_configuration["S3_PUBLIC_ENDPOINT"]
-                        ?? _configuration["S3_ENDPOINT"]
-                        ?? "http://minio:9000").TrimEnd('/');
-        var bucket = _configuration["S3_BUCKET"] ?? "simlydent-recordings";
-        var accessKey = _configuration["S3_ACCESS_KEY"] ?? "minioadmin";
-        var secretKey = _configuration["S3_SECRET_KEY"] ?? "minioadmin";
+        var endpoint = RecordingS3Config.GetPublicEndpoint(_configuration);
+        if (string.IsNullOrWhiteSpace(endpoint)
+            || !endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "EGRESS_OUTPUT=s3 requires S3_PUBLIC_ENDPOINT=https://s3.DOMAIN (no path prefix).");
+        var bucket = _configuration["S3_BUCKET"]
+                     ?? throw new InvalidOperationException("S3_BUCKET is required for direct S3 egress.");
+        var accessKey = _configuration["S3_ACCESS_KEY"]
+                        ?? throw new InvalidOperationException("S3_ACCESS_KEY is required for direct S3 egress.");
+        var secretKey = _configuration["S3_SECRET_KEY"]
+                        ?? throw new InvalidOperationException("S3_SECRET_KEY is required for direct S3 egress.");
         var region = _configuration["S3_REGION"] ?? "us-east-1";
         var forcePathStyle = !string.Equals(_configuration["S3_PATH_STYLE"], "0", StringComparison.OrdinalIgnoreCase);
 
