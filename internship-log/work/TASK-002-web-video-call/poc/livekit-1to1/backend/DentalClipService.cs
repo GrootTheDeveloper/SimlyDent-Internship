@@ -48,15 +48,22 @@ public sealed class DentalClipService(
         if (string.IsNullOrWhiteSpace(resolvedTrackSid)
             && !string.IsNullOrWhiteSpace(patientVideoTrackSidHint))
         {
-            resolvedTrackSid = patientVideoTrackSidHint.Trim();
-            logger.LogInformation(
-                "Using client trackSid hint {Sid} for dental clip (server resolve empty)",
-                resolvedTrackSid);
+            var hint = patientVideoTrackSidHint.Trim();
+            // Reject obvious smoke/fake SIDs — LiveKit Egress would return "track not found" later.
+            if (hint.StartsWith("TR_", StringComparison.Ordinal)
+                && !hint.Contains("smoke", StringComparison.OrdinalIgnoreCase)
+                && hint.Length >= 8)
+            {
+                resolvedTrackSid = hint;
+                logger.LogInformation(
+                    "Using client trackSid hint {Sid} for dental clip (server resolve empty)",
+                    resolvedTrackSid);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(resolvedTrackSid))
             throw new InvalidOperationException(
-                "Không tìm thấy camera bệnh nhân. Hãy bật camera phía khách và thử lại.");
+                "Không tìm thấy camera bệnh nhân trong room. Khách phải join LiveKit và bật camera trước khi quay clip.");
 
         var assetId = Guid.NewGuid();
         var storageKey = MediaStorageKeys.VideoClipKey(call.ClinicId, call.Id, assetId);

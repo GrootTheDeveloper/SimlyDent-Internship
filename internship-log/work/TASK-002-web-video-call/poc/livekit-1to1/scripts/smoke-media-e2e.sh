@@ -66,36 +66,46 @@ for r in $(seq 1 "$ROUNDS"); do
     -d '{"status":"Granted"}' >/dev/null || true
   echo "consent granted both"
 
-  sleep 2
-  # media assets after accept+consent
+  sleep 3
+  # media assets after accept+consent (auto CallAudio)
   docker exec livekit-1to1-postgres-1 psql -U simlydent -d simlydent -t -A -c \
     "SELECT kind||':'||status FROM media_assets WHERE call_id='${CALL}' ORDER BY requested_at;" || true
 
-  # Dental clip with synthetic identity (A2 as peer) + fake track — expect 409 with clear msg if no track
-  CLIP=$(curl -sS -w "\n%{http_code}" -X POST "https://${DOMAIN}/api/calls/${CALL}/video-clips/start" \
-    -H "Authorization: Bearer $T1" -H 'Content-Type: application/json' \
-    -d '{"patientParticipantIdentity":"clinic-a:A2","patientVideoTrackSidHint":"TR_smoke"}')
-  CLCODE=$(echo "$CLIP" | tail -n1)
-  CLBODY=$(echo "$CLIP" | sed '$d')
-  echo "clip start HTTP $CLCODE body=$(echo "$CLBODY" | head -c 200)"
+  # Round strategy: avoid triple concurrent egress on 2 vCPU lab
+  # r%3==1 audio-only hold; r%3==2 video record; r%3==0 clip attempt (needs real track)
+  MODE=$(( r % 3 ))
+  if [ "$MODE" -eq 2 ]; then
+    echo "mode=video-record (no clip this round)"
+    curl -sS -X POST "https://${DOMAIN}/api/calls/${CALL}/recording/mode" \
+      -H "Authorization: Bearer $T1" -H 'Content-Type: application/json' \
+      -d '{"mode":"Video"}' >/dev/null || true
+    REC=$(curl -sS -w "\n%{http_code}" -X POST "https://${DOMAIN}/api/calls/${CALL}/recording/start" \
+      -H "Authorization: Bearer $T1")
+    RCODE=$(echo "$REC" | tail -n1)
+    echo "recording/start HTTP $RCODE $(echo "$REC" | sed '$d' | head -c 160)"
+  elif [ "$MODE" -eq 0 ]; then
+    echo "mode=dental-clip (TR_smoke expected to fail without live camera)"
+    CLIP=$(curl -sS -w "\n%{http_code}" -X POST "https://${DOMAIN}/api/calls/${CALL}/video-clips/start" \
+      -H "Authorization: Bearer $T1" -H 'Content-Type: application/json' \
+      -d '{"patientParticipantIdentity":"clinic-a:A2","patientVideoTrackSidHint":"TR_smoke"}')
+    CLCODE=$(echo "$CLIP" | tail -n1)
+    CLBODY=$(echo "$CLIP" | sed '$d')
+    echo "clip start HTTP $CLCODE body=$(echo "$CLBODY" | head -c 240)"
+  else
+    echo "mode=auto-audio-only hold 20s"
+  fi
 
-  # Legacy video recording start
-  curl -sS -X POST "https://${DOMAIN}/api/calls/${CALL}/recording/mode" \
-    -H "Authorization: Bearer $T1" -H 'Content-Type: application/json' \
-    -d '{"mode":"Video"}' >/dev/null || true
-  REC=$(curl -sS -w "\n%{http_code}" -X POST "https://${DOMAIN}/api/calls/${CALL}/recording/start" \
-    -H "Authorization: Bearer $T1")
-  RCODE=$(echo "$REC" | tail -n1)
-  echo "recording/start HTTP $RCODE $(echo "$REC" | sed '$d' | head -c 160)"
-
-  sleep 4
+  # Hold media long enough for chrome egress START_RECORDING + file
+  HOLD=20
+  echo "hold ${HOLD}s for egress..."
+  sleep "$HOLD"
   END=$(curl -sS -w "\n%{http_code}" -X POST "https://${DOMAIN}/api/calls/${CALL}/end" \
     -H "Authorization: Bearer $T1")
   ECODE=$(echo "$END" | tail -n1)
   echo "end HTTP $ECODE"
 
-  echo "wait finalize 25s..."
-  sleep 25
+  echo "wait finalize 30s..."
+  sleep 30
   echo "--- media_assets for call ---"
   docker exec livekit-1to1-postgres-1 psql -U simlydent -d simlydent -c \
     "SELECT kind, status, left(coalesce(error,''),60) err FROM media_assets WHERE call_id='${CALL}' ORDER BY requested_at;"
