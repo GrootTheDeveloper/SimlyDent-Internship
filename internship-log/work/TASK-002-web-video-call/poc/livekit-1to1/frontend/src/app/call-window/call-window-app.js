@@ -478,6 +478,14 @@ export function mountCallWindowApp(opts = {}) {
             this.reconcileLocalMediaUi()
             if (this.cameraEnabled) this.$nextTick(() => this.attachLocalVideo())
             else if (this.$refs.localMedia) this.$refs.localMedia.replaceChildren()
+            // Soft notice when join fell back to audio-only (common: "Could not start video source")
+            if (
+              payload?.note === 'audio-only' &&
+              payload?.lastError &&
+              this.preferredMediaMode !== 'audio'
+            ) {
+              this.error = payload.lastError
+            }
             break
           case MediaEngineEvent.LocalTrackUnpublished:
             this.reconcileLocalMediaUi()

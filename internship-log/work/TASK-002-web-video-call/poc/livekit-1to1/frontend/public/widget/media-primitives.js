@@ -44,17 +44,24 @@
         console.warn('[media-primitives] preferred audio-only failed', e);
       }
     } else {
-      try {
-        tracks = await createLocalTracks({
-          audio: audio,
-          video: { facingMode: 'user', resolution: videoRes }
-        });
-        micAvailable = true;
-        cameraAvailable = true;
-        note = 'av';
-        return { tracks: tracks, note: note, cameraAvailable: cameraAvailable, micAvailable: micAvailable };
-      } catch (e) {
-        console.warn('[media-primitives] AV failed, trying audio-only', e);
+      // Desktop-safe first — facingMode:user + hard 720p often fails on Windows webcams
+      // with "Could not start video source" when device busy or constraints too strict.
+      var softIdeal = {
+        width: { ideal: videoRes.width || 1280 },
+        height: { ideal: videoRes.height || 720 },
+        frameRate: { ideal: videoRes.frameRate || 30 }
+      };
+      var attempts = [softIdeal, true, { facingMode: 'user' }, { facingMode: 'user', resolution: videoRes }];
+      for (var ai = 0; ai < attempts.length; ai++) {
+        try {
+          tracks = await createLocalTracks({ audio: audio, video: attempts[ai] });
+          micAvailable = true;
+          cameraAvailable = true;
+          note = 'av';
+          return { tracks: tracks, note: note, cameraAvailable: cameraAvailable, micAvailable: micAvailable };
+        } catch (e) {
+          console.warn('[media-primitives] AV attempt failed', attempts[ai], e);
+        }
       }
     }
 

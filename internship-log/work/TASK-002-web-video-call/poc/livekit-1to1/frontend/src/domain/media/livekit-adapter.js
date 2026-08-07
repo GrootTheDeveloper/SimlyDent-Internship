@@ -49,13 +49,39 @@ export function createRoom(opts = {}) {
 }
 
 /**
- * Acquire local tracks with progressive fallback:
- *   1. Try requested mode (audio+video or audio-only)
- *   2. Fall back to audio-only on video failure
- *   3. Fall back to no local tracks if audio also fails
+ * Human-readable Vietnamese hint for getUserMedia / LiveKit camera failures.
+ * Common raw message: "Could not start video source" (device busy / OS / constraints).
+ * @param {unknown} err
+ * @returns {string}
+ */
+export function formatCameraError(err) {
+  const raw = String(err?.message || err || '')
+  const name = String(err?.name || '')
+  if (/NotAllowed|Permission|Denied/i.test(name + raw)) {
+    return 'Trình duyệt chặn camera. Cho phép Camera trong ổ khóa URL rồi tải lại trang.'
+  }
+  if (/NotFound|DevicesNotFound|no device/i.test(name + raw)) {
+    return 'Không thấy camera. Kiểm tra Windows Settings → Privacy → Camera.'
+  }
+  if (/NotReadable|TrackStart|Could not start video source|in use|busy/i.test(name + raw)) {
+    return 'Camera đang bị app khác giữ (Teams/Zoom/tab khác) hoặc driver lỗi. Đóng app đó, rút cắm lại camera, rồi bấm bật camera.'
+  }
+  if (/Overconstrained|Constraint/i.test(name + raw)) {
+    return 'Camera không hỗ trợ độ phân giải yêu cầu. Đã thử cấu hình nhẹ hơn.'
+  }
+  return raw ? `Không bật được camera: ${raw}` : 'Không bật được camera.'
+}
+
+/**
+ * Acquire local tracks with progressive fallback (desktop-safe first):
+ *   1. Soft ideal 720p (no facingMode — many webcams fail facingMode:user)
+ *   2. Bare video:true
+ *   3. facingMode user (phones)
+ *   4. Audio-only
+ *   5. Receive-only
  *
  * @param {{ audioOnly?: boolean, captureResolution?: object }} [opts={}]
- * @returns {Promise<{ tracks: object[], cameraAvailable: boolean, micAvailable: boolean }>}
+ * @returns {Promise<{ tracks: object[], cameraAvailable: boolean, micAvailable: boolean, note: string, lastError?: string }>}
  */
 export async function acquireLocalTracks(opts = {}) {
   const { audioOnly = false, captureResolution = VideoPresets.h720.resolution } = opts
@@ -69,35 +95,63 @@ export async function acquireLocalTracks(opts = {}) {
   let tracks = []
   let cameraAvailable = false
   let micAvailable = false
+  let note = 'receive-only'
+  let lastError = ''
 
-  try {
-    if (audioOnly) {
+  if (audioOnly) {
+    try {
       tracks = await createLocalTracks({ audio: audioConstraints, video: false })
       micAvailable = true
-    } else {
-      tracks = await createLocalTracks({
-        audio: audioConstraints,
-        video: { facingMode: 'user', resolution: captureResolution }
-      })
+      note = 'audio-only'
+    } catch (audioErr) {
+      lastError = formatCameraError(audioErr)
+      console.warn('[livekit-adapter] audio-only failed:', audioErr)
+      tracks = []
+    }
+    return { tracks, cameraAvailable, micAvailable, note, lastError }
+  }
+
+  const res = captureResolution || {}
+  const softIdeal = {
+    width: { ideal: res.width || 1280 },
+    height: { ideal: res.height || 720 },
+    frameRate: { ideal: res.frameRate || 30 }
+  }
+
+  // Prefer constraints that work on Windows desktop USB webcams.
+  const videoAttempts = [
+    softIdeal,
+    true,
+    { facingMode: 'user' },
+    { facingMode: 'user', resolution: captureResolution }
+  ]
+
+  for (const video of videoAttempts) {
+    try {
+      tracks = await createLocalTracks({ audio: audioConstraints, video })
       micAvailable = true
       cameraAvailable = true
-    }
-  } catch (videoErr) {
-    if (!audioOnly) {
-      // Video failed — try audio only
-      console.warn('[livekit-adapter] Video track failed, trying audio only:', videoErr)
-      try {
-        tracks = await createLocalTracks({ audio: audioConstraints, video: false })
-        micAvailable = true
-      } catch (audioErr) {
-        // Audio also failed — join receive-only
-        console.warn('[livekit-adapter] Audio also failed; joining without local tracks:', audioErr)
-        tracks = []
-      }
+      note = 'av'
+      return { tracks, cameraAvailable, micAvailable, note, lastError: '' }
+    } catch (videoErr) {
+      lastError = formatCameraError(videoErr)
+      console.warn('[livekit-adapter] video attempt failed', video, videoErr)
     }
   }
 
-  return { tracks, cameraAvailable, micAvailable }
+  try {
+    tracks = await createLocalTracks({ audio: audioConstraints, video: false })
+    micAvailable = true
+    note = 'audio-only'
+    console.warn('[livekit-adapter] joined audio-only after camera failure:', lastError)
+  } catch (audioErr) {
+    lastError = formatCameraError(audioErr)
+    console.warn('[livekit-adapter] audio also failed; receive-only:', audioErr)
+    tracks = []
+    note = 'receive-only'
+  }
+
+  return { tracks, cameraAvailable, micAvailable, note, lastError }
 }
 
 /**

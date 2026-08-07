@@ -55,17 +55,24 @@ export async function acquireLocalTracks(LivekitClient, opts = {}) {
       console.warn('[media-primitives] preferred audio-only failed', e)
     }
   } else {
-    try {
-      tracks = await createLocalTracks({
-        audio,
-        video: { facingMode: 'user', resolution: videoRes }
-      })
-      micAvailable = true
-      cameraAvailable = true
-      note = 'av'
-      return { tracks, note, cameraAvailable, micAvailable }
-    } catch (e) {
-      console.warn('[media-primitives] AV failed, trying audio-only', e)
+    // Desktop-safe first: facingMode:user + hard 720p often throws "Could not start video source"
+    // on Windows USB webcams when device is busy or constraints are too strict.
+    const softIdeal = {
+      width: { ideal: videoRes.width || 1280 },
+      height: { ideal: videoRes.height || 720 },
+      frameRate: { ideal: videoRes.frameRate || 30 }
+    }
+    const attempts = [softIdeal, true, { facingMode: 'user' }, { facingMode: 'user', resolution: videoRes }]
+    for (const video of attempts) {
+      try {
+        tracks = await createLocalTracks({ audio, video })
+        micAvailable = true
+        cameraAvailable = true
+        note = 'av'
+        return { tracks, note, cameraAvailable, micAvailable }
+      } catch (e) {
+        console.warn('[media-primitives] AV attempt failed', video, e)
+      }
     }
   }
 

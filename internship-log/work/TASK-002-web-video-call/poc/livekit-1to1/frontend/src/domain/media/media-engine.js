@@ -35,6 +35,7 @@ import {
   setMicrophoneEnabled,
   resolveRemoteParticipantIdentity,
   resolveRemoteVideoTrackSid,
+  formatCameraError,
   VideoPresets
 } from './livekit-adapter.js'
 import { RoomEvent, Track } from './livekit-adapter.js'
@@ -156,8 +157,14 @@ class MediaEngine {
       const portraitHint = isPortraitCapturePreferred()
       const simulcastLayers = preferredSimulcastLayers()
 
-      // Acquire local media
-      const { tracks, cameraAvailable, micAvailable } = await acquireLocalTracks({
+      // Acquire local media (progressive fallback; may be audio-only if cam fails)
+      const {
+        tracks,
+        cameraAvailable,
+        micAvailable,
+        note,
+        lastError
+      } = await acquireLocalTracks({
         audioOnly: opts.audioOnly ?? false,
         captureResolution: VideoPresets.h720.resolution
       })
@@ -183,6 +190,8 @@ class MediaEngine {
       this._emit(MediaEngineEvent.LocalMediaStateChanged, {
         cameraAvailable,
         micAvailable,
+        note: note || (cameraAvailable ? 'av' : micAvailable ? 'audio-only' : 'receive-only'),
+        lastError: lastError || '',
         tracks: preparedTracks
       })
 
@@ -283,7 +292,9 @@ class MediaEngine {
       console.warn('[media-engine] ensureCameraEnabled failed', e)
       const state = this.getLocalMediaState()
       this._emit(MediaEngineEvent.LocalMediaStateChanged, state)
-      throw e
+      const err = new Error(formatCameraError(e))
+      err.cause = e
+      throw err
     } finally {
       this._cameraToggleBusy = false
     }
