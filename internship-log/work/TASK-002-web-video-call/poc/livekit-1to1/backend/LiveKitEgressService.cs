@@ -115,20 +115,30 @@ public sealed class LiveKitEgressService(
         };
 
         var fileOutput = BuildFileOutput(fileName, storageKey);
+        // Prefer preset for TrackComposite — advanced options vary by LiveKit Egress version
+        // and can cause 4xx that bubble up as client "Start clip HTTP 400/502".
         var request = new Dictionary<string, object?>
         {
             ["room_name"] = roomName,
             ["video_track_id"] = videoTrackId,
             ["file_outputs"] = new[] { fileOutput },
-            ["advanced"] = new Dictionary<string, object?>
+            ["preset"] = profile == DentalQualityProfile.HD_1080p_30
+                ? "H264_1080P_30"
+                : "H264_720P_30"
+        };
+        // Keep advanced as optional override when env forces custom encode.
+        if (string.Equals(_configuration["DENTAL_ENCODING_MODE"], "advanced", StringComparison.OrdinalIgnoreCase))
+        {
+            request.Remove("preset");
+            request["advanced"] = new Dictionary<string, object?>
             {
                 ["width"] = width,
                 ["height"] = height,
                 ["framerate"] = 30,
                 ["videoCodec"] = "H264_MAIN",
                 ["videoBitrate"] = bitrateKbps
-            }
-        };
+            };
+        }
         return await PostAsync("StartTrackCompositeEgress", request, cancellationToken);
     }
 

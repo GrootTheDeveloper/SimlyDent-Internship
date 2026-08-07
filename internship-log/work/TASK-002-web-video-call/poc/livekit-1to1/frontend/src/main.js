@@ -1574,22 +1574,33 @@ if (isCallRoute) {
         if (!this.room || !this.call) return null
         const peerId = this.call.callerId === this.userId ? this.call.calleeId : this.call.callerId
         const clinic = clinicIdOf(this.currentUser) || this.call.clinicId || ''
-        // Prefer matching remote participant by identity suffix
+        // Prefer remote participant that actually has a camera track
         for (const p of this.room.remoteParticipants.values()) {
           const id = p.identity || ''
-          if (id === peerId || id.endsWith(':' + peerId) || id.includes(peerId)) {
+          const pubs = [...(p.videoTrackPublications?.values?.() || p.trackPublications?.values?.() || [])]
+          const hasCam = pubs.some(pub =>
+            pub?.source === Track.Source.Camera
+            || pub?.kind === Track.Kind.Video
+            || pub?.track?.kind === Track.Kind.Video)
+          if (hasCam && id) return id
+        }
+        for (const p of this.room.remoteParticipants.values()) {
+          const id = p.identity || ''
+          if (id === peerId || id.endsWith(':' + peerId) || (peerId && id.includes(peerId))) {
             return id
           }
         }
         // Fallback: convention {clinicId}:{userId}
         if (clinic && peerId) return `${clinic}:${peerId}`
-        return peerId || null
+        // Last resort: first remote identity
+        const first = [...this.room.remoteParticipants.values()][0]
+        return first?.identity || peerId || null
       },
       resolvePatientVideoTrackSid() {
         if (!this.room) return null
         for (const p of this.room.remoteParticipants.values()) {
           for (const pub of p.videoTrackPublications?.values?.() || p.trackPublications?.values?.() || []) {
-            if (pub?.source === Track.Source.Camera || pub?.kind === Track.Kind.Video) {
+            if (pub?.source === Track.Source.Camera || pub?.kind === Track.Kind.Video || pub?.track?.kind === Track.Kind.Video) {
               return pub.trackSid || pub.track?.sid || null
             }
           }

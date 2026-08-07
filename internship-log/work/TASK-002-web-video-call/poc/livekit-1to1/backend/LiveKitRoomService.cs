@@ -64,14 +64,24 @@ public sealed class LiveKitRoomService(
                 && !doc.RootElement.TryGetProperty("Participants", out parts))
                 return null;
 
+            // Pass 1: exact identity
             foreach (var p in parts.EnumerateArray())
             {
                 var identity = p.TryGetProperty("identity", out var idEl) ? idEl.GetString() : null;
-                if (!string.Equals(identity, patientParticipantIdentity, StringComparison.OrdinalIgnoreCase))
+                if (!IdentityMatches(identity, patientParticipantIdentity))
                     continue;
                 var track = ExtractCameraTrackFromParticipant(p);
                 if (track is not null)
-                    return (patientParticipantIdentity, track);
+                    return (identity ?? patientParticipantIdentity, track);
+            }
+
+            // Pass 2: any remote participant with a live camera (staff already filtered client-side)
+            foreach (var p in parts.EnumerateArray())
+            {
+                var identity = p.TryGetProperty("identity", out var idEl) ? idEl.GetString() : null;
+                var track = ExtractCameraTrackFromParticipant(p);
+                if (track is not null && !string.IsNullOrWhiteSpace(identity))
+                    return (identity, track);
             }
         }
         catch (JsonException)
@@ -80,6 +90,24 @@ public sealed class LiveKitRoomService(
         }
 
         return null;
+    }
+
+    private static bool IdentityMatches(string? roomIdentity, string requested)
+    {
+        if (string.IsNullOrWhiteSpace(roomIdentity) || string.IsNullOrWhiteSpace(requested))
+            return false;
+        if (string.Equals(roomIdentity, requested, StringComparison.OrdinalIgnoreCase))
+            return true;
+        // clinic-a:visitor:xxx vs visitor:xxx
+        if (roomIdentity.EndsWith(":" + requested, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (requested.EndsWith(":" + roomIdentity, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (roomIdentity.Contains(requested, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (requested.Contains(roomIdentity, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
     }
 
     private static (string participantIdentity, string trackSid)? ExtractCameraTrack(

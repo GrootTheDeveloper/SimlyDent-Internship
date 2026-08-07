@@ -31,19 +31,32 @@ public sealed class DentalClipService(
         if (existing is not null)
             throw new MediaAssetConflictException("A dental clip is already active for this call.");
 
-        var track = await roomService.FindPatientCameraTrackAsync(
-            call.RoomName, patientParticipantIdentity, ct);
-        if (track is null)
-            throw new InvalidOperationException("Patient camera must be enabled before recording.");
-
-        var resolvedTrackSid = track.Value.trackSid;
-        if (!string.IsNullOrWhiteSpace(patientVideoTrackSidHint)
-            && !string.Equals(patientVideoTrackSidHint, resolvedTrackSid, StringComparison.Ordinal))
+        // Prefer client track SID (staff already sees remote video). Server RoomService is best-effort.
+        string? resolvedTrackSid = null;
+        try
         {
-            logger.LogInformation(
-                "Client trackSid hint {Hint} ignored; using server-resolved {Sid}",
-                patientVideoTrackSidHint, resolvedTrackSid);
+            var track = await roomService.FindPatientCameraTrackAsync(
+                call.RoomName, patientParticipantIdentity, ct);
+            if (track is not null)
+                resolvedTrackSid = track.Value.trackSid;
         }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "FindPatientCameraTrack failed for {Identity}", patientParticipantIdentity);
+        }
+
+        if (string.IsNullOrWhiteSpace(resolvedTrackSid)
+            && !string.IsNullOrWhiteSpace(patientVideoTrackSidHint))
+        {
+            resolvedTrackSid = patientVideoTrackSidHint.Trim();
+            logger.LogInformation(
+                "Using client trackSid hint {Sid} for dental clip (server resolve empty)",
+                resolvedTrackSid);
+        }
+
+        if (string.IsNullOrWhiteSpace(resolvedTrackSid))
+            throw new InvalidOperationException(
+                "Không tìm thấy camera bệnh nhân. Hãy bật camera phía khách và thử lại.");
 
         var assetId = Guid.NewGuid();
         var storageKey = MediaStorageKeys.VideoClipKey(call.ClinicId, call.Id, assetId);
@@ -86,7 +99,8 @@ public sealed class DentalClipService(
             }
             audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
                 "DentalClipStartFailed", "Failed", ex.Message);
-            throw;
+            throw new InvalidOperationException(
+                "Không start được clip Egress: " + ex.Message, ex);
         }
 
         await catalog.TryMarkRecordingAsync(assetId, result.EgressId, ct);

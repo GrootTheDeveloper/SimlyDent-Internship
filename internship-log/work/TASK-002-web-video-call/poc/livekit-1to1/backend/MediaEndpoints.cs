@@ -12,7 +12,7 @@ public static class MediaEndpoints
         // Staff: start dental clip
         app.MapPost("/api/calls/{callId:guid}/video-clips/start", async (
             Guid callId,
-            StartDentalClipRequest? body,
+            HttpRequest http,
             ClaimsPrincipal principal,
             IdentityRegistry identities,
             ConcurrentDictionary<Guid, CallSession> calls,
@@ -32,14 +32,27 @@ public static class MediaEndpoints
             var call = ClinicAuthorization.GetAuthorizedCall(calls, callId, current);
             if (call is null) return Results.NotFound();
 
+            StartDentalClipRequest? body;
+            try
+            {
+                body = await http.ReadFromJsonAsync<StartDentalClipRequest>(cancellationToken: ct);
+            }
+            catch
+            {
+                return Results.BadRequest(new { error = "Invalid JSON body." });
+            }
+
             if (body is null || string.IsNullOrWhiteSpace(body.PatientParticipantIdentity))
-                return Results.BadRequest(new { error = "patientParticipantIdentity required." });
+                return Results.BadRequest(new
+                {
+                    error = "patientParticipantIdentity required (LiveKit identity of patient camera)."
+                });
 
             try
             {
                 var (assetId, status) = await clipService.StartClipAsync(
                     call, current,
-                    body.PatientParticipantIdentity,
+                    body.PatientParticipantIdentity.Trim(),
                     body.PatientVideoTrackSidHint,
                     body.ActualWidth, body.ActualHeight, ct);
                 await dispatcher.NotifyCallAsync(call);
@@ -52,6 +65,10 @@ public static class MediaEndpoints
             catch (InvalidOperationException ex)
             {
                 return Results.Conflict(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: 502);
             }
         }).RequireAuthorization();
 

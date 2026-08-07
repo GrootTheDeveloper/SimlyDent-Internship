@@ -32,15 +32,20 @@ public sealed record MediaStateView(
     Guid? ActiveDentalClipAssetId,
     IReadOnlyList<MediaAssetDetailView> Assets);
 
-public sealed record StartDentalClipRequest(
-    string PatientParticipantIdentity,
-    string? PatientVideoTrackSidHint = null,
-    int? ActualWidth = null,
-    int? ActualHeight = null,
-    int? ActualFrameRate = null);
+/// <summary>JSON body for POST video-clips/start — class for reliable minimal-API binding.</summary>
+public sealed class StartDentalClipRequest
+{
+    public string PatientParticipantIdentity { get; set; } = "";
+    public string? PatientVideoTrackSidHint { get; set; }
+    public int? ActualWidth { get; set; }
+    public int? ActualHeight { get; set; }
+    public int? ActualFrameRate { get; set; }
+}
 
-public sealed record RequestPhotoBody(
-    string PatientParticipantIdentity);
+public sealed class RequestPhotoBody
+{
+    public string PatientParticipantIdentity { get; set; } = "";
+}
 
 public sealed record UploadCompleteBody(
     int? ActualWidth = null,
