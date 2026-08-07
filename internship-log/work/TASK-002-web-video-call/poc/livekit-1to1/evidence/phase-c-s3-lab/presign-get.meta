@@ -1,0 +1,5 @@
+mode=presign
+host=s3.103.28.32.118.sslip.io
+path=/simlydent-recordings/clinic/clinic-a/calls/da0eba144fdd4ac494a6bb5ef8530ac4/8c300e93eff04060a53c0c35250aeac3.mp4
+http=200
+bytes=3588913

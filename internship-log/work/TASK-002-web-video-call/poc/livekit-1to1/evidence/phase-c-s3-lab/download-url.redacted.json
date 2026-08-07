@@ -1,0 +1,9 @@
+{
+  "mode": "presign",
+  "expiresAt": "2026-08-07T07:00:21.2825702+00:00",
+  "recordingId": "8c300e93eff04060a53c0c35250aeac3",
+  "callId": "da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4",
+  "host": "s3.103.28.32.118.sslip.io",
+  "path": "/simlydent-recordings/clinic/clinic-a/calls/da0eba144fdd4ac494a6bb5ef8530ac4/8c300e93eff04060a53c0c35250aeac3.mp4",
+  "hasSignature": true
+}

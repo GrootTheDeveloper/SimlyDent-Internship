@@ -1,0 +1,120 @@
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: POST /api/auth/login'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 POST https://103.28.32.118.sslip.io/api/auth/login - 200 - application/json;+charset=utf-8 147.5588ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 POST http://103.28.32.118.sslip.io/api/auth/login - application/json 40
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: POST /api/auth/login'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type '<Program>FD837EAC3E075EDE3568E5757EF0B1B23BD9455F8162945BB720570668BFAC022__LoginResponse' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: POST /api/auth/login'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 POST https://103.28.32.118.sslip.io/api/auth/login - 200 - application/json;+charset=utf-8 156.4903ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://backend:8080/health - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /health'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type '<>f__AnonymousType8`6' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /health'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET http://backend:8080/health - 200 - application/json;+charset=utf-8 1.2191ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4 - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/calls/{id:guid}'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type 'CallView' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/calls/{id:guid}'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4 - 200 - application/json;+charset=utf-8 1.7966ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/calls/{id:guid}/recording'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type 'RecordingView' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/calls/{id:guid}/recording'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording - 200 - application/json;+charset=utf-8 0.9996ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/recordings - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/recordings'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type 'RecordingListResponse' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/recordings'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/recordings - 200 - application/json;+charset=utf-8 38.7122ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording/download-url - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/calls/{callId:guid}/recording/download-url'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type '<>f__AnonymousType14`5' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/calls/{callId:guid}/recording/download-url'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording/download-url - 200 - application/json;+charset=utf-8 5.0700ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording/download-url - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/calls/{callId:guid}/recording/download-url'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.NotFoundObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 404.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/calls/{callId:guid}/recording/download-url'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/recording/download-url - 404 0 - 4.4225ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 POST http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/end - - 0
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: POST /api/calls/{id:guid}/end'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type 'CallView' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: POST /api/calls/{id:guid}/end'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 POST https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/end - 200 - application/json;+charset=utf-8 8.0309ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 POST http://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/end - - 0
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: POST /api/calls/{id:guid}/end'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 200.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.OkObjectResult[3]
+livekit-1to1-backend-1  |       Writing value of type 'CallView' as Json.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: POST /api/calls/{id:guid}/end'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 POST https://103.28.32.118.sslip.io/api/calls/da0eba14-4fdd-4ac4-94a6-bb5ef8530ac4/end - 200 - application/json;+charset=utf-8 1.7746ms
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+livekit-1to1-backend-1  |       Request starting HTTP/1.1 GET http://103.28.32.118.sslip.io/api/calls/active - - -
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+livekit-1to1-backend-1  |       Executing endpoint 'HTTP: GET /api/calls/active'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Http.Result.NoContentResult[1]
+livekit-1to1-backend-1  |       Setting HTTP status code 204.
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+livekit-1to1-backend-1  |       Executed endpoint 'HTTP: GET /api/calls/active'
+livekit-1to1-backend-1  | info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+livekit-1to1-backend-1  |       Request finished HTTP/1.1 GET https://103.28.32.118.sslip.io/api/calls/active - 204 - - 0.9358ms

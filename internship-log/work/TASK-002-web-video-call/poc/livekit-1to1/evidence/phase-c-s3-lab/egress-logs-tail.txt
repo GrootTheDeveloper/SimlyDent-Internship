@@ -1,0 +1,80 @@
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:253
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:411
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os/exec.(*Cmd).writerDescriptor.func1
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:596
+livekit-1to1-egress-1  | os/exec.(*Cmd).Start.func2
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:749
+livekit-1to1-egress-1  | 2026-08-07T06:53:34.412Z	ERROR	egress	logging/handler.go:60	ration not permitted)	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "handlerID": "EGH_JdafRY5Lb3es", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | github.com/livekit/egress/pkg/logging.NewHandlerLogger.func1
+livekit-1to1-egress-1  | 	/workspace/pkg/logging/handler.go:60
+livekit-1to1-egress-1  | github.com/livekit/protocol/logger/medialogutils.(*CmdLogger).Write
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/github.com/livekit/protocol@v1.43.3-0.20251202235353-eec8df247cf9/logger/medialogutils/cmd.go:29
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:431
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os.genericWriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:275
+livekit-1to1-egress-1  | os.(*File).WriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:253
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:411
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os/exec.(*Cmd).writerDescriptor.func1
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:596
+livekit-1to1-egress-1  | os/exec.(*Cmd).Start.func2
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:749
+livekit-1to1-egress-1  | 2026-08-07T06:53:34.413Z	WARN	egress	logging/handler.go:50	(egress:24): GStreamer-WARNING **: 06:53:34.413: External plugin loader failed. This most likely means that the plugin loader h	{"nodeID": "NE_THmJXo37omCe", "clusterID": ""}
+livekit-1to1-egress-1  | 2026-08-07T06:53:34.413Z	ERROR	egress	logging/handler.go:60	elper binary was not found or could not be run. You might need to set the GST_PLUGIN_SCANNER environment variable if your setup 	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "handlerID": "EGH_JdafRY5Lb3es", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | github.com/livekit/egress/pkg/logging.NewHandlerLogger.func1
+livekit-1to1-egress-1  | 	/workspace/pkg/logging/handler.go:60
+livekit-1to1-egress-1  | github.com/livekit/protocol/logger/medialogutils.(*CmdLogger).Write
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/github.com/livekit/protocol@v1.43.3-0.20251202235353-eec8df247cf9/logger/medialogutils/cmd.go:29
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:431
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os.genericWriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:275
+livekit-1to1-egress-1  | os.(*File).WriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:253
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:411
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os/exec.(*Cmd).writerDescriptor.func1
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:596
+livekit-1to1-egress-1  | os/exec.(*Cmd).Start.func2
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:749
+livekit-1to1-egress-1  | 2026-08-07T06:53:34.413Z	ERROR	egress	logging/handler.go:60	is unusual. This should normally not be required though.	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "handlerID": "EGH_JdafRY5Lb3es", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | github.com/livekit/egress/pkg/logging.NewHandlerLogger.func1
+livekit-1to1-egress-1  | 	/workspace/pkg/logging/handler.go:60
+livekit-1to1-egress-1  | github.com/livekit/protocol/logger/medialogutils.(*CmdLogger).Write
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/github.com/livekit/protocol@v1.43.3-0.20251202235353-eec8df247cf9/logger/medialogutils/cmd.go:29
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:431
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os.genericWriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:275
+livekit-1to1-egress-1  | os.(*File).WriteTo
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/file.go:253
+livekit-1to1-egress-1  | io.copyBuffer
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:411
+livekit-1to1-egress-1  | io.Copy
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/io/io.go:388
+livekit-1to1-egress-1  | os/exec.(*Cmd).writerDescriptor.func1
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:596
+livekit-1to1-egress-1  | os/exec.(*Cmd).Start.func2
+livekit-1to1-egress-1  | 	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.linux-amd64/src/os/exec/exec.go:749
+livekit-1to1-egress-1  | 2026-08-07T06:53:39.316Z	INFO	egress	source/web.go:324	chrome: START_RECORDING	{"nodeID": "NE_THmJXo37omCe", "handlerID": "EGH_JdafRY5Lb3es", "clusterID": "", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | 2026-08-07T06:53:39.324Z	INFO	egress	pipeline/watch.go:245	pipeline paused	{"nodeID": "NE_THmJXo37omCe", "handlerID": "EGH_JdafRY5Lb3es", "clusterID": "", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | 2026-08-07T06:53:40.190Z	INFO	egress	pipeline/watch.go:251	pipeline playing	{"nodeID": "NE_THmJXo37omCe", "handlerID": "EGH_JdafRY5Lb3es", "clusterID": "", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | 2026-08-07T06:53:40.193Z	INFO	egress	info/io.go:269	egress_active	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "egressID": "EG_2ptuRS78PHL7", "requestType": "room_composite", "outputType": "file", "error": "", "code": 0, "details": ""}
+livekit-1to1-egress-1  | 2026-08-07T06:53:48.887Z	INFO	egress	info/io.go:269	egress_ending	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "egressID": "EG_2ptuRS78PHL7", "requestType": "room_composite", "outputType": "file", "error": "", "code": 0, "details": "End reason: StopEgress API"}
+livekit-1to1-egress-1  | 2026-08-07T06:53:51.646Z	INFO	egress	pipeline/watch.go:115	pipeline received EOS	{"nodeID": "NE_THmJXo37omCe", "handlerID": "EGH_JdafRY5Lb3es", "clusterID": "", "egressID": "EG_2ptuRS78PHL7"}
+livekit-1to1-egress-1  | 2026-08-07T06:53:52.488Z	INFO	egress	info/io.go:269	egress_complete	{"nodeID": "NE_THmJXo37omCe", "clusterID": "", "egressID": "EG_2ptuRS78PHL7", "requestType": "room_composite", "outputType": "file", "error": "", "code": 0, "details": "End reason: StopEgress API"}

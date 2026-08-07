@@ -15,10 +15,12 @@ S3_SECRET_KEY="${S3_SECRET_KEY:-simlydent-lab-secret-change-me}"
 
 echo "Bootstrapping MinIO bucket=$S3_BUCKET user=$S3_ACCESS_KEY (non-root)"
 
+# mc image entrypoint is `mc`; override so shell scripts work on Linux VPS.
 docker run --rm --network livekit-1to1_default \
   -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD -e S3_BUCKET -e S3_ACCESS_KEY -e S3_SECRET_KEY \
+  --entrypoint /bin/sh \
   minio/mc:RELEASE.2025-04-16T18-13-26Z \
-  /bin/sh -c '
+  -c '
     set -e
     mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
     mc mb -p "local/$S3_BUCKET" || true
