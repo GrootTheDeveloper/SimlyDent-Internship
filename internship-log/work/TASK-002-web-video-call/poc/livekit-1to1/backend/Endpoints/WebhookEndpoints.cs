@@ -68,7 +68,7 @@ public static class WebhookEndpoints
 
             if (eventName is "egress_ended" or "egress_updated" && !string.IsNullOrWhiteSpace(egressId))
             {
-                // Dual-catalog: try media_assets first; only fall through when NOT found
+                // Dual-catalog: CANONICAL media_assets first; LEGACY ledger only when Found=false
                 var mediaResult = await finalize.ApplyMediaEgressStatusAsync(
                     egressId!,
                     egressStatus,

@@ -243,182 +243,37 @@ public static class RecordingEndpoints
         }).RequireAuthorization();
 
 
+        // LEGACY path ? see docs/media-paths.md; prefer consultation CallAudio.
         app.MapPost("/api/calls/{id:guid}/recording/start", async (
             Guid id,
             ClaimsPrincipal principal,
             IdentityRegistry identities,
-            ConcurrentDictionary<Guid, CallSession> calls,
-            RecordingPolicyRegistry policies,
-            LiveKitEgressService egress,
-            IRecordingStorage storage,
-            IRecordingCatalog catalog,
-            CallDispatcher dispatcher,
-            RecordingAuditService audit,
+            RecordingOrchestrationService orchestration,
             CancellationToken cancellationToken) =>
         {
             var current = ClinicAuthorization.CurrentUser(principal, identities);
             if (current is null) return Results.Unauthorized();
-            var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
-            if (call is null) return Results.NotFound();
-            if (!RecordingAuthorization.CanStartStop(current, call))
-                return Results.Json(new { error = "Only call staff may start recording." }, statusCode: 403);
-
-            var policy = policies.Get(call.ClinicId);
-            RecordingMode mode;
-            string fileName;
-            string recId;
-            string storageKey;
-            lock (call.SyncRoot)
-            {
-                var gate = RecordingAuthorization.ValidateStart(call, policy);
-                if (gate is not null)
-                    return Results.Conflict(new { error = gate });
-                mode = call.RecordingMode;
-                recId = Guid.NewGuid().ToString("N");
-                fileName = $"clinic-{call.ClinicId}-call-{call.Id:N}-{recId}.mp4";
-                storageKey = storage.BuildKey(call.ClinicId, call.Id, recId, "mp4");
-                call.RecordingStatus = "Starting";
-                call.RecordingFileName = fileName;
-                call.RecordingId = recId;
-                call.RecordingEgressId = null;
-                call.RecordingStorageKey = storageKey;
-                call.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-
-            // Durable ledger BEFORE egress starts — survive restart even if StartEgress hangs.
-            var retentionUntil = DateTimeOffset.UtcNow.AddDays(policy.RetentionDays);
-            try
-            {
-                await catalog.InsertRequestedAsync(
-                    recId,
-                    call.ClinicId,
-                    call.Id,
-                    mode.ToString(),
-                    storageKey,
-                    "Composite",
-                    retentionUntil,
-                    call.CallerId,
-                    call.AssignedStaffId ?? call.CalleeId,
-                    call.Status.ToString(),
-                    call.ConsentStatus.ToString(),
-                    fileName,
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                lock (call.SyncRoot)
-                {
-                    call.RecordingStatus = "Failed";
-                    call.UpdatedAt = DateTimeOffset.UtcNow;
-                }
-                audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-                    "RecordingStartFailed", "Failed", $"catalog: {ex.Message}");
-                await dispatcher.NotifyCallAsync(call);
-                return Results.Json(new { error = $"Không thể tạo ledger ghi hình: {ex.Message}", call = call.ToView() },
-                    statusCode: 503);
-            }
-
-            await dispatcher.NotifyCallAsync(call);
-
-            try
-            {
-                var result = await egress.StartRoomRecordingAsync(
-                    call.RoomName, fileName, mode, storageKey, cancellationToken);
-                lock (call.SyncRoot)
-                {
-                    call.RecordingEgressId = result.EgressId;
-                    call.RecordingStatus = "Recording";
-                    call.UpdatedAt = DateTimeOffset.UtcNow;
-                }
-                await catalog.TryMarkRecordingAsync(recId, result.EgressId, cancellationToken);
-                audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-                    "RecordingStarted", "Ok", mode.ToString());
-                await dispatcher.NotifyCallAsync(call);
-                return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
-            }
-            catch (Exception ex)
-            {
-                lock (call.SyncRoot)
-                {
-                    call.RecordingStatus = "Failed";
-                    call.UpdatedAt = DateTimeOffset.UtcNow;
-                }
-                // Start never got egress_id — use placeholder correlation empty only if needed
-                try { await catalog.TryMarkFailedAsync(recId, "", ex.Message, cancellationToken); }
-                catch
-                {
-                    // Requested → Failed requires egress match; allow fail without egress by direct path:
-                    // Try with empty only works if egress_id null and WHERE egress_id = '' fails.
-                }
-                // Best-effort: if still Requested without egress, update via failed with any egress after insert
-                audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-                    "RecordingStartFailed", "Failed", ex.Message);
-                await dispatcher.NotifyCallAsync(call);
-                // Call remains Accepted — recording failure ≠ call failure.
-                return Results.Json(new { error = $"Không thể bắt đầu ghi: {ex.Message}", call = call.ToView() }, statusCode: 503);
-            }
+            return await orchestration.StartLegacyRecordingAsync(id, current, cancellationToken);
         }).RequireAuthorization();
 
-        /// <summary>
         /// Async stop: Finalizing + short StopEgress control call; Ready via webhook/reconcile.
         /// Transport errors keep Finalizing (not Failed).
         /// </summary>
 
 
+        /// <summary>LEGACY async stop ? Finalizing; Ready via webhook/reconcile.</summary>
         app.MapPost("/api/calls/{id:guid}/recording/stop", async (
             Guid id,
             ClaimsPrincipal principal,
             IdentityRegistry identities,
-            ConcurrentDictionary<Guid, CallSession> calls,
-            RecordingPolicyRegistry policies,
-            LiveKitEgressService egress,
-            IRecordingCatalog catalog,
-            CallDispatcher dispatcher,
-            RecordingAuditService audit,
+            RecordingOrchestrationService orchestration,
             CancellationToken cancellationToken) =>
         {
             var current = ClinicAuthorization.CurrentUser(principal, identities);
             if (current is null) return Results.Unauthorized();
-            var call = ClinicAuthorization.GetAuthorizedCall(calls, id, current);
-            if (call is null) return Results.NotFound();
-            if (!RecordingAuthorization.CanStartStop(current, call))
-                return Results.Json(new { error = "Only call staff may stop recording." }, statusCode: 403);
-
-            var policy = policies.Get(call.ClinicId);
-            string egressId;
-            string recId;
-            lock (call.SyncRoot)
-            {
-                if (call.RecordingStatus != "Recording" || string.IsNullOrWhiteSpace(call.RecordingEgressId))
-                    return Results.Conflict(new { error = "This call is not being recorded." });
-                egressId = call.RecordingEgressId;
-                recId = call.RecordingId ?? Guid.NewGuid().ToString("N");
-                call.RecordingStatus = "Stopping";
-                call.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-
-            try { await catalog.TryMarkFinalizingAsync(recId, egressId, cancellationToken); }
-            catch { /* dual-write best-effort */ }
-            await dispatcher.NotifyCallAsync(call);
-
-            try
-            {
-                await egress.RequestStopAsync(egressId, cancellationToken);
-                audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-                    "RecordingStopRequested", "Ok");
-            }
-            catch (Exception ex)
-            {
-                // Transport uncertainty — stay Finalizing; reconcile is authority.
-                audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-                    "RecordingStopRequested", "TransportError", ex.Message);
-            }
-
-            // Return immediately with Stopping/Finalizing — no Materialize / COMPLETE wait.
-            return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
+            return await orchestration.StopLegacyRecordingAsync(id, current, cancellationToken);
         }).RequireAuthorization();
 
-        /// <summary>
         /// LiveKit webhook (raw body JWT + sha256). Prefer egress_ended → finalize service.
         /// </summary>
 

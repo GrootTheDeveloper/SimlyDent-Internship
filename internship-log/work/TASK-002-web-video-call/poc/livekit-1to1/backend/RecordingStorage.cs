@@ -38,6 +38,10 @@ public interface IRecordingStorage
     string? CreatePresignedPutUrl(string storageKey, TimeSpan ttl);
 }
 
+/// <summary>
+/// LEGACY composite recording keys: clinic/{clinic}/calls/{callId}/{recordingId}.{ext}.
+/// Prefer <see cref="MediaStorageKeys"/> for consultation media_assets.
+/// </summary>
 public static class RecordingStorageKeys
 {
     public static string Build(string clinicId, Guid callId, string recordingId, string extension)
@@ -56,7 +60,10 @@ public static class RecordingStorageKeys
     }
 }
 
-/// <summary>Object keys for consultation media assets (audio / dental clip / snapshot).</summary>
+/// <summary>
+/// CANONICAL object keys for consultation media_assets
+/// (CallAudio / DentalVideoClip / Snapshot). See docs/media-paths.md.
+/// </summary>
 public static class MediaStorageKeys
 {
     public static string AudioKey(string clinicId, Guid callId, Guid assetId)

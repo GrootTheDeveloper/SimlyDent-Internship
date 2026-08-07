@@ -66,6 +66,7 @@ builder.Services.AddSingleton<ConsultationMediaLifecycleService>();
 builder.Services.AddSingleton<SnapshotService>();
 builder.Services.AddSingleton<CallDispatcher>();
 builder.Services.AddSingleton<CallEndService>();
+builder.Services.AddSingleton<RecordingOrchestrationService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
 builder.Services.AddSingleton<RecordingRetentionService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingRetentionService>());

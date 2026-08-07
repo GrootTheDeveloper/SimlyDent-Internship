@@ -3,6 +3,14 @@ namespace LiveKitPoc.Api;
 /// <summary>
 /// Correctness path when webhook is lost or API restarts mid-Finalizing.
 /// Never fails long ACTIVE Recording solely by wall-clock age.
+/// <para>
+/// Two independent reconcile loops (see docs/media-paths.md):
+/// <list type="number">
+/// <item><see cref="RunLegacyRecordingReconcileAsync"/> ? DEPRECATED ledger.</item>
+/// <item><see cref="RunCanonicalMediaReconcileAsync"/> ? consultation media_assets.</item>
+/// </list>
+/// Failures in one loop must not abort the other. Call path is never blocked.
+/// </para>
 /// </summary>
 public sealed class RecordingReconcileService(
     IRecordingCatalog catalog,
@@ -48,11 +56,49 @@ public sealed class RecordingReconcileService(
 
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken = default)
     {
+        var handled = 0;
+
+        try
+        {
+            handled += await RunLegacyRecordingReconcileAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Legacy recording reconcile failed (canonical path continues).");
+        }
+
+        try
+        {
+            handled += await RunCanonicalMediaReconcileAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Canonical media asset reconcile failed (legacy path unaffected).");
+        }
+
+        if (handled > 0)
+            logger.LogInformation("Recording reconcile applied {Count} transition(s).", handled);
+        return handled;
+    }
+
+    /// <summary>
+    /// DEPRECATED: reconcile stuck rows in <see cref="IRecordingCatalog"/>.
+    /// Prefer media_assets path for new product media.
+    /// </summary>
+    [Obsolete("Legacy IRecordingCatalog reconcile. Prefer RunCanonicalMediaReconcileAsync / media_assets.")]
+    public Task<int> RunLegacyRecordingReconcileAsync(CancellationToken cancellationToken = default)
+        => ReconcileLegacyRecordingsAsync(cancellationToken);
+
+    /// <summary>CANONICAL: reconcile stuck media_assets (CallAudio, dental, snapshot upload).</summary>
+    public Task<int> RunCanonicalMediaReconcileAsync(CancellationToken cancellationToken = default)
+        => ReconcileMediaAssetsAsync(cancellationToken);
+
+    private async Task<int> ReconcileLegacyRecordingsAsync(CancellationToken cancellationToken)
+    {
         var stuck = await catalog.ListStuckAsync(BatchLimit, cancellationToken);
         var handled = 0;
         foreach (var snapshot in stuck)
         {
-            // Re-read before mutate (egress_id may have changed).
             var row = await catalog.GetByIdAsync(snapshot.Id, cancellationToken);
             if (row is null) continue;
             if (RecordingLedgerStatus.IsTerminal(row.Status)) continue;
@@ -77,7 +123,6 @@ public sealed class RecordingReconcileService(
 
             if (info is null)
             {
-                // Cannot reach LiveKit — only apply finalizing timeout clocks, never kill ACTIVE Recording.
                 if (row.Status == RecordingLedgerStatus.Finalizing)
                 {
                     var r = await finalize.ApplyFinalizingTimeoutIfNeededAsync(row, cancellationToken);
@@ -86,7 +131,6 @@ public sealed class RecordingReconcileService(
                 continue;
             }
 
-            // Re-check egress_id correlation after network call
             var current = await catalog.GetByIdAsync(row.Id, cancellationToken);
             if (current is null) continue;
             if (!string.Equals(current.EgressId, row.EgressId, StringComparison.Ordinal))
@@ -96,7 +140,6 @@ public sealed class RecordingReconcileService(
             if (st.StartsWith("EGRESS_", StringComparison.Ordinal))
                 st = st["EGRESS_".Length..];
 
-            // Long Recording + ACTIVE: never timeout-fail.
             if (current.Status == RecordingLedgerStatus.Recording
                 && st is "ACTIVE" or "STARTING" or "ENDING" or "")
             {
@@ -119,22 +162,6 @@ public sealed class RecordingReconcileService(
                 if (timed.Changed) handled++;
             }
         }
-
-        // Parallel loop for media_assets (consultation catalog)
-        if (consultationCatalog is not null)
-        {
-            try
-            {
-                handled += await ReconcileMediaAssetsAsync(cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Media asset reconcile failed (recording path unaffected).");
-            }
-        }
-
-        if (handled > 0)
-            logger.LogInformation("Recording reconcile applied {Count} transition(s).", handled);
         return handled;
     }
 
@@ -149,7 +176,6 @@ public sealed class RecordingReconcileService(
             if (asset is null) continue;
             if (MediaAssetStatus.IsTerminal(asset.Status)) continue;
 
-            // Snapshot Uploading without egress — timeout only
             if (asset.Kind == MediaAssetKinds.Snapshot && asset.Status == MediaAssetStatus.Uploading)
             {
                 var age = DateTimeOffset.UtcNow - (asset.StartedAt ?? asset.RequestedAt);
