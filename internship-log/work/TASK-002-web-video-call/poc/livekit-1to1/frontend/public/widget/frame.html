@@ -41,15 +41,32 @@
       </div>
 
       <div id="mediaPane" class="pane media hidden">
+        <!-- Phone-style surface when neither side has remote video (audio call / cam off) -->
+        <div id="voiceStage" class="voice-stage hidden" aria-label="Cuộc gọi thoại">
+          <div class="voice-stage-avatar" id="voiceAvatar" aria-hidden="true">S</div>
+          <div class="voice-stage-name" id="voicePeerName">Tư vấn viên</div>
+          <div class="voice-stage-kind" id="voiceKindLabel">Cuộc gọi thoại</div>
+          <div class="voice-stage-meta">
+            <span class="audio-live-dot" aria-hidden="true"></span>
+            <span id="voiceDuration">0:00</span>
+            <span id="voiceConnHint"> · Đang kết nối</span>
+          </div>
+          <p class="voice-stage-hint" id="voiceHint">Chỉ micro — bấm Camera nếu muốn bật hình của bạn</p>
+        </div>
         <div class="stage" id="videoStage">
           <video id="remoteVideo" autoplay playsinline></video>
-          <video id="localVideo" autoplay playsinline muted></video>
-          <img id="localSample" class="local-sample hidden" src="/assets/guest-avatar.svg" alt="Không có camera" />
+          <div id="remotePlaceholder" class="remote-placeholder hidden">
+            <div class="remote-placeholder-avatar">S</div>
+            <p id="remotePlaceholderText">Tư vấn viên đang tắt camera</p>
+          </div>
           <div id="mediaHint" class="media-hint">Đang kết nối…</div>
           <div id="deviceBanner" class="device-banner hidden"></div>
         </div>
-        <!-- Legacy panel kept hidden; voice layout is remote-placeholder, not a session mode -->
-        <div id="audioSessionPanel" class="audio-session-bar hidden" aria-hidden="true"></div>
+        <!-- Local PiP outside stage so it stays visible over voice layout -->
+        <video id="localVideo" class="local-pip hidden" autoplay playsinline muted></video>
+        <!-- legacy id for scripts -->
+        <div id="audioSessionPanel" class="hidden" aria-hidden="true"></div>
+        <img id="localSample" class="hidden" alt="" aria-hidden="true" />
         <div id="mediaModeBanner" class="media-mode-banner hidden">
           <p id="mediaModeBannerText">Tư vấn viên muốn bạn bật camera để hỗ trợ tư vấn.</p>
           <div class="media-mode-banner-actions">

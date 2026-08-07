@@ -234,6 +234,15 @@ body { overflow: hidden; }
   overflow: hidden;
   background: #000;
 }
+.stage.is-voice-underlay {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
 
 #remoteVideo,
 #localVideo {
@@ -245,10 +254,10 @@ body { overflow: hidden; }
   height: 100%;
 }
 #localVideo,
-.local-sample {
+.local-pip {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 72px;
   width: 28%;
   max-width: 120px;
   aspect-ratio: 3/4;
@@ -257,9 +266,96 @@ body { overflow: hidden; }
   box-shadow: rgba(0, 0, 0, 0.22) 0 8px 20px;
   object-fit: cover;
   background: #1d1d1f;
+  z-index: 15;
 }
-.local-sample.hidden,
-#localVideo.hidden { display: none; }
+#localVideo.hidden,
+.local-pip.hidden { display: none !important; }
+.pane.media {
+  position: relative;
+}
+
+/* Voice / phone-call presentation (no remote video track) */
+.voice-stage {
+  flex: 1;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px 20px;
+  background: radial-gradient(ellipse at center, #2c2c2e 0%, #111 70%);
+  color: #f5f5f7;
+}
+.voice-stage.hidden { display: none !important; }
+.voice-stage-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: #3a3a3c;
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+  font-weight: 600;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+.voice-stage-name {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.voice-stage-kind {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64d2ff;
+}
+.voice-stage-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(235, 235, 245, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.voice-stage-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: rgba(235, 235, 245, 0.45);
+  max-width: 26ch;
+  line-height: 1.4;
+}
+
+.remote-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #000;
+  color: #e5e5ea;
+  pointer-events: none;
+}
+.remote-placeholder.hidden { display: none !important; }
+.remote-placeholder-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #2c2c2e;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  font-weight: 600;
+}
+.remote-placeholder p {
+  margin: 0;
+  font-size: 13px;
+  color: #8e8e93;
+}
+
+
 
 .media-hint {
   position: absolute;
@@ -325,72 +421,13 @@ body { overflow: hidden; }
   border-color: transparent;
 }
 
-/* Audio session bar (phone-call style) */
-.audio-session-bar {
-  margin: 16px 12px 8px;
-}
-.audio-session-bar.hidden { display: none; }
-.audio-session-bar-inner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 999px;
-  background: #2c2c2e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f5f5f7;
-}
-.audio-session-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #3a3a3c;
-  display: grid;
-  place-items: center;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.audio-session-meta { flex: 1; min-width: 0; }
-.audio-session-name {
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.audio-session-label {
-  font-size: 11px;
-  color: rgba(235, 235, 245, 0.55);
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
 .audio-live-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: #30d158;
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.25);
   flex-shrink: 0;
-}
-.audio-waveform {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  height: 24px;
-  flex-shrink: 0;
-}
-.audio-wave-bar {
-  width: 3px;
-  height: 8px;
-  border-radius: 99px;
-  background: #64d2ff;
-  animation: audio-wave 0.85s ease-in-out infinite alternate;
-}
-@keyframes audio-wave {
-  from { height: 5px; opacity: 0.4; }
-  to { height: 20px; opacity: 1; }
 }
 .media-mode-banner {
   margin: 0 12px 8px;
