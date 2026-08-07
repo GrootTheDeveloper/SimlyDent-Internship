@@ -99,6 +99,14 @@ public sealed class CallSession
     public string AutoAudioStatus { get; set; } = "Idle";
 
     /// <summary>
+    /// End was requested but business status still Accepted while waiting for
+    /// TrackComposite Egress terminal (not asset Ready). Source track must stay up.
+    /// </summary>
+    public bool GracefulEndPending { get; set; }
+    public DateTimeOffset? GracefulEndRequestedAt { get; set; }
+    public string? GracefulEndRequestedBy { get; set; }
+
+    /// <summary>
     /// Authoritative initial realtime media for this call: Audio | Video.
     /// Set once at creation; both participants derive camera on/off from this — not from URL/query alone.
     /// Runtime camera toggles do not change this value.
@@ -135,7 +143,12 @@ public sealed class CallSession
         RecordingStatus == "Complete" && !string.IsNullOrWhiteSpace(RecordingStorageKey),
         Origin.ToString(), AssignedStaffId,
         NormalizeMediaMode(InitialMediaMode),
-        AutoAudioStatus);
+        AutoAudioStatus,
+        ActiveDentalClipStatus,
+        ActiveDentalClipAssetId,
+        GracefulEndPending,
+        GracefulEndRequestedAt,
+        GracefulEndGraceSeconds: CallEndService.GraceSeconds);
 
     /// <summary>Normalize client/server media mode strings to Audio | Video.</summary>
     public static string NormalizeMediaMode(string? mode) =>
@@ -183,11 +196,26 @@ public sealed record CallView(
     string? AssignedStaffId = null,
     string InitialMediaMode = "Video",
     /// <summary>Idle | Recording | Finalizing | Ready | Failed — auto CallAudio (product always-on).</summary>
-    string AutoAudioStatus = "Idle")
+    string AutoAudioStatus = "Idle",
+    string ActiveDentalClipStatus = "Idle",
+    Guid? ActiveDentalClipAssetId = null,
+    /// <summary>True while End requested but still Accepted waiting Egress terminal.</summary>
+    bool GracefulEndPending = false,
+    DateTimeOffset? GracefulEndRequestedAt = null,
+    /// <summary>Soft UI grace before offering force-end (seconds).</summary>
+    int GracefulEndGraceSeconds = 12)
 {
     /// <summary>Deprecated alias of ClinicId for older clients / scripts.</summary>
     public string TenantId => ClinicId;
+
+    /// <summary>True after soft grace elapsed — FE may show force-end.</summary>
+    public bool CanForceEnd =>
+        GracefulEndPending
+        && GracefulEndRequestedAt is not null
+        && (DateTimeOffset.UtcNow - GracefulEndRequestedAt.Value).TotalSeconds >= GracefulEndGraceSeconds;
 }
+
+public sealed record EndCallRequest(bool Force = false);
 
 public sealed record CreateCallRequest(string CalleeId, string? InitialMediaMode = null);
 public sealed record CreateQueueCallRequest(string? InitialMediaMode = null);

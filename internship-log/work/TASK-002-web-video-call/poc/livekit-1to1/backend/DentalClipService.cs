@@ -19,6 +19,8 @@ public sealed class DentalClipService(
     {
         if (call.Status != CallStatus.Accepted)
             throw new InvalidOperationException("Call must be Accepted to record dental clip.");
+        if (call.GracefulEndPending)
+            throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
 
         // Product: clips are staff-initiated (start/stop). Multiple clips per call are allowed
         // sequentially — only one active clip at a time (unique partial index).

@@ -174,6 +174,14 @@ export function mountCallWindowApp(opts = {}) {
       showMoreMenu: false,
       callDurationSeconds: 0,
       _callDurationTimer: null,
+      /**
+       * Graceful End: user requested End; LiveKit stays up until business status Ended
+       * (backend waits Egress terminal for dental clips — not asset Ready).
+       */
+      gracefulEnding: false,
+      showForceEndOption: false,
+      _forceEndTimer: null,
+      endingStatusText: '',
 
       error: '',
       broadcastChannel: null,
@@ -444,14 +452,25 @@ export function mountCallWindowApp(opts = {}) {
           const prevStatus = this.call?.status
           this.call = call
           this.applyAuthoritativeMediaMode(call)
-          rtLog('CallUpdated', { status: call.status, initialMediaMode: call.initialMediaMode })
+          rtLog('CallUpdated', {
+            status: call.status,
+            initialMediaMode: call.initialMediaMode,
+            gracefulEndPending: call.gracefulEndPending
+          })
 
           if (call.status === 'Accepted' && prevStatus !== 'Accepted') {
             await this.joinRoom()
           } else if (['Rejected', 'Cancelled', 'Ended'].includes(call.status)) {
-            // Business call terminal — not the same as WebRTC blip
+            // Business call terminal — only NOW tear down LiveKit / leave UI
             this.intentionalLeave = true
+            this.gracefulEnding = false
+            this.clearForceEndTimer()
             this.handleCallEnded()
+          } else if (call.gracefulEndPending && call.status === 'Accepted') {
+            // Backend still waiting Egress terminal — keep media, show ending UI
+            this.gracefulEnding = true
+            this.endingStatusText = 'Đang lưu clip và kết thúc cuộc gọi…'
+            this.scheduleForceEndOption(call)
           }
         })
         await this.hub.start()
@@ -500,12 +519,25 @@ export function mountCallWindowApp(opts = {}) {
             break
           case MediaEngineEvent.Disconnected: {
             const reasonStr = payload?.reason || 'unknown'
-            if (this.intentionalLeave || this._endingCall) {
+            if (this.intentionalLeave) {
               this.handleCallEnded()
               break
             }
             if (this.call && ['Rejected', 'Cancelled', 'Ended'].includes(this.call.status)) {
               this.handleCallEnded()
+              break
+            }
+            // During graceful end we must not treat disconnect as hangup success —
+            // try rejoin so source track can stay for Egress finalization.
+            if (this.gracefulEnding && this.call?.status === 'Accepted') {
+              this.mediaPermissionState = 'reconnecting'
+              this.reconnectNotice = 'Đang giữ kết nối để lưu clip…'
+              this.room = null
+              this.mediaEngine = null
+              this.rejoinMedia().catch(() => {
+                this.error = 'Mất media khi đang lưu clip. Bấm «Kết thúc ngay» nếu cần.'
+                this.showForceEndOption = true
+              })
               break
             }
             // Keep desiredCameraEnabled — rejoin must restore runtime intent, not initialMediaMode
@@ -1010,7 +1042,7 @@ export function mountCallWindowApp(opts = {}) {
         }
       },
       async toggleDentalClip() {
-        if (!this.callId || this.dentalClipBusy) return
+        if (!this.callId || this.dentalClipBusy || this.gracefulEnding) return
         this.dentalClipBusy = true
         try {
           if (this.dentalClipStatus === 'Recording' && this.dentalClipAssetId) {
@@ -1211,19 +1243,17 @@ export function mountCallWindowApp(opts = {}) {
        * Use after a timed real-device test so metrics are not lost.
        */
       async endCallAndExport() {
-        if (this._endingCall) return
+        if (this.gracefulEnding || this._endingCall) return
         try {
           await this.flushQualityLog()
-          // Prefer CSV for spreadsheets; fall back quietly if no samples yet
           const ok = await this.downloadQualityLog('csv')
           if (!ok) {
-            // Still allow hangup; user may export later via API if samples arrive late
             console.warn('Quality CSV export skipped or failed before hangup')
           }
         } catch (e) {
           console.warn(e)
         }
-        await this.endCall()
+        await this.endCall(false)
       },
       copyCallId() {
         const id = this.callId || this.call?.id
@@ -1232,7 +1262,6 @@ export function mountCallWindowApp(opts = {}) {
         if (navigator.clipboard?.writeText) {
           navigator.clipboard.writeText(text).then(() => {
             this.error = ''
-            // brief non-blocking hint via title swap
             console.info('Call ID copied:', text)
           }).catch(() => {
             window.prompt('Copy Call ID:', text)
@@ -1241,42 +1270,136 @@ export function mountCallWindowApp(opts = {}) {
           window.prompt('Copy Call ID:', text)
         }
       },
-      async endCall() {
-        // Prevent double-tap / concurrent hangup paths hanging the UI
-        if (this._endingCall) return
+      clearForceEndTimer() {
+        if (this._forceEndTimer) {
+          clearTimeout(this._forceEndTimer)
+          this._forceEndTimer = null
+        }
+        this.showForceEndOption = false
+      },
+      scheduleForceEndOption(call) {
+        this.clearForceEndTimer()
+        this.showForceEndOption = false
+        if (this.gracefulEnding) {
+          this.endingStatusText = 'Đang lưu clip và kết thúc cuộc gọi…'
+        }
+        const graceSec = Math.max(
+          3,
+          Number(call?.gracefulEndGraceSeconds || call?.GracefulEndGraceSeconds || 12)
+        )
+        this._forceEndTimer = setTimeout(() => {
+          if (this.gracefulEnding && this.call?.status === 'Accepted') {
+            this.showForceEndOption = true
+            this.endingStatusText = 'Video đang mất nhiều thời gian để xử lý…'
+          }
+        }, graceSec * 1000)
+      },
+      /**
+       * Hang up. During active/finalizing dental clip, backend keeps call Accepted
+       * until Egress terminal — we must NOT disconnectRoom until status Ended.
+       * @param {boolean} [force=false] user-confirmed force end after grace timeout
+       */
+      async endCall(force = false) {
+        if (this.gracefulEnding && !force) return
+        if (this._endingCall && !force) return
         this._endingCall = true
-        this.intentionalLeave = true
-        try {
-          // Never block hangup on telemetry (was a source of "tắt call không được")
-          const sideWork = [
-            this.flushQualityLog().catch(err => console.warn('flush quality on end', err))
-          ]
-          await Promise.race([
-            Promise.all(sideWork),
-            new Promise(resolve => setTimeout(resolve, 1500))
-          ])
 
-          const status = this.call?.status
-          let action = 'end'
+        const status = this.call?.status
+        try {
+          // Ringing: cancel/reject — no media barrier
           if (status === 'Ringing') {
-            // Still ringing: caller cancels, callee rejects
-            action = this.call?.callerId === this.userId ? 'cancel' : 'reject'
-          } else if (status && status !== 'Accepted') {
-            // Already terminal — just leave UI
+            this.intentionalLeave = true
+            const action = this.call?.callerId === this.userId ? 'cancel' : 'reject'
+            await apiFetch(`/api/calls/${this.callId}/${action}`, {
+              method: 'POST',
+              headers: authHeaders(),
+              keepalive: true
+            }).catch(err => console.warn('cancel/reject API', err))
+            this.handleCallEnded()
             return
           }
 
-          await apiFetch(`/api/calls/${this.callId}/${action}`, {
+          if (status && status !== 'Accepted') {
+            this.intentionalLeave = true
+            this.handleCallEnded()
+            return
+          }
+
+          // Accepted path — may enter graceful end (keep LiveKit)
+          this.gracefulEnding = true
+          this.endingStatusText = force
+            ? 'Đang kết thúc ngay…'
+            : 'Đang lưu clip và kết thúc cuộc gọi…'
+          this.showClinicalTools = false
+          this.showMoreMenu = false
+
+          // Never block hangup on telemetry
+          Promise.race([
+            this.flushQualityLog().catch(err => console.warn('flush quality on end', err)),
+            new Promise(resolve => setTimeout(resolve, 800))
+          ]).catch(() => {})
+
+          const res = await apiFetch(`/api/calls/${this.callId}/end`, {
             method: 'POST',
-            headers: authHeaders(),
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ force: !!force }),
             keepalive: true
-          }).catch(err => console.warn('end/cancel API', err))
+          })
+
+          if (res.ok) {
+            const body = await res.json().catch(() => ({}))
+            if (body?.id) this.call = body
+            rtLog('endCall_response', {
+              status: body?.status,
+              gracefulEndPending: body?.gracefulEndPending,
+              force: !!force
+            })
+
+            if (body?.status === 'Ended' || ['Rejected', 'Cancelled'].includes(body?.status)) {
+              this.intentionalLeave = true
+              this.gracefulEnding = false
+              this.clearForceEndTimer()
+              this.handleCallEnded()
+              return
+            }
+
+            if (body?.gracefulEndPending && body?.status === 'Accepted') {
+              // Keep media; wait for CallUpdated Ended from grace loop
+              this.gracefulEnding = true
+              this.endingStatusText = 'Đang lưu clip và kết thúc cuộc gọi…'
+              this.scheduleForceEndOption(body)
+              return
+            }
+          } else {
+            const errBody = await res.json().catch(() => ({}))
+            console.warn('end API', res.status, errBody)
+            // If still Accepted after error, stay (do not kill tracks)
+            if (this.call?.status === 'Accepted') {
+              this.error = errBody.error || 'Không kết thúc được cuộc gọi. Thử lại.'
+              this.gracefulEnding = false
+              return
+            }
+          }
+
+          // Fallback: if we cannot tell, only leave when not mid-grace
+          if (!this.call?.gracefulEndPending) {
+            this.intentionalLeave = true
+            this.handleCallEnded()
+          }
         } catch (e) {
           console.error(e)
+          if (!this.gracefulEnding || force) {
+            this.intentionalLeave = true
+            this.handleCallEnded()
+          }
         } finally {
-          this.handleCallEnded()
           this._endingCall = false
         }
+      },
+      async forceEndCall() {
+        this.showForceEndOption = false
+        this.endingStatusText = 'Đang kết thúc ngay — clip có thể không dùng được…'
+        await this.endCall(true)
       },
       /** Explicit rejoin after unexpected media disconnect (business call still Accepted). */
       async rejoinMedia() {
@@ -1291,8 +1414,11 @@ export function mountCallWindowApp(opts = {}) {
       handleCallEnded() {
         rtLog('handleCallEnded', {
           intentional: this.intentionalLeave,
-          status: this.call?.status
+          status: this.call?.status,
+          gracefulEnding: this.gracefulEnding
         })
+        this.gracefulEnding = false
+        this.clearForceEndTimer()
         this.stopCallDurationTimer()
         this.clearCameraRequestExpireTimer()
         try {
@@ -1351,10 +1477,15 @@ export function mountCallWindowApp(opts = {}) {
       },
       handleBeforeUnload() {
         this.flushQualityLog(true)
-        // Only end the *business* call if user already pressed Hang up.
-        // Do NOT sendBeacon end/cancel on every unload — "Mở lại" reuses the
-        // same window name and was killing the call (reload → beforeunload → end).
-        if (this.intentionalLeave && this.call && ['Accepted', 'Ringing'].includes(this.call.status)) {
+        // Only end business call if hangup already completed teardown path.
+        // During gracefulEnding media must stay — do NOT sendBeacon End/Force here
+        // (tab close is residual risk; force would kill tracks mid-finalize).
+        if (
+          this.intentionalLeave
+          && !this.gracefulEnding
+          && this.call
+          && ['Accepted', 'Ringing'].includes(this.call.status)
+        ) {
           const action = this.call.status === 'Accepted' ? 'end' : 'cancel'
           try {
             navigator.sendBeacon(
@@ -1471,27 +1602,36 @@ export function mountCallWindowApp(opts = {}) {
             ></div>
             <div ref="remoteAudio"></div>
 
+            <!-- Graceful end: keep media, show soft status (not tech details) -->
+            <div v-if="gracefulEnding" class="media-mode-banner" role="status">
+              <p>{{ endingStatusText || 'Đang lưu clip và kết thúc cuộc gọi…' }}</p>
+              <div v-if="showForceEndOption" class="media-mode-banner-actions">
+                <button type="button" class="media-mode-btn" @click="scheduleForceEndOption(call)">Tiếp tục chờ</button>
+                <button type="button" class="media-mode-btn primary" @click="forceEndCall" title="Clip vừa quay có thể không dùng được">Kết thúc ngay</button>
+              </div>
+            </div>
+
             <!-- Camera request (business interaction — not session mode sync) -->
-            <div v-if="incomingCameraRequest" class="media-mode-banner">
+            <div v-if="!gracefulEnding && incomingCameraRequest" class="media-mode-banner">
               <p>Tư vấn viên muốn bạn <strong>bật camera</strong> để hỗ trợ tư vấn.</p>
               <div class="media-mode-banner-actions">
                 <button type="button" class="media-mode-btn primary" :disabled="cameraRequestBusy" @click="acceptCameraRequest">Bật camera</button>
                 <button type="button" class="media-mode-btn" :disabled="cameraRequestBusy" @click="rejectCameraRequest">Để sau</button>
               </div>
             </div>
-            <div v-else-if="outgoingCameraRequest" class="media-mode-banner soft">
+            <div v-else-if="!gracefulEnding && outgoingCameraRequest" class="media-mode-banner soft">
               <p>Đã gửi yêu cầu bật camera — đang chờ phản hồi…</p>
               <button type="button" class="media-mode-btn" @click="setCameraRequestState('clear')">Ẩn</button>
             </div>
 
             <!-- Secondary: clinical tools -->
-            <aside v-if="showClinicalTools && !isManagerRole" class="clinical-tools-panel" aria-label="Công cụ tư vấn">
+            <aside v-if="showClinicalTools && !isManagerRole && !gracefulEnding" class="clinical-tools-panel" aria-label="Công cụ tư vấn">
               <div class="clinical-tools-title">Công cụ tư vấn</div>
               <div class="clinical-tools-row">
                 <button
                   type="button"
                   class="clinical-tool-btn"
-                  :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing' || mediaPermissionState !== 'connected'"
+                  :disabled="dentalClipBusy || dentalClipStatus === 'Finalizing' || mediaPermissionState !== 'connected' || gracefulEnding"
                   @click="toggleDentalClip"
                 >
                   {{ dentalClipStatus === 'Recording' ? 'Dừng clip' : 'Quay clip răng' }}
@@ -1499,7 +1639,7 @@ export function mountCallWindowApp(opts = {}) {
                 <button
                   type="button"
                   class="clinical-tool-btn"
-                  :disabled="photoBusy || mediaPermissionState !== 'connected'"
+                  :disabled="photoBusy || mediaPermissionState !== 'connected' || gracefulEnding"
                   @click="requestPhoto"
                 >Chụp ảnh</button>
               </div>
@@ -1559,7 +1699,7 @@ export function mountCallWindowApp(opts = {}) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
               </button>
               <button
-                v-if="mediaPermissionState === 'connected' && !remoteVideoConnected"
+                v-if="mediaPermissionState === 'connected' && !remoteVideoConnected && !gracefulEnding"
                 type="button"
                 class="ctrl-text-btn secondary"
                 :disabled="cameraRequestBusy || outgoingCameraRequest"
@@ -1567,7 +1707,7 @@ export function mountCallWindowApp(opts = {}) {
                 title="Gửi yêu cầu — không bật camera của bạn"
               >{{ outgoingCameraRequest ? 'Đang chờ…' : 'Yêu cầu khách bật camera' }}</button>
               <button
-                v-if="mediaPermissionState === 'connected' && !isManagerRole"
+                v-if="mediaPermissionState === 'connected' && !isManagerRole && !gracefulEnding"
                 type="button"
                 class="ctrl-btn tools-toggle"
                 :class="{ active: showClinicalTools }"
@@ -1578,13 +1718,20 @@ export function mountCallWindowApp(opts = {}) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
               <button
-                v-if="mediaPermissionState === 'error'"
+                v-if="mediaPermissionState === 'error' && !gracefulEnding"
                 type="button"
                 class="start-call-btn"
                 style="padding: 8px 16px; font-size: 13px;"
                 @click="rejoinMedia"
               >Tham gia lại media</button>
-              <button type="button" class="ctrl-btn danger" @click="endCall" title="Kết thúc cuộc gọi" aria-label="Kết thúc cuộc gọi">
+              <button
+                type="button"
+                class="ctrl-btn danger"
+                :disabled="gracefulEnding && !showForceEndOption"
+                @click="gracefulEnding && showForceEndOption ? forceEndCall() : endCall(false)"
+                :title="gracefulEnding ? 'Đang kết thúc…' : 'Kết thúc cuộc gọi'"
+                aria-label="Kết thúc cuộc gọi"
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 6 6l2-2a2 2 0 0 1 2-.48c.68.23 1.37.39 2.08.48A2 2 0 0 1 24 19.3V22a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 4.55 6.73 2 2 0 0 1 6.53 4.55h2.7a2 2 0 0 1 2 1.72c.09.71.25 1.4.48 2.08a2 2 0 0 1-.47 2zM23 1 1 23"/></svg>
               </button>
             </div>

@@ -219,12 +219,14 @@ public static class CallEndpoints
             ClaimsPrincipal principal,
             IdentityRegistry identities,
             CallEndService endService,
+            EndCallRequest? body,
             CancellationToken cancellationToken) =>
         {
             var current = ClinicAuthorization.CurrentUser(principal, identities);
             if (current is null) return Results.Unauthorized();
 
-            var result = await endService.EndWithRecordingAsync(id, current, cancellationToken);
+            var force = body?.Force == true;
+            var result = await endService.EndWithRecordingAsync(id, current, force, cancellationToken);
             return result.Kind switch
             {
                 CallTransitionKind.Ok => Results.Ok(result.Call!.ToView()),
