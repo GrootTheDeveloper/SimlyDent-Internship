@@ -11,225 +11,61 @@ import {
 } from 'livekit-client'
 import './style.css'
 
-const API_URL = typeof import.meta.env.VITE_API_URL === 'string'
-  ? import.meta.env.VITE_API_URL
-  : (window.location.hostname === 'localhost' ? 'http://localhost:5080' : '')
-
-// ---- Auth (production-shaped SPA): JWT access token in localStorage ----
-// Real products often put refresh token in HttpOnly cookie; access token short-lived.
-const AUTH_TOKEN_KEY = 'simlydent_access_token'
-const AUTH_USER_KEY = 'simlydent_auth_user'
-const DEMO_PASSWORD_HINT = 'Demo@123'
-
-function getAccessToken() {
-  try {
-    return localStorage.getItem(AUTH_TOKEN_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-function setAuthSession(accessToken, user) {
-  localStorage.setItem(AUTH_TOKEN_KEY, accessToken)
-  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
-}
-
-function clearAuthSession() {
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(AUTH_USER_KEY)
-}
-
-function readCachedUser() {
-  try {
-    const raw = localStorage.getItem(AUTH_USER_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-/** Headers for authenticated API calls (Bearer JWT). */
-function authHeaders(extra = {}) {
-  const headers = { ...extra }
-  const token = getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
-
-/** Canonical clinic id from auth user DTO (clinicId preferred; tenantId is legacy alias). */
-function clinicIdOf(userOrIdentity) {
-  return userOrIdentity?.clinicId || userOrIdentity?.tenantId || ''
-}
-
-/** Embed visitors use CallerId = visitor:{sessionId} — too long for staff UI. */
-function isEmbedVisitorId(id) {
-  return typeof id === 'string' && id.toLowerCase().startsWith('visitor:')
-}
-
-/** Short stable code from embed session id (first 6 hex chars). */
-function visitorShortCode(id) {
-  if (!isEmbedVisitorId(id)) return ''
-  const raw = id.slice('visitor:'.length).replace(/[^a-fA-F0-9]/g, '')
-  return (raw.slice(0, 6) || '------').toUpperCase()
-}
-
-/**
- * Human label for staff surfaces. Never show full visitor:{guid} as the title.
- * @param {string} id
- * @param {{ displayName?: string } | null} [known]
- */
-function peerLabel(id, known = null) {
-  if (known?.displayName && known.displayName !== id) return known.displayName
-  if (isEmbedVisitorId(id)) return `Khách #${visitorShortCode(id)}`
-  if (!id) return '—'
-  // Demo queue visitors VA/VB without directory hit
-  if (/^V[A-Z0-9]+$/i.test(id)) return `Khách ${id.toUpperCase()}`
-  return id
-}
-
-/** Compact avatar initials (never the full visitor GUID). */
-function peerAvatarText(id, known = null) {
-  if (known?.displayName && known.displayName !== id) {
-    return initialsFromDisplayName(known.displayName, id)
-  }
-  if (isEmbedVisitorId(id)) return 'K'
-  if (!id) return '?'
-  return String(id).slice(0, 2).toUpperCase()
-}
-
-/** Initials for directory / login avatars (prefer display name). */
-function initialsFromDisplayName(displayName, fallbackId = '') {
-  const name = String(displayName || '').trim()
-  if (name) {
-    const parts = name.split(/\s+/).filter(Boolean)
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    }
-    return name.slice(0, 2).toUpperCase()
-  }
-  if (fallbackId) return String(fallbackId).slice(0, 2).toUpperCase()
-  return '?'
-}
-
-function userInitials(user) {
-  if (!user) return '?'
-  return initialsFromDisplayName(user.displayName, user.id)
-}
+// ---------------------------------------------------------------------------
+// Phase 1 refactor: import from shared modules
+// Canonical owners: shared/auth.js, shared/api-client.js, shared/call-helpers.js
+// shared/constants.js, shared/storage-helpers.js
+// ---------------------------------------------------------------------------
+import {
+  AUTH_TOKEN_KEY,
+  AUTH_USER_KEY,
+  DEMO_PASSWORD_HINT,
+  SESSION_PREFERRED_MEDIA_KEY,
+  API_URL,
+  CallStatus,
+  TERMINAL_CALL_STATUSES,
+  MediaMode,
+  HUB_PATH,
+} from './shared/constants.js'
+import {
+  getAccessToken,
+  setAuthSession,
+  clearAuthSession,
+  readCachedUser,
+  authHeaders,
+} from './shared/auth.js'
+import { apiFetch } from './shared/api-client.js'
+import {
+  clinicIdOf,
+  isEmbedVisitorId,
+  visitorShortCode,
+  peerLabel,
+  peerAvatarText,
+  initialsFromDisplayName,
+  userInitials,
+  isTerminalCallStatus,
+  normalizeMediaMode,
+  agentBadgeClass,
+  agentBadgeLabel,
+  callStatusVi,
+  formatQueueLabel,
+  queueStatusVi,
+  clinicDisplayName,
+  roleDisplayName,
+  recordingModeLabel,
+  recordingStatusLabelVi,
+  formatViDateTime,
+  formatWaitSeconds,
+  finiteOrNull,
+  createClientSessionId,
+} from './shared/call-helpers.js'
+import {
+  readPreferredMediaHint,
+  writePreferredMediaHint,
+  clearPreferredMediaHint,
+} from './shared/storage-helpers.js'
 
 const GUEST_AVATAR_URL = '/assets/guest-avatar.svg'
-
-function agentBadgeClass(state) {
-  const s = String(state || 'Offline').toLowerCase()
-  if (s === 'available') return 'agent-badge agent-badge--available'
-  if (s === 'ringing') return 'agent-badge agent-badge--ringing'
-  if (s === 'incall') return 'agent-badge agent-badge--incall'
-  return 'agent-badge agent-badge--offline'
-}
-
-/** Staff status for doctors / consultants (never raw English enums). */
-function agentBadgeLabel(state) {
-  const s = String(state || 'Offline')
-  if (s === 'Available') return 'Sẵn sàng'
-  if (s === 'Ringing') return 'Đang đổ chuông'
-  if (s === 'InCall') return 'Đang tư vấn'
-  return 'Ngoại tuyến'
-}
-
-/** Call lifecycle status for staff UI. */
-function callStatusVi(status) {
-  switch (status) {
-    case 'Queued': return 'Đang chờ'
-    case 'Ringing': return 'Đang đổ chuông'
-    case 'Accepted': return 'Đang tư vấn'
-    case 'Rejected': return 'Đã từ chối'
-    case 'Cancelled': return 'Đã hủy'
-    case 'Ended': return 'Đã kết thúc'
-    case 'Timeout': return 'Hết thời gian chờ'
-    case 'NoAgent': return 'Chưa có nhân viên nhận'
-    case 'Closed': return 'Phòng khám đang đóng'
-    default: return status || '—'
-  }
-}
-
-function formatQueueLabel(item) {
-  if (!item) return 'Khách'
-  if (item.callerLabel) return item.callerLabel
-  return peerLabel(item.callerId)
-}
-
-function queueStatusVi(status) {
-  return callStatusVi(status)
-}
-
-function clinicDisplayName(clinicId) {
-  if (!clinicId) return 'Phòng khám'
-  if (clinicId === 'clinic-a') return 'Phòng khám A'
-  if (clinicId === 'clinic-b') return 'Phòng khám B'
-  return String(clinicId).replace(/^clinic-/i, 'Phòng khám ')
-}
-
-function roleDisplayName(role) {
-  if (!role || role === 'Staff') return 'Nhân viên tư vấn'
-  if (role === 'Visitor') return 'Khách'
-  if (role === 'Admin' || role === 'Manager') return 'Quản lý'
-  return role
-}
-
-function recordingModeLabel(mode) {
-  if (mode === 'AudioOnly') return 'Chỉ ghi âm'
-  if (mode === 'Video') return 'Ghi hình'
-  return 'Không ghi'
-}
-
-function recordingStatusLabelVi(status) {
-  switch (String(status || '')) {
-    case 'Complete': return 'Sẵn sàng tải'
-    case 'Failed': return 'Ghi lỗi'
-    case 'Deleted': return 'Đã xóa'
-    case 'Recording': return 'Đang ghi'
-    case 'Starting': return 'Đang bắt đầu'
-    case 'Stopping': return 'Đang dừng'
-    case 'Idle': return 'Chưa ghi'
-    default: return status || '—'
-  }
-}
-
-function formatViDateTime(iso) {
-  if (!iso) return '—'
-  try {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return '—'
-    return d.toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch {
-    return '—'
-  }
-}
-
-function formatWaitSeconds(seconds) {
-  const n = Number(seconds)
-  if (!Number.isFinite(n) || n < 0) return '—'
-  if (n < 60) return `khoảng ${Math.floor(n)} giây`
-  const m = Math.floor(n / 60)
-  const s = Math.floor(n % 60)
-  if (s === 0) return `khoảng ${m} phút`
-  return `khoảng ${m} phút ${s} giây`
-}
-
-async function apiFetch(path, options = {}) {
-  const headers = authHeaders(options.headers || {})
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers })
-  if (res.status === 401 && !path.startsWith('/api/auth/login')) {
-    // Token expired / invalid — force re-login on main app
-    clearAuthSession()
-  }
-  return res
-}
 
 const initialQualityStats = () => ({
   incomingResolution: 'Chưa có',
@@ -245,10 +81,7 @@ const initialQualityStats = () => ({
   codec: 'Chưa có'
 })
 
-const createClientSessionId = () => globalThis.crypto?.randomUUID?.()
-  || `client-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-const finiteOrNull = value => Number.isFinite(value) ? value : null
 
 /** Prefer real device orientation so portrait callers are not cropped into 16:9. */
 function isPortraitCapturePreferred() {
@@ -1126,19 +959,10 @@ if (isCallRoute) {
   const cached = readCachedUser()
   const callQuery = new URLSearchParams(window.location.search)
   const userId = cached?.id || callQuery.get('user') || ''
-  /**
-   * URL/sessionStorage media= is a cache/hint only.
-   * Authoritative source is call.initialMediaMode from the backend (set at call creation).
-   */
-  function normalizeMediaMode(value) {
-    const v = String(value || '').toLowerCase()
-    return v === 'audio' ? 'audio' : 'video'
-  }
   let preferredMediaHint = normalizeMediaMode(callQuery.get('media') || 'video')
-  try {
-    const stored = sessionStorage.getItem('simlydent_preferred_media')
-    if (stored && !callQuery.get('media')) preferredMediaHint = normalizeMediaMode(stored)
-  } catch { /* ignore */ }
+  const storedHint = readPreferredMediaHint()
+  if (storedHint && !callQuery.get('media')) preferredMediaHint = storedHint
+
 
   function rtLog(event, detail) {
     const ts = new Date().toISOString()
