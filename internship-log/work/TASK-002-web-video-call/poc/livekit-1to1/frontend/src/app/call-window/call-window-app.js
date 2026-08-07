@@ -791,16 +791,22 @@ export function mountCallWindowApp(opts = {}) {
               ? [...(remotePub.videoTrackPublications?.values?.() || [])][0]
                 ?.track?.mediaStreamTrack?.getSettings?.()
               : null
+            // Round getSettings() floats — backend used to reject 29.97 as int ("Invalid JSON body")
+            const toInt = (v) => {
+              const n = Number(v)
+              return Number.isFinite(n) && n > 0 ? Math.round(n) : null
+            }
+            const payload = {
+              patientParticipantIdentity: patientIdentity,
+              patientVideoTrackSidHint: trackHint || null,
+              actualWidth: toInt(settings?.width),
+              actualHeight: toInt(settings?.height),
+              actualFrameRate: toInt(settings?.frameRate)
+            }
             const res = await apiFetch(`/api/calls/${this.callId}/video-clips/start`, {
               method: 'POST',
               headers: authHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({
-                patientParticipantIdentity: patientIdentity,
-                patientVideoTrackSidHint: trackHint,
-                actualWidth: settings?.width || null,
-                actualHeight: settings?.height || null,
-                actualFrameRate: settings?.frameRate || null
-              })
+              body: JSON.stringify(payload)
             })
             const body = await res.json().catch(() => ({}))
             if (!res.ok) throw new Error(body.error || `Start clip HTTP ${res.status}`)

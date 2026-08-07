@@ -37,9 +37,14 @@ public sealed class StartDentalClipRequest
 {
     public string PatientParticipantIdentity { get; set; } = "";
     public string? PatientVideoTrackSidHint { get; set; }
-    public int? ActualWidth { get; set; }
-    public int? ActualHeight { get; set; }
-    public int? ActualFrameRate { get; set; }
+    /// <summary>Browser getSettings() may send floats (e.g. 1280.0); accept number then round.</summary>
+    public double? ActualWidth { get; set; }
+    public double? ActualHeight { get; set; }
+    /// <summary>Often 29.97 / 30.00003 from MediaTrackSettings — must not be int? or STJ throws.</summary>
+    public double? ActualFrameRate { get; set; }
+
+    public int? WidthPx => ActualWidth is > 0 ? (int)Math.Round(ActualWidth.Value) : null;
+    public int? HeightPx => ActualHeight is > 0 ? (int)Math.Round(ActualHeight.Value) : null;
 }
 
 public sealed class RequestPhotoBody

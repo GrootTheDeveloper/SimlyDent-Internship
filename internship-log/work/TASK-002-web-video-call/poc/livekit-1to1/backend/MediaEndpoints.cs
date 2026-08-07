@@ -35,11 +35,17 @@ public static class MediaEndpoints
             StartDentalClipRequest? body;
             try
             {
-                body = await http.ReadFromJsonAsync<StartDentalClipRequest>(cancellationToken: ct);
+                body = await http.ReadFromJsonAsync<StartDentalClipRequest>(
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web),
+                    cancellationToken: ct);
             }
-            catch
+            catch (Exception ex)
             {
-                return Results.BadRequest(new { error = "Invalid JSON body." });
+                return Results.BadRequest(new
+                {
+                    error = "Invalid JSON body.",
+                    detail = ex.Message
+                });
             }
 
             if (body is null || string.IsNullOrWhiteSpace(body.PatientParticipantIdentity))
@@ -54,7 +60,7 @@ public static class MediaEndpoints
                     call, current,
                     body.PatientParticipantIdentity.Trim(),
                     body.PatientVideoTrackSidHint,
-                    body.ActualWidth, body.ActualHeight, ct);
+                    body.WidthPx, body.HeightPx, ct);
                 await dispatcher.NotifyCallAsync(call);
                 return Results.Ok(new { assetId, status });
             }
