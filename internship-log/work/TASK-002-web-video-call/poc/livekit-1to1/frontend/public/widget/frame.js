@@ -99,8 +99,12 @@
     if (els.videoStage) els.videoStage.classList.toggle('is-audio-hidden', audio);
     if (els.btnToVideo) els.btnToVideo.classList.toggle('hidden', !audio);
     if (els.btnToAudio) els.btnToAudio.classList.toggle('hidden', audio);
-    // Camera button: in audio mode hide (use Bật video); in video show toggle
+    // Camera button: in audio mode hide (use «Bật camera của tôi»)
     if (els.btnCam) els.btnCam.classList.toggle('hidden', audio);
+    if (els.btnRetryDevices && audio && hasLocalAudio) {
+      els.btnRetryDevices.classList.add('hidden');
+    }
+    updateLocalPreview();
   }
 
   function hideMediaModeBanner() {
@@ -183,6 +187,7 @@
       return;
     }
     if (msg.action === A.AcceptVideo || msg.action === A.SwitchVideo) {
+      // Peer on video — show video layout. Do not force our camera on.
       sessionMediaMode = 'video';
       preferredMedia = 'video';
       hideMediaModeBanner();
@@ -531,11 +536,25 @@
       }
       if (els.localSample) els.localSample.classList.remove('hidden');
     }
+    // Audio session: missing camera is expected — only prompt for mic.
+    if (sessionMediaMode === 'audio') {
+      if (els.btnRetryDevices) {
+        els.btnRetryDevices.classList.toggle('hidden', hasLocalAudio);
+        els.btnRetryDevices.textContent = 'Thử lại micro';
+      }
+      if (!hasLocalAudio) {
+        setDeviceBanner('Chưa bật micro. Bấm «Thử lại micro» khi sẵn sàng (không bật camera).');
+      } else {
+        setDeviceBanner('');
+      }
+      return;
+    }
     if (els.btnRetryDevices) {
       els.btnRetryDevices.classList.toggle('hidden', hasLocalVideo && hasLocalAudio);
+      els.btnRetryDevices.textContent = 'Thử lại micro/camera';
     }
     if (!hasLocalVideo && !hasLocalAudio) {
-      setDeviceBanner('Chưa bật micro/camera — bạn vẫn nghe và xem được. Bấm «Thử lại micro/camera» khi sẵn sàng.');
+      setDeviceBanner('Chưa bật micro/camera — bạn vẫn nghe được. Bấm «Thử lại micro/camera» khi sẵn sàng.');
     } else if (!hasLocalVideo) {
       setDeviceBanner('Chưa bật camera — đang dùng ảnh đại diện. Micro ' + (hasLocalAudio ? 'đang bật' : 'đang tắt') + '.');
     } else if (!hasLocalAudio) {
@@ -635,10 +654,19 @@
     if (els.btnRetryDevices) els.btnRetryDevices.disabled = true;
     try {
       var LivekitClient = await loadLivekit();
+      // Respect audio session: never re-request camera while in audio-only mode
+      preferredMedia = sessionMediaMode === 'audio' ? 'audio' : preferredMedia;
       var acquired = await acquireLocalTracks(LivekitClient);
       var next = acquired.tracks || [];
+      if (sessionMediaMode === 'audio') {
+        next = next.filter(function (t) {
+          return t && (t.kind === 'audio' || (t.kind && String(t.kind).toLowerCase() === 'audio'));
+        });
+      }
       if (!next.length) {
-        setDeviceBanner('Vẫn chưa bật được micro/camera. Kiểm tra quyền trình duyệt rồi thử lại.');
+        setDeviceBanner(sessionMediaMode === 'audio'
+          ? 'Vẫn chưa bật được micro. Kiểm tra quyền trình duyệt rồi thử lại.'
+          : 'Vẫn chưa bật được micro/camera. Kiểm tra quyền trình duyệt rồi thử lại.');
         return;
       }
 
@@ -660,11 +688,18 @@
           console.warn('[embed] publish after retry failed', pubErr);
         }
       }
+      // Keep camera off in audio session even if a video track slipped through
+      if (sessionMediaMode === 'audio' && room.localParticipant) {
+        try { await room.localParticipant.setCameraEnabled(false); } catch (eOff) { /* ignore */ }
+        camEnabled = false;
+      }
       updateLocalPreview();
       setStatus('Đang tư vấn');
     } catch (err) {
       console.warn(err);
-      setDeviceBanner(err.message || 'Không bật lại được micro/camera. Vui lòng thử lại.');
+      setDeviceBanner(err.message || (sessionMediaMode === 'audio'
+        ? 'Không bật lại được micro. Vui lòng thử lại.'
+        : 'Không bật lại được micro/camera. Vui lòng thử lại.'));
     } finally {
       retryingDevices = false;
       if (els.btnRetryDevices) els.btnRetryDevices.disabled = false;
@@ -688,7 +723,10 @@
 
     try {
       var LivekitClient = await loadLivekit();
-      els.mediaHint.textContent = 'Đang xin quyền micro / camera (camera không bắt buộc)…';
+      sessionMediaMode = preferredMedia === 'audio' ? 'audio' : 'video';
+      els.mediaHint.textContent = sessionMediaMode === 'audio'
+        ? 'Đang xin quyền micro…'
+        : 'Đang xin quyền micro / camera (camera không bắt buộc)…';
 
       var tok = await api('/embed/calls/' + callId + '/token', { method: 'POST', body: '{}' });
       if (!tok.ok) {
@@ -697,6 +735,12 @@
 
       var acquired = await acquireLocalTracks(LivekitClient);
       localTracks = acquired.tracks || [];
+      if (sessionMediaMode === 'audio') {
+        localTracks = localTracks.filter(function (t) {
+          return t && (t.kind === 'audio' || (t.kind && String(t.kind).toLowerCase() === 'audio'));
+        });
+        camEnabled = false;
+      }
       updateLocalPreview();
 
       els.mediaHint.textContent = 'Đang vào cuộc gọi…';

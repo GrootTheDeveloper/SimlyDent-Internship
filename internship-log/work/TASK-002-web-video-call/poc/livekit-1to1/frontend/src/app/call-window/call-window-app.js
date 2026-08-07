@@ -573,8 +573,15 @@ export function mountCallWindowApp(opts = {}) {
             this.mediaPermissionState = 'connected'
           }
           this.startMediaStatePolling()
+          // Enforce mic-only when session is audio (never leave a cam track up)
+          if (this.sessionMediaMode === 'audio') {
+            try {
+              await this.mediaEngine.ensureCameraEnabled(false)
+            } catch { /* ignore */ }
+            this.cameraEnabled = false
+          }
           this.$nextTick(() => {
-            if (!this.isAudioSession) this.attachLocalVideo()
+            if (!this.isAudioSession && this.cameraEnabled) this.attachLocalVideo()
           })
           // Announce mode so peer can align UI after late join
           this.publishModeSync()
@@ -782,14 +789,14 @@ export function mountCallWindowApp(opts = {}) {
           return
         }
         if (action === MediaModeAction.AcceptVideo || action === MediaModeAction.SwitchVideo) {
+          // Peer is (or will be) on video — show video layout.
+          // Do NOT auto-enable our camera (audio call must stay mic-only until we opt in).
           this.outgoingVideoRequest = false
           this.incomingVideoRequest = false
           this.sessionMediaMode = 'video'
-          // Peer went video — enable our camera if we still audio-only (optional for staff view)
-          if (!this.cameraEnabled) {
-            this.ensureCameraEnabled(true).catch(() => {})
+          if (this.cameraEnabled) {
+            this.$nextTick(() => this.attachLocalVideo())
           }
-          this.$nextTick(() => this.attachLocalVideo())
           return
         }
         if (action === MediaModeAction.RejectVideo) {
@@ -801,12 +808,18 @@ export function mountCallWindowApp(opts = {}) {
           this.sessionMediaMode = 'audio'
           this.incomingVideoRequest = false
           this.outgoingVideoRequest = false
+          // Keep local cam off in audio session
           if (this.cameraEnabled) this.ensureCameraEnabled(false).catch(() => {})
           this.remoteVideoConnected = false
           return
         }
         if (action === MediaModeAction.ModeSync && msg.mode) {
-          this.sessionMediaMode = normalizeSessionMediaMode(msg.mode)
+          const mode = normalizeSessionMediaMode(msg.mode)
+          this.sessionMediaMode = mode
+          // Sync UI only — never force-open local camera from peer sync
+          if (mode === 'audio' && this.cameraEnabled) {
+            this.ensureCameraEnabled(false).catch(() => {})
+          }
         }
       },
       async toggleMicrophone() {
@@ -1303,18 +1316,19 @@ export function mountCallWindowApp(opts = {}) {
           <!-- In-call: audio strip or video grid -->
           <div v-else class="call-video-grid" :class="{ 'call-audio-mode': isAudioSession }">
             <!-- Audio-only session UI -->
-            <div v-if="isAudioSession" class="audio-session-panel" aria-label="Cuộc gọi thoại">
-              <div class="audio-session-peer">
+            <div v-if="isAudioSession" class="audio-session-bar" aria-label="Cuộc gọi thoại">
+              <div class="audio-session-bar-inner">
                 <div class="audio-session-avatar">{{ peerAvatar }}</div>
                 <div class="audio-session-meta">
                   <div class="audio-session-name">{{ peerName }}</div>
-                  <div class="audio-session-label">Cuộc gọi thoại</div>
+                  <div class="audio-session-label">
+                    <span class="audio-live-dot"></span> Chỉ thoại · micro
+                  </div>
+                </div>
+                <div class="audio-waveform" aria-hidden="true">
+                  <span v-for="n in 9" :key="n" class="audio-wave-bar" :style="{ animationDelay: (n * 0.08) + 's' }"></span>
                 </div>
               </div>
-              <div class="audio-waveform" aria-hidden="true">
-                <span v-for="n in 12" :key="n" class="audio-wave-bar" :style="{ animationDelay: (n * 0.07) + 's' }"></span>
-              </div>
-              <p class="audio-session-hint">Chỉ micro · có thể chuyển sang video</p>
             </div>
 
             <!-- Video stage (hidden layout when audio mode; keep refs for track attach) -->
@@ -1378,25 +1392,21 @@ export function mountCallWindowApp(opts = {}) {
               <button v-if="mediaPermissionState === 'connected'" :class="['ctrl-btn', !microphoneEnabled && 'off']" @click="toggleMicrophone" :title="microphoneEnabled ? 'Tắt micro' : 'Bật micro'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
               </button>
-              <!-- Session mode switches -->
+              <!-- Audio session: text actions (clearer than icon-only) -->
               <button
                 v-if="mediaPermissionState === 'connected' && isAudioSession"
-                class="ctrl-btn mode-switch"
+                type="button"
+                class="ctrl-text-btn"
                 :disabled="mediaModeBusy"
                 @click="switchToVideoSession({ selfInitiated: true })"
-                title="Bật camera — chuyển video call"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5 3V8l-5 3V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2z"/></svg>
-              </button>
+              >Bật camera của tôi</button>
               <button
                 v-if="mediaPermissionState === 'connected' && isAudioSession"
-                class="ctrl-btn mode-switch request"
+                type="button"
+                class="ctrl-text-btn secondary"
                 :disabled="mediaModeBusy || outgoingVideoRequest"
                 @click="requestPeerVideo"
-                title="Yêu cầu đối phương bật camera"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 12h.01"/></svg>
-              </button>
+              >{{ outgoingVideoRequest ? 'Đang chờ…' : 'Yêu cầu camera đối phương' }}</button>
               <button
                 v-if="mediaPermissionState === 'connected' && !isAudioSession"
                 :class="['ctrl-btn', !cameraEnabled && 'off']"
