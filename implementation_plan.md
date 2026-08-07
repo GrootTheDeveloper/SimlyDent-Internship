@@ -1,5 +1,24 @@
 # Production-Grade Architecture Refactor — SimlyDent LiveKit 1:1 Call & Media
 
+---
+
+## Status (2026-08-07) — Phase 0–8 COMPLETE on branch `refactor/production-call-media`
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0 Baseline | Done | VPS lab, rollback `b9a80d2` |
+| 1 Shared helpers | Done | `src/shared/*` |
+| 2 MediaEngine | Done | call-window wired |
+| 3 Surface split | Done | portal + call-window + thin main.js |
+| 4 Backend endpoints | Done | `Endpoints/*`, Program ~171 lines |
+| 5 Legacy vs canonical | Done | `docs/media-paths.md` |
+| 6 Embed primitives | Done | IIFE + ESM pair |
+| 7 Options + safe-log | Done | `Options/*`, `safe-log.js` |
+| 8 Docs + regression | Done | `docs/architecture-call-media.md`, `evidence/refactor-20260807.md` |
+
+**Evidence:** `internship-log/work/TASK-002-web-video-call/poc/livekit-1to1/evidence/refactor-20260807.md`  
+**Do not merge to main** until browser manual R3–R6, R11, R13 pass.
+
 ## Phase 0 — Baseline Confirmed
 
 | Item | Value |
