@@ -2195,6 +2195,135 @@ svg {
   .main-body { padding: 28px 16px 100px; }
 }
 
+/* ---- Audio session strip (mid-call audio mode) ---- */
+.call-video-grid.call-audio-mode {
+  background: #0b0b0c;
+}
+.is-hidden-stage {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0);
+}
+.audio-session-panel {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100% - 32px));
+  padding: 20px 22px 18px;
+  border-radius: 18px;
+  background: rgba(28, 28, 30, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  color: #f5f5f7;
+  z-index: 4;
+}
+.audio-session-peer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.audio-session-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #3a3a3c;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 18px;
+}
+.audio-session-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.audio-session-label {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgba(235, 235, 245, 0.6);
+}
+.audio-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  margin: 4px 0 10px;
+}
+.audio-wave-bar {
+  width: 4px;
+  height: 12px;
+  border-radius: 99px;
+  background: #2997ff;
+  animation: audio-wave 0.9s ease-in-out infinite alternate;
+}
+@keyframes audio-wave {
+  from { height: 8px; opacity: 0.45; }
+  to { height: 36px; opacity: 1; }
+}
+.audio-session-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(235, 235, 245, 0.55);
+}
+.media-mode-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 12;
+  width: min(420px, calc(100% - 24px));
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(28, 28, 30, 0.96);
+  border: 1px solid rgba(41, 151, 255, 0.35);
+  color: #f5f5f7;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+.media-mode-banner.soft {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.media-mode-banner p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.media-mode-banner-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.media-mode-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.media-mode-btn.primary {
+  background: #0066cc;
+}
+.media-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ctrl-btn.mode-switch {
+  border: 1px solid rgba(41, 151, 255, 0.45);
+}
+.ctrl-btn.mode-switch.request {
+  border-color: rgba(255, 159, 10, 0.55);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

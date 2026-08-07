@@ -41,16 +41,48 @@
       </div>
 
       <div id="mediaPane" class="pane media hidden">
-        <div class="stage">
+        <div class="stage" id="videoStage">
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="localVideo" autoplay playsinline muted></video>
           <img id="localSample" class="local-sample hidden" src="/assets/guest-avatar.svg" alt="Không có camera" />
           <div id="mediaHint" class="media-hint">Đang kết nối…</div>
           <div id="deviceBanner" class="device-banner hidden"></div>
         </div>
+        <!-- Audio-only session UI -->
+        <div id="audioSessionPanel" class="audio-session-panel hidden" aria-label="Cuộc gọi thoại">
+          <div class="audio-session-peer">
+            <div class="audio-session-avatar">S</div>
+            <div class="audio-session-meta">
+              <div class="audio-session-name">Tư vấn viên</div>
+              <div class="audio-session-label">Cuộc gọi thoại</div>
+            </div>
+          </div>
+          <div class="audio-waveform" aria-hidden="true">
+            <span class="audio-wave-bar" style="animation-delay:0.07s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.14s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.21s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.28s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.35s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.42s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.49s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.56s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.63s"></span>
+            <span class="audio-wave-bar" style="animation-delay:0.70s"></span>
+          </div>
+          <p class="audio-session-hint">Chỉ micro · bấm “Bật video” hoặc chờ yêu cầu từ phòng khám</p>
+        </div>
+        <div id="mediaModeBanner" class="media-mode-banner hidden">
+          <p id="mediaModeBannerText">Phòng khám muốn bật camera (chuyển video).</p>
+          <div class="media-mode-banner-actions">
+            <button type="button" id="btnAcceptVideo" class="ctl primary-sm">Đồng ý</button>
+            <button type="button" id="btnRejectVideo" class="ctl">Từ chối</button>
+          </div>
+        </div>
         <div class="controls">
           <button type="button" id="btnMic" class="ctl">Micro</button>
           <button type="button" id="btnCam" class="ctl">Camera</button>
+          <button type="button" id="btnToVideo" class="ctl mode-switch hidden">Bật video</button>
+          <button type="button" id="btnToAudio" class="ctl mode-switch hidden">Chỉ thoại</button>
           <button type="button" id="btnRetryDevices" class="ctl hidden">Thử lại micro/camera</button>
           <button type="button" id="btnEnd" class="ctl danger">Kết thúc</button>
         </div>
@@ -84,6 +116,7 @@
   </div>
 
   <script src="./media-primitives.js"></script>
+  <script src="./media-mode.js"></script>
   <script src="./frame.js"></script>
 </body>
 </html>

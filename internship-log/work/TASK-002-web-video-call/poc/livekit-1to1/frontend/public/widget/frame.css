@@ -292,7 +292,7 @@ body { overflow: hidden; }
 
 .controls {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.15fr;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   gap: 8px;
   padding: 12px;
   background: rgba(0, 0, 0, 0.85);
@@ -304,6 +304,8 @@ body { overflow: hidden; }
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 13px;
+  border-radius: 10px;
+  cursor: pointer;
 }
 .ctl:hover { background: rgba(255, 255, 255, 0.18); }
 .ctl.danger {
@@ -314,6 +316,89 @@ body { overflow: hidden; }
 .ctl.off {
   opacity: 0.55;
   text-decoration: line-through;
+}
+.ctl.mode-switch {
+  border-color: rgba(0, 113, 227, 0.55);
+}
+.ctl.primary-sm {
+  background: var(--primary);
+  border-color: transparent;
+}
+
+/* Audio session panel */
+.audio-session-panel {
+  margin: 12px;
+  padding: 16px 14px 12px;
+  border-radius: 16px;
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f5f7;
+}
+.audio-session-panel.hidden { display: none; }
+.audio-session-peer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.audio-session-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #3a3a3c;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+}
+.audio-session-name { font-size: 15px; font-weight: 600; }
+.audio-session-label { font-size: 12px; color: rgba(235, 235, 245, 0.55); margin-top: 2px; }
+.audio-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 40px;
+  margin-bottom: 8px;
+}
+.audio-wave-bar {
+  width: 3px;
+  height: 10px;
+  border-radius: 99px;
+  background: #2997ff;
+  animation: audio-wave 0.9s ease-in-out infinite alternate;
+}
+@keyframes audio-wave {
+  from { height: 6px; opacity: 0.4; }
+  to { height: 28px; opacity: 1; }
+}
+.audio-session-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  color: rgba(235, 235, 245, 0.5);
+}
+.media-mode-banner {
+  margin: 0 12px 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #1c1c1e;
+  border: 1px solid rgba(0, 113, 227, 0.4);
+  color: #f5f5f7;
+}
+.media-mode-banner.hidden { display: none; }
+.media-mode-banner p { margin: 0 0 10px; font-size: 13px; }
+.media-mode-banner-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.stage.is-audio-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
 }
 
 button:focus-visible {
