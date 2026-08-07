@@ -102,25 +102,26 @@
 
   function setLauncherFace(mode) {
     if (!launcher) return;
+    // Circular icon-only FAB — labels stay on aria-label for a11y
     // mode: open | idle | waiting | live
     if (mode === 'open') {
-      launcher.innerHTML = svgIcon(ICONS.close) + '<span>Đóng</span>';
+      launcher.innerHTML = svgIcon(ICONS.close);
       launcher.setAttribute('aria-label', 'Đóng cửa sổ gọi');
       launcher.classList.add('is-open');
       return;
     }
     launcher.classList.remove('is-open');
     if (mode === 'waiting') {
-      launcher.innerHTML = svgIcon(ICONS.wait) + '<span>Đang chờ…</span>';
+      launcher.innerHTML = svgIcon(ICONS.wait);
       launcher.setAttribute('aria-label', clinicName + ' — Đang chờ nhân viên');
       return;
     }
     if (mode === 'live') {
-      launcher.innerHTML = svgIcon(ICONS.live) + '<span>Đang gọi</span>';
+      launcher.innerHTML = svgIcon(ICONS.live);
       launcher.setAttribute('aria-label', clinicName + ' — Đang trong cuộc gọi');
       return;
     }
-    launcher.innerHTML = svgIcon(ICONS.phone) + '<span>Gọi tư vấn</span>';
+    launcher.innerHTML = svgIcon(ICONS.phone);
     launcher.setAttribute('aria-label', clinicName + ' — Gọi tư vấn');
   }
 
@@ -144,19 +145,18 @@
     style.id = NS + '-styles';
     style.textContent = [
       '#' + NS + '-launcher{',
-      'position:fixed;z-index:2147483000;min-width:56px;height:52px;border-radius:9999px;',
-      'border:none;cursor:pointer;box-shadow:0 8px 28px rgba(0,102,204,.32);',
-      'color:#fff;font:400 14px/1 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;',
-      'letter-spacing:-0.02em;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:8px;',
+      'position:fixed;z-index:2147483000;width:56px;height:56px;min-width:56px;min-height:56px;',
+      'border-radius:50%;padding:0;border:none;cursor:pointer;',
+      'box-shadow:0 8px 28px rgba(0,0,0,.22);',
+      'color:#fff;display:flex;align-items:center;justify-content:center;',
       'transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;',
       '}',
-      '#' + NS + '-launcher:hover{transform:translateY(-1px);filter:brightness(1.05);box-shadow:0 12px 32px rgba(0,102,204,.4);}',
-      '#' + NS + '-launcher:active{transform:scale(0.98);}',
+      '#' + NS + '-launcher:hover{transform:translateY(-2px) scale(1.03);filter:brightness(1.05);box-shadow:0 12px 32px rgba(0,0,0,.28);}',
+      '#' + NS + '-launcher:active{transform:scale(0.96);}',
       '#' + NS + '-launcher.bottom-right{right:20px;bottom:20px;}',
       '#' + NS + '-launcher.bottom-left{left:20px;bottom:20px;}',
-      '#' + NS + '-launcher svg{width:18px;height:18px;flex-shrink:0;display:block;}',
-      '#' + NS + '-launcher span{line-height:1;white-space:nowrap;}',
-      '#' + NS + '-launcher.is-open{padding:0 16px;}',
+      '#' + NS + '-launcher svg{width:24px;height:24px;flex-shrink:0;display:block;}',
+      '#' + NS + '-launcher.is-open{box-shadow:0 8px 24px rgba(0,0,0,.25);}',
       '#' + NS + '-panel{',
       'position:fixed;z-index:2147483001;width:min(400px,calc(100vw - 24px));',
       'height:min(680px,calc(100vh - 100px));border-radius:22px;overflow:hidden;',
