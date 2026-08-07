@@ -404,6 +404,23 @@
     if (els.btnCallAudio) els.btnCallAudio.disabled = disabled;
   }
 
+  /**
+   * Align local join preference with server EmbedCallView.initialMediaMode.
+   * Only before media session starts — never resets desired camera mid-call.
+   */
+  function applyServerInitialMedia(callOrBody) {
+    if (mediaSessionStarted || !callOrBody) return;
+    var mode = callOrBody.initialMediaMode || callOrBody.InitialMediaMode;
+    if (!mode) return;
+    var normalized = (mediaP() && mediaP().normalizeMediaModeValue)
+      ? mediaP().normalizeMediaModeValue(mode)
+      : (String(mode).toLowerCase() === 'audio' ? 'audio' : 'video');
+    preferredMedia = normalized;
+    desiredCameraEnabled = preferredMedia !== 'audio';
+    camEnabled = desiredCameraEnabled;
+    try { sessionStorage.setItem(storageKey('preferredMedia'), preferredMedia); } catch (e) { /* ignore */ }
+  }
+
   async function startCall(mediaMode) {
     preferredMedia = (mediaP() && mediaP().normalizeMediaModeValue)
       ? mediaP().normalizeMediaModeValue(mediaMode)
@@ -426,6 +443,8 @@
       }
       callId = res.body.id;
       lastServerStatus = res.body.status;
+      // Server is authoritative for join preference (must match staff CallView.initialMediaMode)
+      applyServerInitialMedia(res.body);
       saveCallState();
       showWaiting(res.body);
       startPoll();
@@ -470,6 +489,7 @@
 
     var status = res.body.status;
     lastServerStatus = status;
+    applyServerInitialMedia(res.body);
     postParent({ type: 'state', state: status });
 
     if (status === 'Queued' || status === 'Ringing') {

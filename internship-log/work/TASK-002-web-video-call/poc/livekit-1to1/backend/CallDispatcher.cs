@@ -141,7 +141,12 @@ public sealed class CallDispatcher(
             if (existing is not null)
             {
                 lock (existing.SyncRoot)
+                {
                     existing.VisitorLastSeenAt = DateTimeOffset.UtcNow;
+                    // Still waiting: honor latest join preference (Audio vs Video) from widget re-tap.
+                    if (existing.Status is CallStatus.Queued or CallStatus.Ringing)
+                        existing.InitialMediaMode = mediaMode;
+                }
                 call = existing;
             }
             else

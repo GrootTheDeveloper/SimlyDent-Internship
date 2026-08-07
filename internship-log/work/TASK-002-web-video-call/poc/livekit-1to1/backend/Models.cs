@@ -206,7 +206,9 @@ public sealed record EmbedCallView(
     int WaitingSeconds,
     string RecordingMode = "None",
     string RecordingStatus = "Idle",
-    string ConsentStatus = "Pending")
+    string ConsentStatus = "Pending",
+    /// <summary>Audio | Video — join preference set at enqueue (not runtime session mode).</summary>
+    string InitialMediaMode = "Video")
 {
     public static EmbedCallView From(CallSession call)
     {
@@ -219,7 +221,8 @@ public sealed record EmbedCallView(
             waiting,
             call.RecordingMode.ToString(),
             call.RecordingStatus,
-            call.ConsentStatus.ToString());
+            call.ConsentStatus.ToString(),
+            CallSession.NormalizeMediaMode(call.InitialMediaMode));
     }
 }
 

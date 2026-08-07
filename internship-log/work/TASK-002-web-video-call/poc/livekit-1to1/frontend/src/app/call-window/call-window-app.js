@@ -347,6 +347,7 @@ export function mountCallWindowApp(opts = {}) {
        */
       applyAuthoritativeMediaMode(call) {
         const serverMode = call?.initialMediaMode || call?.InitialMediaMode
+        // Prefer server when present; never let a stale sessionStorage "video" win over Audio.
         if (serverMode) {
           this.preferredMediaMode = normalizeMediaMode(serverMode)
         } else if (!this.preferredMediaMode) {
@@ -355,6 +356,10 @@ export function mountCallWindowApp(opts = {}) {
         if (!this.mediaSessionStarted) {
           this.desiredCameraEnabled = desiredCameraFromInitialMode(this.preferredMediaMode)
           this.cameraEnabled = this.desiredCameraEnabled
+          // Keep URL/session cache aligned so re-open/popup does not flip to video
+          try {
+            writePreferredMediaHint(this.preferredMediaMode)
+          } catch { /* ignore */ }
         }
         try {
           sessionStorage.setItem('simlydent_preferred_media', this.preferredMediaMode)

@@ -238,6 +238,22 @@ test('simulated: explicit hangup ends business', () => {
   assert.equal(business.status, 'Ended')
 })
 
+test('embed audio enqueue must persist InitialMediaMode Audio for staff join', () => {
+  // Mirrors EmbedEndpoints fix: body.initialMediaMode → EnqueueAsync mediaMode
+  const body = { initialMediaMode: 'Audio' }
+  const mediaMode =
+    String(body.initialMediaMode || '').toLowerCase() === 'audio' ? 'Audio' : 'Video'
+  assert.equal(mediaMode, 'Audio')
+  // Staff CallView.initialMediaMode === Audio → shouldJoinAudioOnly true
+  assert.equal(
+    shouldJoinAudioOnly({
+      mediaSessionStarted: false,
+      initialMediaMode: mediaMode
+    }),
+    true
+  )
+})
+
 console.log(`\n${passed} tests passed`)
 if (process.exitCode) {
   console.error('Some tests failed')

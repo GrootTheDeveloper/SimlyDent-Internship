@@ -60,7 +60,8 @@ public static class EmbedEndpoints
             HttpContext http,
             ClaimsPrincipal principal,
             CallDispatcher dispatcher,
-            EmbedRateLimiter rateLimiter) =>
+            EmbedRateLimiter rateLimiter,
+            CreateQueueCallRequest? body) =>
         {
             var session = EmbedAuthTokenService.TryReadSession(principal);
             if (session is null) return Results.Unauthorized();
@@ -70,8 +71,11 @@ public static class EmbedEndpoints
             if (!rateLimiter.TryAcquire(rateKey))
                 return Results.Json(new { error = "Rate limit exceeded." }, statusCode: 429);
 
+            // Authoritative join preference for BOTH visitor and staff (Audio | Video).
+            // Widget sends { initialMediaMode: "Audio"|"Video" }; previously ignored → always Video.
+            var mediaMode = CallSession.NormalizeMediaMode(body?.InitialMediaMode);
             var actor = CallActor.FromEmbed(session);
-            var call = await dispatcher.EnqueueAsync(actor.AsIdentity());
+            var call = await dispatcher.EnqueueAsync(actor.AsIdentity(), mediaMode);
             ClinicAuthorization.TouchVisitorSeen(call);
 
             if (call.Status == CallStatus.Closed)
