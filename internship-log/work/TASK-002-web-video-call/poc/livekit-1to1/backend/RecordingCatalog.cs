@@ -78,7 +78,7 @@ public interface IRecordingCatalog
 {
     string BackendName { get; }
 
-    Task EnsureSchemaAsync(CancellationToken ct = default);
+    Task EnsureSchemaAsync(CancellationToken cancellationToken = default);
 
     Task InsertRequestedAsync(
         string recordingId,
@@ -92,11 +92,11 @@ public interface IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default);
+        CancellationToken cancellationToken = default);
 
-    Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken ct = default);
+    Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default);
 
-    Task MarkFinalizingAsync(string recordingId, CancellationToken ct = default);
+    Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default);
 
     Task MarkReadyAsync(
         string recordingId,
@@ -104,11 +104,11 @@ public interface IRecordingCatalog
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
-        CancellationToken ct = default);
+        CancellationToken cancellationToken = default);
 
-    Task MarkFailedAsync(string recordingId, string error, CancellationToken ct = default);
+    Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default);
 
-    Task MarkDeletedAsync(string recordingId, CancellationToken ct = default);
+    Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default);
 
     Task UpdateCallSnapshotAsync(
         string recordingId,
@@ -116,15 +116,15 @@ public interface IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default);
+        CancellationToken cancellationToken = default);
 
-    Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken ct = default);
+    Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default);
 
-    Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken ct = default);
+    Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default);
 
-    Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken ct = default);
+    Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken ct = default);
+    Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>In-process fallback when RECORDING_DB is unset (lab only).</summary>
@@ -135,7 +135,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
 
     public string BackendName => "memory";
 
-    public Task EnsureSchemaAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task EnsureSchemaAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task InsertRequestedAsync(
         string recordingId,
@@ -149,7 +149,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         var rec = new RecordingRecord
@@ -173,7 +173,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.CompletedTask;
     }
 
-    public Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken ct = default)
+    public Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
         Mutate(recordingId, r => r with
         {
@@ -184,7 +184,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.CompletedTask;
     }
 
-    public Task MarkFinalizingAsync(string recordingId, CancellationToken ct = default)
+    public Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         Mutate(recordingId, r => r with
         {
@@ -200,7 +200,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         Mutate(recordingId, r => r with
@@ -216,7 +216,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.CompletedTask;
     }
 
-    public Task MarkFailedAsync(string recordingId, string error, CancellationToken ct = default)
+    public Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default)
     {
         Mutate(recordingId, r => r with
         {
@@ -227,7 +227,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.CompletedTask;
     }
 
-    public Task MarkDeletedAsync(string recordingId, CancellationToken ct = default)
+    public Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         Mutate(recordingId, r => r with
         {
@@ -244,7 +244,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         Mutate(recordingId, r => r with
         {
@@ -257,17 +257,17 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.CompletedTask;
     }
 
-    public Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken ct = default) =>
+    public Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default) =>
         Task.FromResult(_byId.TryGetValue(recordingId, out var r) ? r : null);
 
-    public Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken ct = default)
+    public Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default)
     {
         var hit = _byId.Values.FirstOrDefault(r =>
             string.Equals(r.EgressId, egressId, StringComparison.Ordinal));
         return Task.FromResult(hit);
     }
 
-    public Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken ct = default)
+    public Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default)
     {
         var hit = _byId.Values
             .Where(r => r.CallId == callId)
@@ -276,7 +276,7 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         return Task.FromResult(hit);
     }
 
-    public Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken ct = default)
+    public Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<RecordingRecord> list = _byId.Values
             .Where(r => string.Equals(r.ClinicId, clinicId, StringComparison.OrdinalIgnoreCase))
@@ -320,10 +320,10 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         return $"Host={host};Port={port};Database={db};Username={user};Password={pass}";
     }
 
-    public async Task EnsureSchemaAsync(CancellationToken ct = default)
+    public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS recordings (
@@ -368,7 +368,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             CREATE INDEX IF NOT EXISTS ix_recording_objects_key
                 ON recording_objects (storage_key);
             """;
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
         logger.LogInformation("Recording catalog schema ensured (PostgreSQL).");
     }
 
@@ -384,12 +384,12 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await conn.OpenAsync(cancellationToken);
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
         await using (var cmd = conn.CreateCommand())
         {
@@ -416,7 +416,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             cmd.Parameters.AddWithValue("staff", (object?)assignedStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("callStatus", (object?)callStatus ?? DBNull.Value);
             cmd.Parameters.AddWithValue("consent", (object?)consentStatus ?? DBNull.Value);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using (var cmd = conn.CreateCommand())
@@ -432,16 +432,16 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             cmd.Parameters.AddWithValue("kind", objectKind);
             cmd.Parameters.AddWithValue("key", storageKey);
             cmd.Parameters.AddWithValue("created", now);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await tx.CommitAsync(ct);
+        await tx.CommitAsync(cancellationToken);
     }
 
-    public async Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken ct = default)
+    public async Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE recordings
@@ -452,13 +452,13 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Recording);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task MarkFinalizingAsync(string recordingId, CancellationToken ct = default)
+    public async Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE recordings
@@ -468,7 +468,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Finalizing);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task MarkReadyAsync(
@@ -477,12 +477,12 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await conn.OpenAsync(cancellationToken);
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
         await using (var cmd = conn.CreateCommand())
         {
@@ -496,7 +496,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             cmd.Parameters.AddWithValue("updated", now);
             cmd.Parameters.AddWithValue("completed", now);
             cmd.Parameters.AddWithValue("id", recordingId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using (var cmd = conn.CreateCommand())
@@ -519,17 +519,17 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             cmd.Parameters.AddWithValue("etag", (object?)etag ?? DBNull.Value);
             cmd.Parameters.AddWithValue("created", now);
             cmd.Parameters.AddWithValue("ready", now);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await tx.CommitAsync(ct);
+        await tx.CommitAsync(cancellationToken);
     }
 
-    public async Task MarkFailedAsync(string recordingId, string error, CancellationToken ct = default)
+    public async Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default)
     {
         var msg = error.Length > 2000 ? error[..2000] : error;
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE recordings
@@ -540,13 +540,13 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("error", msg);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task MarkDeletedAsync(string recordingId, CancellationToken ct = default)
+    public async Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE recordings
@@ -556,7 +556,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Deleted);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task UpdateCallSnapshotAsync(
@@ -565,10 +565,10 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE recordings
@@ -585,47 +585,47 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.Parameters.AddWithValue("consent", (object?)consentStatus ?? DBNull.Value);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken ct = default)
+    public async Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = SelectSql + " WHERE r.id = @id LIMIT 1";
         cmd.Parameters.AddWithValue("id", recordingId);
-        return await ReadOneAsync(cmd, ct);
+        return await ReadOneAsync(cmd, cancellationToken);
     }
 
-    public async Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken ct = default)
+    public async Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = SelectSql + " WHERE r.egress_id = @egress LIMIT 1";
         cmd.Parameters.AddWithValue("egress", egressId);
-        return await ReadOneAsync(cmd, ct);
+        return await ReadOneAsync(cmd, cancellationToken);
     }
 
-    public async Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken ct = default)
+    public async Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = SelectSql + " WHERE r.call_id = @call ORDER BY r.created_at DESC LIMIT 1";
         cmd.Parameters.AddWithValue("call", callId);
-        return await ReadOneAsync(cmd, ct);
+        return await ReadOneAsync(cmd, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = SelectSql + " WHERE r.clinic_id = @clinic ORDER BY r.updated_at DESC";
         cmd.Parameters.AddWithValue("clinic", clinicId);
-        return await ReadManyAsync(cmd, ct);
+        return await ReadManyAsync(cmd, cancellationToken);
     }
 
     private const string SelectSql = """
@@ -638,18 +638,18 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
           ON o.recording_id = r.id AND o.kind = 'Composite'
         """;
 
-    private static async Task<RecordingRecord?> ReadOneAsync(NpgsqlCommand cmd, CancellationToken ct)
+    private static async Task<RecordingRecord?> ReadOneAsync(NpgsqlCommand cmd, CancellationToken cancellationToken)
     {
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
         return Map(reader);
     }
 
-    private static async Task<IReadOnlyList<RecordingRecord>> ReadManyAsync(NpgsqlCommand cmd, CancellationToken ct)
+    private static async Task<IReadOnlyList<RecordingRecord>> ReadManyAsync(NpgsqlCommand cmd, CancellationToken cancellationToken)
     {
         var list = new List<RecordingRecord>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
             list.Add(Map(reader));
         return list;
     }
