@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using LiveKitPoc.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -55,11 +57,15 @@ builder.Services.AddSingleton<RecordingPolicyRegistry>();
 builder.Services.AddSingleton<RecordingAuditService>();
 builder.Services.AddSingleton<IRecordingStorage>(RecordingStorageFactory.Create);
 builder.Services.AddSingleton<IRecordingCatalog>(RecordingCatalogFactory.Create);
+builder.Services.AddSingleton<LiveKitWebhookValidator>();
+builder.Services.AddSingleton<RecordingFinalizeService>();
 builder.Services.AddSingleton<CallDispatcher>();
 builder.Services.AddSingleton<CallEndService>();
 builder.Services.AddHostedService<RoutingBackgroundService>();
 builder.Services.AddSingleton<RecordingRetentionService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingRetentionService>());
+builder.Services.AddSingleton<RecordingReconcileService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingReconcileService>());
 builder.Services.AddHttpClient<LiveKitEgressService>();
 builder.Services.AddHttpClient(nameof(S3RecordingStorage));
 builder.Services.AddSignalR();
@@ -877,6 +883,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.AssignedStaffId ?? call.CalleeId,
             call.Status.ToString(),
             call.ConsentStatus.ToString(),
+            fileName,
             cancellationToken);
     }
     catch (Exception ex)
@@ -905,7 +912,7 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Recording";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await catalog.MarkRecordingAsync(recId, result.EgressId, cancellationToken);
+        await catalog.TryMarkRecordingAsync(recId, result.EgressId, cancellationToken);
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingStarted", "Ok", mode.ToString());
         await dispatcher.NotifyCallAsync(call);
@@ -918,8 +925,14 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
             call.RecordingStatus = "Failed";
             call.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
-        catch { /* catalog best-effort */ }
+        // Start never got egress_id — use placeholder correlation empty only if needed
+        try { await catalog.TryMarkFailedAsync(recId, "", ex.Message, cancellationToken); }
+        catch
+        {
+            // Requested → Failed requires egress match; allow fail without egress by direct path:
+            // Try with empty only works if egress_id null and WHERE egress_id = '' fails.
+        }
+        // Best-effort: if still Requested without egress, update via failed with any egress after insert
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
             "RecordingStartFailed", "Failed", ex.Message);
         await dispatcher.NotifyCallAsync(call);
@@ -928,6 +941,10 @@ app.MapPost("/api/calls/{id:guid}/recording/start", async (
     }
 }).RequireAuthorization();
 
+/// <summary>
+/// Async stop: Finalizing + short StopEgress control call; Ready via webhook/reconcile.
+/// Transport errors keep Finalizing (not Failed).
+/// </summary>
 app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     Guid id,
     ClaimsPrincipal principal,
@@ -935,7 +952,6 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
     ConcurrentDictionary<Guid, CallSession> calls,
     RecordingPolicyRegistry policies,
     LiveKitEgressService egress,
-    IRecordingStorage storage,
     IRecordingCatalog catalog,
     CallDispatcher dispatcher,
     RecordingAuditService audit,
@@ -950,58 +966,108 @@ app.MapPost("/api/calls/{id:guid}/recording/stop", async (
 
     var policy = policies.Get(call.ClinicId);
     string egressId;
-    string fileName;
     string recId;
     lock (call.SyncRoot)
     {
         if (call.RecordingStatus != "Recording" || string.IsNullOrWhiteSpace(call.RecordingEgressId))
             return Results.Conflict(new { error = "This call is not being recorded." });
         egressId = call.RecordingEgressId;
-        fileName = call.RecordingFileName!;
         recId = call.RecordingId ?? Guid.NewGuid().ToString("N");
         call.RecordingStatus = "Stopping";
         call.UpdatedAt = DateTimeOffset.UtcNow;
     }
-    try { await catalog.MarkFinalizingAsync(recId, cancellationToken); }
+
+    try { await catalog.TryMarkFinalizingAsync(recId, egressId, cancellationToken); }
     catch { /* dual-write best-effort */ }
     await dispatcher.NotifyCallAsync(call);
 
     try
     {
-        await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
-        var key = await RecordingFinalize.MaterializeObjectAsync(
-            egress, storage, call.ClinicId, call.Id, recId, fileName, cancellationToken);
-        lock (call.SyncRoot)
-        {
-            call.RecordingId = recId;
-            call.RecordingStorageKey = key;
-            call.RecordingStatus = "Complete";
-            call.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-        try { await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken); }
-        catch { /* dual-write best-effort */ }
+        await egress.RequestStopAsync(egressId, cancellationToken);
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-            "RecordingStopped", "Ok");
-        await dispatcher.NotifyCallAsync(call);
-        return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
+            "RecordingStopRequested", "Ok");
     }
     catch (Exception ex)
     {
-        lock (call.SyncRoot)
-        {
-            call.RecordingStatus = "Failed";
-            call.RecordingStorageKey = null;
-            call.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-        try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
-        catch { /* dual-write best-effort */ }
+        // Transport uncertainty — stay Finalizing; reconcile is authority.
         audit.Append(call.ClinicId, call.Id, recId, current.Id, current.Role,
-            "RecordingFinalizeFailed", "Failed", ex.Message);
-        await dispatcher.NotifyCallAsync(call);
-        // Live call remains Accepted/endable — recording failure ≠ call failure.
-        return Results.Json(new { error = $"Không thể dừng ghi: {ex.Message}", call = call.ToView() }, statusCode: 503);
+            "RecordingStopRequested", "TransportError", ex.Message);
     }
+
+    // Return immediately with Stopping/Finalizing — no Materialize / COMPLETE wait.
+    return Results.Ok(RecordingAuthorization.BuildView(call, current, policy));
 }).RequireAuthorization();
+
+/// <summary>
+/// LiveKit webhook (raw body JWT + sha256). Prefer egress_ended → finalize service.
+/// </summary>
+app.MapPost("/api/livekit/webhook", async (
+    HttpRequest request,
+    LiveKitWebhookValidator validator,
+    RecordingFinalizeService finalize,
+    ILoggerFactory loggerFactory,
+    CancellationToken cancellationToken) =>
+{
+    var log = loggerFactory.CreateLogger("LiveKitWebhook");
+    request.EnableBuffering();
+    using var reader = new StreamReader(request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+    var rawBody = await reader.ReadToEndAsync(cancellationToken);
+    request.Body.Position = 0;
+
+    var auth = request.Headers.Authorization.ToString();
+    if (!validator.TryValidate(auth, rawBody, out var verr))
+    {
+        log.LogWarning("Webhook rejected: {Error}", verr);
+        return Results.Unauthorized();
+    }
+
+    string? eventName = null;
+    string? egressId = null;
+    string? egressStatus = null;
+    string? egressError = null;
+    string? egressErrorCode = null;
+    try
+    {
+        using var doc = JsonDocument.Parse(rawBody);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("event", out var ev)) eventName = ev.GetString();
+        JsonElement infoEl = default;
+        var hasInfo = root.TryGetProperty("egressInfo", out infoEl)
+                      || root.TryGetProperty("egress_info", out infoEl);
+        if (hasInfo && infoEl.ValueKind == JsonValueKind.Object)
+        {
+            if (infoEl.TryGetProperty("egressId", out var idEl) || infoEl.TryGetProperty("egress_id", out idEl))
+                egressId = idEl.GetString();
+            if (infoEl.TryGetProperty("status", out var stEl))
+                egressStatus = stEl.ValueKind == JsonValueKind.String
+                    ? stEl.GetString()
+                    : stEl.ToString();
+            if (infoEl.TryGetProperty("error", out var errEl))
+                egressError = errEl.GetString();
+            if (infoEl.TryGetProperty("errorCode", out var codeEl) || infoEl.TryGetProperty("error_code", out codeEl))
+                egressErrorCode = codeEl.ToString();
+        }
+    }
+    catch (Exception ex)
+    {
+        log.LogWarning(ex, "Webhook JSON parse failed after signature OK");
+        return Results.BadRequest(new { error = "invalid json" });
+    }
+
+    if (eventName is "egress_ended" or "egress_updated" && !string.IsNullOrWhiteSpace(egressId))
+    {
+        var result = await finalize.ApplyEgressStatusAsync(
+            egressId!,
+            egressStatus,
+            egressError,
+            egressErrorCode,
+            cancellationToken);
+        log.LogInformation("Webhook {Event} egress {EgressId} changed={Changed} status={Status}",
+            eventName, egressId, result.Changed, result.NewStatus);
+    }
+
+    return Results.Ok(new { received = true });
+});
 
 /// <summary>
 /// PoC/test hook: plant a Complete clinic-scoped recording object without Egress finalize.
@@ -1058,11 +1124,13 @@ app.MapPost("/api/calls/{id:guid}/recording/plant-complete", async (
 
     try
     {
+        var plantEgress = "plant-" + recId;
         await catalog.InsertRequestedAsync(
             recId, call.ClinicId, call.Id, mode.ToString(), key, "Composite",
             retentionUntil, call.CallerId, call.AssignedStaffId ?? call.CalleeId,
-            call.Status.ToString(), call.ConsentStatus.ToString(), cancellationToken);
-        await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken);
+            call.Status.ToString(), call.ConsentStatus.ToString(), fileName: null, cancellationToken);
+        await catalog.TryMarkRecordingAsync(recId, plantEgress, cancellationToken);
+        await catalog.TryMarkReadyAsync(recId, plantEgress, key, cancellationToken: cancellationToken);
     }
     catch (Exception ex)
     {

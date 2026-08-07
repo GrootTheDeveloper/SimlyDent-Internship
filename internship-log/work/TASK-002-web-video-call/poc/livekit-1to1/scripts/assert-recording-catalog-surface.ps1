@@ -23,7 +23,14 @@ $checks = @(
   @{ Name = "recordings + recording_objects schema"; Ok = $catText -match 'CREATE TABLE IF NOT EXISTS recordings' -and $catText -match 'recording_objects' },
   @{ Name = "compose has postgres service"; Ok = $composeText -match '(?m)^\s*postgres:\s*$' },
   @{ Name = "compose RECORDING_CATALOG"; Ok = $composeText -match 'RECORDING_CATALOG' },
-  @{ Name = "ledger insert before egress path"; Ok = $progText -match 'InsertRequestedAsync' }
+  @{ Name = "ledger insert before egress path"; Ok = $progText -match 'InsertRequestedAsync' },
+  @{ Name = "async stop RequestStopAsync"; Ok = $progText -match 'RequestStopAsync' -and $progText -notmatch 'StopRecordingAsync' },
+  @{ Name = "livekit webhook route"; Ok = $progText -match '/api/livekit/webhook' },
+  @{ Name = "FinalizeService registered"; Ok = $progText -match 'RecordingFinalizeService' },
+  @{ Name = "Reconcile hosted"; Ok = $progText -match 'RecordingReconcileService' },
+  @{ Name = "TryMarkFinalizing with egress"; Ok = $catText -match 'TryMarkFinalizingAsync' -and $catText -match 'finalizing_started_at' },
+  @{ Name = "terminal_seen_at clock"; Ok = $catText -match 'terminal_seen_at' },
+  @{ Name = "TryMarkFailed only active states"; Ok = $catText -match "status IN \(@s1, @s2, @s3\)" -or $catText -match 'Requested or Recording or Finalizing' }
 )
 $failed = @()
 foreach ($c in $checks) {

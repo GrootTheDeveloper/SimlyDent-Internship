@@ -165,49 +165,44 @@ public sealed class LiveKitEgressService(
     }
 
     /// <summary>
-    /// Stop egress and wait until LiveKit reports COMPLETE.
-    /// Local mode still checks the file on disk; S3 mode leaves object existence to the caller (HeadObject).
+    /// Bounded timeout for LiveKit Twirp control calls (StopEgress / ListEgress).
+    /// Separate from RECORDING_FINALIZE_TIMEOUT (object availability).
     /// </summary>
-    public async Task<EgressResult> StopRecordingAsync(
-        string egressId,
-        string fileName,
-        CancellationToken cancellationToken)
+    public TimeSpan ControlTimeout
     {
-        await PostAsync("StopEgress", new { egress_id = egressId }, cancellationToken);
-        for (var attempt = 0; attempt < 60; attempt++)
+        get
         {
-            var result = await GetEgressAsync(egressId, cancellationToken);
-            var status = result.Status?.ToUpperInvariant() ?? string.Empty;
-            if (status is "EGRESS_COMPLETE" or "COMPLETE")
-            {
-                if (!UsesDirectS3Output)
-                {
-                    var path = Path.Combine(_recordingsPath, Path.GetFileName(fileName));
-                    if (!File.Exists(path))
-                        throw new InvalidOperationException("Egress completed but the recording file was not found.");
-                }
-                return result;
-            }
-            if (status is "EGRESS_FAILED" or "FAILED" or "EGRESS_ABORTED" or "ABORTED" or "EGRESS_LIMIT_REACHED" or "LIMIT_REACHED")
-                throw new InvalidOperationException(result.Error ?? $"Egress stopped with status {result.Status}.");
-            await Task.Delay(500, cancellationToken);
+            if (int.TryParse(_configuration["EGRESS_CONTROL_TIMEOUT_SECONDS"], out var sec) && sec > 0)
+                return TimeSpan.FromSeconds(sec);
+            return TimeSpan.FromSeconds(8);
         }
-        throw new TimeoutException("Timed out while waiting for Egress to finalize the recording.");
+    }
+
+    /// <summary>
+    /// Short control-plane StopEgress only — does NOT wait for COMPLETE or materialize files.
+    /// Transport timeout keeps recording Finalizing; reconcile is authority.
+    /// </summary>
+    public async Task RequestStopAsync(string egressId, CancellationToken cancellationToken = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(ControlTimeout);
+        await PostAsync("StopEgress", new { egress_id = egressId }, cts.Token);
     }
 
     public string GetLocalEgressPath(string fileName) =>
         Path.Combine(_recordingsPath, Path.GetFileName(fileName));
 
-    private async Task<EgressResult> GetEgressAsync(string egressId, CancellationToken cancellationToken)
+    public async Task<EgressResult?> GetEgressStatusAsync(string egressId, CancellationToken cancellationToken = default)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(ControlTimeout);
         using var request = CreateRequest("Egress", "ListEgress", new { egress_id = egressId });
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var response = await httpClient.SendAsync(request, cts.Token);
+        var body = await response.Content.ReadAsStringAsync(cts.Token);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException(TryReadError(body) ?? $"LiveKit Egress returned HTTP {(int)response.StatusCode}.");
         var list = JsonSerializer.Deserialize<EgressListResult>(body);
-        return list?.Items?.FirstOrDefault()
-            ?? throw new InvalidOperationException("LiveKit Egress did not return the requested recording.");
+        return list?.Items?.FirstOrDefault();
     }
 
     private async Task<EgressResult> PostAsync(
@@ -225,8 +220,11 @@ public sealed class LiveKitEgressService(
             throw new InvalidOperationException(message);
         }
 
+        // StopEgress may return empty body; List/Start return EgressInfo.
+        if (string.IsNullOrWhiteSpace(body))
+            return new EgressResult(string.Empty, null, null, null);
         var result = JsonSerializer.Deserialize<EgressResult>(body);
-        return result ?? throw new InvalidOperationException("LiveKit Egress returned an empty response.");
+        return result ?? new EgressResult(string.Empty, null, null, null);
     }
 
     private HttpRequestMessage CreateRequest(string service, string method, object payload)
@@ -261,7 +259,8 @@ public sealed record EgressResult(
     [property: JsonPropertyName("egress_id")] string EgressId,
     [property: JsonPropertyName("room_name")] string? RoomName,
     [property: JsonPropertyName("status")] string? Status,
-    [property: JsonPropertyName("error")] string? Error);
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("error_code")] int? ErrorCode = null);
 
 public sealed record EgressListResult(
     [property: JsonPropertyName("items")] EgressResult[]? Items);

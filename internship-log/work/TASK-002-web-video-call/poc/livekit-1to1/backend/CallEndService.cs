@@ -1,15 +1,15 @@
 namespace LiveKitPoc.Api;
 
 /// <summary>
-/// Shared end path for staff + embed visitor: transition → release → stop recording → archive → notify.
+/// Shared end path for staff + embed visitor: transition call End, request StopEgress (short), leave finalize async.
 /// Recording finalize failure never reverts call End.
 /// </summary>
 public sealed class CallEndService(
     CallDispatcher dispatcher,
     LiveKitEgressService egress,
-    IRecordingStorage storage,
     IRecordingCatalog catalog,
-    RecordingAuditService audit)
+    RecordingAuditService audit,
+    ILogger<CallEndService> logger)
 {
     public async Task<CallTransitionResult> EndWithRecordingAsync(
         Guid callId,
@@ -22,7 +22,6 @@ public sealed class CallEndService(
 
         var call = result.Call;
         string? egressId;
-        string? fileName;
         string? recordingId;
         RecordingMode mode;
         lock (call.SyncRoot)
@@ -30,55 +29,41 @@ public sealed class CallEndService(
             egressId = call.RecordingStatus is "Stopping" or "Recording"
                 ? call.RecordingEgressId
                 : null;
-            fileName = call.RecordingFileName;
             recordingId = call.RecordingId;
             mode = call.RecordingMode;
             if (egressId is not null && call.RecordingStatus == "Recording")
                 call.RecordingStatus = "Stopping";
         }
 
-        if (string.IsNullOrWhiteSpace(egressId) || string.IsNullOrWhiteSpace(fileName))
-            return result;
+        if (string.IsNullOrWhiteSpace(egressId))
+        {
+            await dispatcher.NotifyCallAsync(call);
+            return CallTransitionResult.Ok(call);
+        }
 
         var recId = recordingId ?? Guid.NewGuid().ToString("N");
-        try { await catalog.MarkFinalizingAsync(recId, cancellationToken); }
-        catch { /* dual-write best-effort */ }
-
         try
         {
-            await egress.StopRecordingAsync(egressId, fileName, cancellationToken);
-            var key = await RecordingFinalize.MaterializeObjectAsync(
-                egress, storage, call.ClinicId, call.Id, recId, fileName, cancellationToken);
-
-            lock (call.SyncRoot)
-            {
-                call.RecordingId = recId;
-                call.RecordingStorageKey = key;
-                call.RecordingStatus = "Complete";
-                call.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-
-            try { await catalog.MarkReadyAsync(recId, key, cancellationToken: cancellationToken); }
-            catch { /* dual-write best-effort */ }
-
-            audit.Append(call.ClinicId, call.Id, recId, actor.Id, actor.Role,
-                "RecordingStopped", "Ok", mode.ToString());
+            await catalog.TryMarkFinalizingAsync(recId, egressId, cancellationToken);
         }
         catch (Exception ex)
         {
-            // Call remains Ended (dispatcher already transitioned). Recording fails separately.
-            lock (call.SyncRoot)
-            {
-                call.RecordingStatus = "Failed";
-                call.RecordingStorageKey = null;
-                call.UpdatedAt = DateTimeOffset.UtcNow;
-            }
+            logger.LogWarning(ex, "Catalog Finalizing on call end failed for {RecordingId}", recId);
+        }
 
-            try { await catalog.MarkFailedAsync(recId, ex.Message, cancellationToken); }
-            catch { /* dual-write best-effort */ }
-
-            audit.Append(call.ClinicId, call.Id, recordingId, actor.Id, actor.Role,
-                "RecordingFinalizeFailed", "Failed", ex.Message);
+        try
+        {
+            // Await SHORT control request only — never Materialize / COMPLETE poll.
+            await egress.RequestStopAsync(egressId, cancellationToken);
+            audit.Append(call.ClinicId, call.Id, recId, actor.Id, actor.Role,
+                "RecordingStopRequested", "Ok", mode.ToString());
+        }
+        catch (Exception ex)
+        {
+            // Transport uncertainty: stay Finalizing; reconcile is authority. Call remains Ended.
+            logger.LogWarning(ex, "StopEgress control failed on call end (keeping Finalizing) {EgressId}", egressId);
+            audit.Append(call.ClinicId, call.Id, recId, actor.Id, actor.Role,
+                "RecordingStopRequested", "TransportError", ex.Message);
         }
 
         await dispatcher.NotifyCallAsync(call);

@@ -17,6 +17,8 @@ public static class RecordingLedgerStatus
     public const string Deleted = "Deleted";
     public const string Failed = "Failed";
 
+    public const string CompletionLimitReached = "LimitReached";
+
     /// <summary>UI / CallSession compatibility (Phase 3 PoC strings).</summary>
     public static string ToUiStatus(string ledgerStatus) => ledgerStatus switch
     {
@@ -30,22 +32,14 @@ public static class RecordingLedgerStatus
         _ => ledgerStatus
     };
 
-    public static string FromUiStatus(string uiStatus) => uiStatus switch
-    {
-        "Starting" => Requested,
-        "Recording" => Recording,
-        "Stopping" => Finalizing,
-        "Complete" => Ready,
-        "Deleted" => Deleted,
-        "Failed" => Failed,
-        _ => uiStatus
-    };
-
     public static bool IsDownloadable(string ledgerStatus) =>
         ledgerStatus is Ready;
 
     public static bool IsActive(string ledgerStatus) =>
         ledgerStatus is Requested or Recording or Finalizing;
+
+    public static bool IsTerminal(string ledgerStatus) =>
+        ledgerStatus is Ready or Failed or Deleted or DeletePending;
 }
 
 public sealed record RecordingRecord
@@ -57,21 +51,24 @@ public sealed record RecordingRecord
     public required string Status { get; init; }
     public required string Mode { get; init; }
     public string? Error { get; init; }
+    public string? CompletionReason { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? CompletedAt { get; init; }
     public DateTimeOffset? RetentionUntil { get; init; }
+    public DateTimeOffset? FinalizingStartedAt { get; init; }
+    public DateTimeOffset? TerminalSeenAt { get; init; }
     public string? CallerId { get; init; }
     public string? AssignedStaffId { get; init; }
     public string? CallStatus { get; init; }
     public string? ConsentStatus { get; init; }
-
-    /// <summary>Primary composite object key when present.</summary>
     public string? StorageKey { get; init; }
     public string? ObjectKind { get; init; }
     public long? Bytes { get; init; }
     public string? Etag { get; init; }
     public long? DurationMs { get; init; }
+    /// <summary>Local egress file name (lab path materialize).</summary>
+    public string? FileName { get; init; }
 }
 
 public interface IRecordingCatalog
@@ -92,21 +89,31 @@ public interface IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
+        string? fileName = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default);
+    /// <summary>Requested → Recording. Returns true if row changed.</summary>
+    Task<bool> TryMarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default);
 
-    Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default);
+    /// <summary>Recording|Requested → Finalizing; sets finalizing_started_at once. Correlates egress_id.</summary>
+    Task<bool> TryMarkFinalizingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default);
 
-    Task MarkReadyAsync(
+    /// <summary>Finalizing|Recording|Requested → Ready when egress_id matches.</summary>
+    Task<bool> TryMarkReadyAsync(
         string recordingId,
+        string egressId,
         string storageKey,
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
+        string? completionReason = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default);
+    /// <summary>Only from Requested|Recording|Finalizing → Failed. Failed is terminal (no re-update).</summary>
+    Task<bool> TryMarkFailedAsync(string recordingId, string egressId, string error, CancellationToken cancellationToken = default);
+
+    /// <summary>Set terminal_seen_at once when COMPLETE/LIMIT first observed (object may still be missing).</summary>
+    Task<bool> TrySetTerminalSeenAsync(string recordingId, string egressId, CancellationToken cancellationToken = default);
 
     Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default);
 
@@ -118,6 +125,8 @@ public interface IRecordingCatalog
         string? consentStatus,
         CancellationToken cancellationToken = default);
 
+    Task SetFileNameAsync(string recordingId, string fileName, CancellationToken cancellationToken = default);
+
     Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default);
 
     Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default);
@@ -125,6 +134,29 @@ public interface IRecordingCatalog
     Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default);
+
+    /// <summary>Rows in Finalizing (and optionally Recording) for reconcile. Does not use updated_at as sole clock.</summary>
+    Task<IReadOnlyList<RecordingRecord>> ListStuckAsync(int limit, CancellationToken cancellationToken = default);
+
+    // ---- Compatibility wrappers (legacy call sites) ----
+
+    Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default) =>
+        TryMarkRecordingAsync(recordingId, egressId, cancellationToken);
+
+    Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask; // prefer TryMarkFinalizingAsync with egressId
+
+    Task MarkReadyAsync(
+        string recordingId,
+        string storageKey,
+        long? bytes = null,
+        string? etag = null,
+        long? durationMs = null,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask; // prefer TryMarkReadyAsync with egressId
+
+    Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask; // prefer TryMarkFailedAsync with egressId
 }
 
 /// <summary>In-process fallback when RECORDING_DB is unset (lab only).</summary>
@@ -149,10 +181,11 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
+        string? fileName = null,
         CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
-        var rec = new RecordingRecord
+        _byId[recordingId] = new RecordingRecord
         {
             Id = recordingId,
             ClinicId = clinicId,
@@ -167,74 +200,139 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
             CallStatus = callStatus,
             ConsentStatus = consentStatus,
             StorageKey = storageKey,
-            ObjectKind = objectKind
+            ObjectKind = objectKind,
+            FileName = fileName
         };
-        _byId[recordingId] = rec;
         return Task.CompletedTask;
     }
 
-    public Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
+    public Task<bool> TryMarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            EgressId = egressId,
-            Status = RecordingLedgerStatus.Recording,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
-        return Task.CompletedTask;
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (r.Status != RecordingLedgerStatus.Requested) return Task.FromResult(false);
+            _byId[recordingId] = r with
+            {
+                EgressId = egressId,
+                Status = RecordingLedgerStatus.Recording,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            return Task.FromResult(true);
+        }
     }
 
-    public Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default)
+    public Task<bool> TryMarkFinalizingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            Status = RecordingLedgerStatus.Finalizing,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
-        return Task.CompletedTask;
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (r.Status is not (RecordingLedgerStatus.Recording or RecordingLedgerStatus.Requested))
+                return Task.FromResult(false);
+            if (r.EgressId is not null && !string.Equals(r.EgressId, egressId, StringComparison.Ordinal))
+                return Task.FromResult(false);
+            var now = DateTimeOffset.UtcNow;
+            _byId[recordingId] = r with
+            {
+                EgressId = egressId,
+                Status = RecordingLedgerStatus.Finalizing,
+                FinalizingStartedAt = r.FinalizingStartedAt ?? now,
+                UpdatedAt = now
+            };
+            return Task.FromResult(true);
+        }
     }
 
-    public Task MarkReadyAsync(
+    public Task<bool> TryMarkReadyAsync(
         string recordingId,
+        string egressId,
         string storageKey,
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
+        string? completionReason = null,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            Status = RecordingLedgerStatus.Ready,
-            StorageKey = storageKey,
-            Bytes = bytes ?? r.Bytes,
-            Etag = etag ?? r.Etag,
-            DurationMs = durationMs ?? r.DurationMs,
-            CompletedAt = now,
-            UpdatedAt = now
-        });
-        return Task.CompletedTask;
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (r.Status is not (RecordingLedgerStatus.Finalizing or RecordingLedgerStatus.Recording or RecordingLedgerStatus.Requested))
+                return Task.FromResult(false);
+            if (!string.Equals(r.EgressId, egressId, StringComparison.Ordinal))
+                return Task.FromResult(false);
+            var now = DateTimeOffset.UtcNow;
+            _byId[recordingId] = r with
+            {
+                Status = RecordingLedgerStatus.Ready,
+                StorageKey = storageKey,
+                Bytes = bytes ?? r.Bytes,
+                Etag = etag ?? r.Etag,
+                DurationMs = durationMs ?? r.DurationMs,
+                CompletionReason = completionReason ?? r.CompletionReason,
+                CompletedAt = now,
+                UpdatedAt = now
+            };
+            return Task.FromResult(true);
+        }
     }
 
-    public Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default)
+    public Task<bool> TryMarkFailedAsync(string recordingId, string egressId, string error, CancellationToken cancellationToken = default)
     {
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            Status = RecordingLedgerStatus.Failed,
-            Error = error.Length > 2000 ? error[..2000] : error,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
-        return Task.CompletedTask;
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (r.Status is not (RecordingLedgerStatus.Requested or RecordingLedgerStatus.Recording or RecordingLedgerStatus.Finalizing))
+                return Task.FromResult(false);
+            var want = egressId ?? "";
+            if (want.Length > 0)
+            {
+                if (!string.Equals(r.EgressId, want, StringComparison.Ordinal))
+                    return Task.FromResult(false);
+            }
+            else if (r.EgressId is not null)
+            {
+                return Task.FromResult(false);
+            }
+            var msg = error.Length > 2000 ? error[..2000] : error;
+            _byId[recordingId] = r with
+            {
+                Status = RecordingLedgerStatus.Failed,
+                Error = msg,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task<bool> TrySetTerminalSeenAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.FromResult(false);
+            if (!string.Equals(r.EgressId, egressId, StringComparison.Ordinal)) return Task.FromResult(false);
+            if (r.TerminalSeenAt is not null) return Task.FromResult(false);
+            if (RecordingLedgerStatus.IsTerminal(r.Status)) return Task.FromResult(false);
+            _byId[recordingId] = r with
+            {
+                TerminalSeenAt = DateTimeOffset.UtcNow
+                // do not bump UpdatedAt solely for clock set if avoidable — plan says updated_at not timeout; still ok to set lightly
+            };
+            return Task.FromResult(true);
+        }
     }
 
     public Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default)
     {
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            Status = RecordingLedgerStatus.Deleted,
-            StorageKey = null,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.CompletedTask;
+            _byId[recordingId] = r with
+            {
+                Status = RecordingLedgerStatus.Deleted,
+                StorageKey = null,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+        }
         return Task.CompletedTask;
     }
 
@@ -246,54 +344,52 @@ public sealed class MemoryRecordingCatalog : IRecordingCatalog
         string? consentStatus,
         CancellationToken cancellationToken = default)
     {
-        Mutate(recordingId, r => r with
+        lock (_gate)
         {
-            CallerId = callerId ?? r.CallerId,
-            AssignedStaffId = assignedStaffId ?? r.AssignedStaffId,
-            CallStatus = callStatus ?? r.CallStatus,
-            ConsentStatus = consentStatus ?? r.ConsentStatus,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.CompletedTask;
+            _byId[recordingId] = r with
+            {
+                CallerId = callerId ?? r.CallerId,
+                AssignedStaffId = assignedStaffId ?? r.AssignedStaffId,
+                CallStatus = callStatus ?? r.CallStatus,
+                ConsentStatus = consentStatus ?? r.ConsentStatus,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task SetFileNameAsync(string recordingId, string fileName, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_byId.TryGetValue(recordingId, out var r)) return Task.CompletedTask;
+            _byId[recordingId] = r with { FileName = fileName };
+        }
         return Task.CompletedTask;
     }
 
     public Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default) =>
         Task.FromResult(_byId.TryGetValue(recordingId, out var r) ? r : null);
 
-    public Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default)
-    {
-        var hit = _byId.Values.FirstOrDefault(r =>
-            string.Equals(r.EgressId, egressId, StringComparison.Ordinal));
-        return Task.FromResult(hit);
-    }
+    public Task<RecordingRecord?> GetByEgressIdAsync(string egressId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_byId.Values.FirstOrDefault(r => string.Equals(r.EgressId, egressId, StringComparison.Ordinal)));
 
-    public Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default)
-    {
-        var hit = _byId.Values
-            .Where(r => r.CallId == callId)
-            .OrderByDescending(r => r.CreatedAt)
-            .FirstOrDefault();
-        return Task.FromResult(hit);
-    }
+    public Task<RecordingRecord?> GetLatestByCallAsync(Guid callId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_byId.Values.Where(r => r.CallId == callId).OrderByDescending(r => r.CreatedAt).FirstOrDefault());
 
-    public Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default)
-    {
-        IReadOnlyList<RecordingRecord> list = _byId.Values
+    public Task<IReadOnlyList<RecordingRecord>> ListByClinicAsync(string clinicId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<RecordingRecord>>(_byId.Values
             .Where(r => string.Equals(r.ClinicId, clinicId, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(r => r.UpdatedAt)
-            .ToList();
-        return Task.FromResult(list);
-    }
+            .ToList());
 
-    private void Mutate(string recordingId, Func<RecordingRecord, RecordingRecord> map)
-    {
-        lock (_gate)
-        {
-            if (!_byId.TryGetValue(recordingId, out var existing))
-                return;
-            _byId[recordingId] = map(existing);
-        }
-    }
+    public Task<IReadOnlyList<RecordingRecord>> ListStuckAsync(int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<RecordingRecord>>(_byId.Values
+            .Where(r => r.Status is RecordingLedgerStatus.Finalizing or RecordingLedgerStatus.Recording)
+            .OrderBy(r => r.FinalizingStartedAt ?? r.CreatedAt)
+            .Take(Math.Max(1, limit))
+            .ToList());
 }
 
 /// <summary>PostgreSQL source of truth for recording catalog + physical objects.</summary>
@@ -343,6 +439,11 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
                 call_status       TEXT NULL,
                 consent_status    TEXT NULL
             );
+            ALTER TABLE recordings ADD COLUMN IF NOT EXISTS finalizing_started_at TIMESTAMPTZ NULL;
+            ALTER TABLE recordings ADD COLUMN IF NOT EXISTS terminal_seen_at TIMESTAMPTZ NULL;
+            ALTER TABLE recordings ADD COLUMN IF NOT EXISTS completion_reason TEXT NULL;
+            ALTER TABLE recordings ADD COLUMN IF NOT EXISTS file_name TEXT NULL;
+
             CREATE INDEX IF NOT EXISTS ix_recordings_clinic_updated
                 ON recordings (clinic_id, updated_at DESC);
             CREATE INDEX IF NOT EXISTS ix_recordings_call
@@ -351,6 +452,8 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
                 ON recordings (egress_id) WHERE egress_id IS NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_recordings_status_retention
                 ON recordings (status, retention_until);
+            CREATE INDEX IF NOT EXISTS ix_recordings_stuck
+                ON recordings (status, finalizing_started_at, terminal_seen_at);
 
             CREATE TABLE IF NOT EXISTS recording_objects (
                 id            BIGSERIAL PRIMARY KEY,
@@ -384,6 +487,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         string? assignedStaffId,
         string? callStatus,
         string? consentStatus,
+        string? fileName = null,
         CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -398,11 +502,11 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
                 INSERT INTO recordings (
                     id, clinic_id, call_id, egress_id, status, mode, error,
                     created_at, updated_at, completed_at, retention_until,
-                    caller_id, assigned_staff_id, call_status, consent_status)
+                    caller_id, assigned_staff_id, call_status, consent_status, file_name)
                 VALUES (
                     @id, @clinic, @call, NULL, @status, @mode, NULL,
                     @created, @updated, NULL, @retention,
-                    @caller, @staff, @callStatus, @consent)
+                    @caller, @staff, @callStatus, @consent, @fileName)
                 """;
             cmd.Parameters.AddWithValue("id", recordingId);
             cmd.Parameters.AddWithValue("clinic", clinicId);
@@ -416,6 +520,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
             cmd.Parameters.AddWithValue("staff", (object?)assignedStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("callStatus", (object?)callStatus ?? DBNull.Value);
             cmd.Parameters.AddWithValue("consent", (object?)consentStatus ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("fileName", (object?)fileName ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -438,7 +543,7 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         await tx.CommitAsync(cancellationToken);
     }
 
-    public async Task MarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
+    public async Task<bool> TryMarkRecordingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
@@ -446,37 +551,49 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         cmd.CommandText = """
             UPDATE recordings
             SET egress_id = @egress, status = @status, updated_at = @updated, error = NULL
-            WHERE id = @id
+            WHERE id = @id AND status = @from
             """;
         cmd.Parameters.AddWithValue("egress", egressId);
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Recording);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        cmd.Parameters.AddWithValue("from", RecordingLedgerStatus.Requested);
+        return await cmd.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
-    public async Task MarkFinalizingAsync(string recordingId, CancellationToken cancellationToken = default)
+    public async Task<bool> TryMarkFinalizingAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
+        var now = DateTimeOffset.UtcNow;
         cmd.CommandText = """
             UPDATE recordings
-            SET status = @status, updated_at = @updated
+            SET status = @status,
+                egress_id = @egress,
+                finalizing_started_at = COALESCE(finalizing_started_at, @now),
+                updated_at = @now
             WHERE id = @id
+              AND status IN (@from1, @from2)
+              AND (egress_id IS NULL OR egress_id = @egress)
             """;
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Finalizing);
-        cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("egress", egressId);
+        cmd.Parameters.AddWithValue("now", now);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        cmd.Parameters.AddWithValue("from1", RecordingLedgerStatus.Recording);
+        cmd.Parameters.AddWithValue("from2", RecordingLedgerStatus.Requested);
+        return await cmd.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
-    public async Task MarkReadyAsync(
+    public async Task<bool> TryMarkReadyAsync(
         string recordingId,
+        string egressId,
         string storageKey,
         long? bytes = null,
         string? etag = null,
         long? durationMs = null,
+        string? completionReason = null,
         CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -484,19 +601,36 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         await conn.OpenAsync(cancellationToken);
         await using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
+        int changed;
         await using (var cmd = conn.CreateCommand())
         {
             cmd.Transaction = tx;
             cmd.CommandText = """
                 UPDATE recordings
-                SET status = @status, updated_at = @updated, completed_at = @completed, error = NULL
+                SET status = @status,
+                    updated_at = @now,
+                    completed_at = @now,
+                    error = NULL,
+                    completion_reason = COALESCE(@reason, completion_reason)
                 WHERE id = @id
+                  AND egress_id = @egress
+                  AND status IN (@s1, @s2, @s3)
                 """;
             cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Ready);
-            cmd.Parameters.AddWithValue("updated", now);
-            cmd.Parameters.AddWithValue("completed", now);
+            cmd.Parameters.AddWithValue("now", now);
+            cmd.Parameters.AddWithValue("reason", (object?)completionReason ?? DBNull.Value);
             cmd.Parameters.AddWithValue("id", recordingId);
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            cmd.Parameters.AddWithValue("egress", egressId);
+            cmd.Parameters.AddWithValue("s1", RecordingLedgerStatus.Finalizing);
+            cmd.Parameters.AddWithValue("s2", RecordingLedgerStatus.Recording);
+            cmd.Parameters.AddWithValue("s3", RecordingLedgerStatus.Requested);
+            changed = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (changed == 0)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return false;
         }
 
         await using (var cmd = conn.CreateCommand())
@@ -523,24 +657,58 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         }
 
         await tx.CommitAsync(cancellationToken);
+        return true;
     }
 
-    public async Task MarkFailedAsync(string recordingId, string error, CancellationToken cancellationToken = default)
+    public async Task<bool> TryMarkFailedAsync(string recordingId, string egressId, string error, CancellationToken cancellationToken = default)
     {
         var msg = error.Length > 2000 ? error[..2000] : error;
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
+        // egress_id match: exact when known; allow NULL row when start fails before accept.
         cmd.CommandText = """
             UPDATE recordings
             SET status = @status, error = @error, updated_at = @updated
             WHERE id = @id
+              AND status IN (@s1, @s2, @s3)
+              AND (
+                    (@egress <> '' AND egress_id = @egress)
+                 OR (@egress = '' AND egress_id IS NULL)
+              )
             """;
         cmd.Parameters.AddWithValue("status", RecordingLedgerStatus.Failed);
         cmd.Parameters.AddWithValue("error", msg);
         cmd.Parameters.AddWithValue("updated", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("id", recordingId);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        cmd.Parameters.AddWithValue("egress", egressId ?? "");
+        cmd.Parameters.AddWithValue("s1", RecordingLedgerStatus.Requested);
+        cmd.Parameters.AddWithValue("s2", RecordingLedgerStatus.Recording);
+        cmd.Parameters.AddWithValue("s3", RecordingLedgerStatus.Finalizing);
+        return await cmd.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> TrySetTerminalSeenAsync(string recordingId, string egressId, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        // Only set once; do not touch updated_at (timeout must not reset).
+        cmd.CommandText = """
+            UPDATE recordings
+            SET terminal_seen_at = @now
+            WHERE id = @id
+              AND egress_id = @egress
+              AND terminal_seen_at IS NULL
+              AND status IN (@s1, @s2, @s3)
+            """;
+        cmd.Parameters.AddWithValue("now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("id", recordingId);
+        cmd.Parameters.AddWithValue("egress", egressId);
+        cmd.Parameters.AddWithValue("s1", RecordingLedgerStatus.Finalizing);
+        cmd.Parameters.AddWithValue("s2", RecordingLedgerStatus.Recording);
+        cmd.Parameters.AddWithValue("s3", RecordingLedgerStatus.Requested);
+        return await cmd.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
     public async Task MarkDeletedAsync(string recordingId, CancellationToken cancellationToken = default)
@@ -588,6 +756,17 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task SetFileNameAsync(string recordingId, string fileName, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE recordings SET file_name = @fn WHERE id = @id";
+        cmd.Parameters.AddWithValue("fn", fileName);
+        cmd.Parameters.AddWithValue("id", recordingId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<RecordingRecord?> GetByIdAsync(string recordingId, CancellationToken cancellationToken = default)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
@@ -628,28 +807,45 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         return await ReadManyAsync(cmd, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RecordingRecord>> ListStuckAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = SelectSql + """
+             WHERE r.status IN (@s1, @s2)
+             ORDER BY COALESCE(r.finalizing_started_at, r.created_at) ASC
+             LIMIT @lim
+            """;
+        cmd.Parameters.AddWithValue("s1", RecordingLedgerStatus.Finalizing);
+        cmd.Parameters.AddWithValue("s2", RecordingLedgerStatus.Recording);
+        cmd.Parameters.AddWithValue("lim", Math.Max(1, limit));
+        return await ReadManyAsync(cmd, cancellationToken);
+    }
+
     private const string SelectSql = """
         SELECT r.id, r.clinic_id, r.call_id, r.egress_id, r.status, r.mode, r.error,
                r.created_at, r.updated_at, r.completed_at, r.retention_until,
                r.caller_id, r.assigned_staff_id, r.call_status, r.consent_status,
-               o.storage_key, o.kind, o.bytes, o.etag, o.duration_ms
+               o.storage_key, o.kind, o.bytes, o.etag, o.duration_ms,
+               r.finalizing_started_at, r.terminal_seen_at, r.completion_reason, r.file_name
         FROM recordings r
         LEFT JOIN recording_objects o
           ON o.recording_id = r.id AND o.kind = 'Composite'
         """;
 
-    private static async Task<RecordingRecord?> ReadOneAsync(NpgsqlCommand cmd, CancellationToken cancellationToken)
+    private static async Task<RecordingRecord?> ReadOneAsync(NpgsqlCommand cmd, CancellationToken ct)
     {
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) return null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
         return Map(reader);
     }
 
-    private static async Task<IReadOnlyList<RecordingRecord>> ReadManyAsync(NpgsqlCommand cmd, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<RecordingRecord>> ReadManyAsync(NpgsqlCommand cmd, CancellationToken ct)
     {
         var list = new List<RecordingRecord>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             list.Add(Map(reader));
         return list;
     }
@@ -675,7 +871,11 @@ public sealed class PostgresRecordingCatalog(IConfiguration configuration, ILogg
         ObjectKind = reader.IsDBNull(16) ? null : reader.GetString(16),
         Bytes = reader.IsDBNull(17) ? null : reader.GetInt64(17),
         Etag = reader.IsDBNull(18) ? null : reader.GetString(18),
-        DurationMs = reader.IsDBNull(19) ? null : reader.GetInt64(19)
+        DurationMs = reader.IsDBNull(19) ? null : reader.GetInt64(19),
+        FinalizingStartedAt = reader.IsDBNull(20) ? null : reader.GetFieldValue<DateTimeOffset>(20),
+        TerminalSeenAt = reader.IsDBNull(21) ? null : reader.GetFieldValue<DateTimeOffset>(21),
+        CompletionReason = reader.IsDBNull(22) ? null : reader.GetString(22),
+        FileName = reader.IsDBNull(23) ? null : reader.GetString(23)
     };
 }
 
@@ -692,7 +892,6 @@ public static class RecordingCatalogFactory
         if (backend is "postgres" or "pg" || (backend is "auto" && hasExplicitDb))
             return ActivatorUtilities.CreateInstance<PostgresRecordingCatalog>(sp);
 
-        // auto without postgres config → memory (local lab)
         if (backend is "memory" || backend is "auto")
             return ActivatorUtilities.CreateInstance<MemoryRecordingCatalog>(sp);
 

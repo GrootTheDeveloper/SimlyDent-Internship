@@ -27,3 +27,8 @@ logging:
   level: info
 # Scrape from host/ops only; do not expose 6789 on public firewall unless locked down.
 prometheus_port: 6789
+# Recording finalize (R-egress-finalize): egress_ended → ASP.NET (compose network)
+webhook:
+  api_key: devkey
+  urls:
+    - http://backend:8080/api/livekit/webhook
