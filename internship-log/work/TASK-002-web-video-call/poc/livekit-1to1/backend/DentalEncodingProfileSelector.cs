@@ -64,19 +64,19 @@ public sealed class DentalEncodingProfileSelector(Microsoft.Extensions.Options.I
             "H264_MAIN", "legacy-H264_720P_30",
             null, null, null, UsedAdvanced: false);
 
-    public static (int w, int h) NormalizeDimensions(int? width, int? height)
+    public (int w, int h) NormalizeDimensions(int? width, int? height)
     {
         var w = width is > 0 and < 8192 ? width.Value : 0;
         var h = height is > 0 and < 8192 ? height.Value : 0;
         if (w <= 0 || h <= 0)
-            return (1280, 720); // safe fallback
+            return (MakeEven(Opt.FallbackWidth), MakeEven(Opt.FallbackHeight));
         return (w, h);
     }
 
-    public static int NormalizeFps(double? fps)
+    public int NormalizeFps(double? fps)
     {
         if (fps is null || double.IsNaN(fps.Value) || double.IsInfinity(fps.Value) || fps.Value <= 0)
-            return 24;
+            return Math.Clamp(Opt.FallbackFps, 1, 60);
         // Round 29.97 → 30, 23.976 → 24, etc.
         var rounded = (int)Math.Round(fps.Value, MidpointRounding.AwayFromZero);
         return Math.Clamp(rounded, 1, 60);
@@ -117,14 +117,17 @@ public sealed class DentalEncodingProfileSelector(Microsoft.Extensions.Options.I
 
     public int SelectBitrate(int width, int height, int fps)
     {
+        var longSide = Math.Max(width, height);
         var pixels = width * height;
         var p480 = 640 * 480;
-        var p720 = 1280 * 720;
 
-        if (pixels <= p480 * 1.1)
+        // Conservative tiers: do not drop 720p30 target (1800) in this change.
+        if (longSide <= 360)
+            return Opt.Bitrate360pKbps;
+        if (longSide <= 480 || pixels <= p480 * 1.1)
             return Opt.Bitrate480pKbps;
-
-        // 720-ish
+        if (longSide <= 540)
+            return Opt.Bitrate540pKbps;
         if (fps <= 20)
             return Opt.Bitrate720p20Kbps;
         return Opt.Bitrate720p30Kbps;
@@ -132,8 +135,11 @@ public sealed class DentalEncodingProfileSelector(Microsoft.Extensions.Options.I
 
     private static string ClassifyTier(int w, int h, int fps)
     {
+        var longSide = Math.Max(w, h);
         var pixels = w * h;
-        if (pixels <= 640 * 480 * 1.1) return "480p";
+        if (longSide <= 360) return "360p";
+        if (longSide <= 480 || pixels <= 640 * 480 * 1.1) return "480p";
+        if (longSide <= 540) return "540p";
         if (fps <= 20) return "720p20";
         return "720p30";
     }

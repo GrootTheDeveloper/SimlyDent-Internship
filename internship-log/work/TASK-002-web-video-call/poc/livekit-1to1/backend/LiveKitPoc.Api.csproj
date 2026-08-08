@@ -10,5 +10,12 @@
     <PackageReference Include="Npgsql" Version="9.0.3" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.7.0" />
   </ItemGroup>
+  <!-- Keep unit tests out of the web app compile graph -->
+  <ItemGroup>
+    <Compile Remove="LiveKitPoc.Api.Tests/**" />
+    <Content Remove="LiveKitPoc.Api.Tests/**" />
+    <None Remove="LiveKitPoc.Api.Tests/**" />
+    <EmbeddedResource Remove="LiveKitPoc.Api.Tests/**" />
+  </ItemGroup>
 </Project>
 

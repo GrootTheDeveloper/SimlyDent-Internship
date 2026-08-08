@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+using LiveKitPoc.Api.Options;
+using Microsoft.Extensions.Options;
 
 namespace LiveKitPoc.Api;
 
@@ -16,23 +19,68 @@ public sealed record MediaProbeResult(
 /// <summary>
 /// Optional ffprobe abstraction. Probe failure never fails recording finalize.
 /// </summary>
-public sealed class MediaProbeService(ILogger<MediaProbeService> logger)
+public sealed class MediaProbeService(
+    ILogger<MediaProbeService> logger,
+    IOptions<DentalVideoOptions>? dentalOptions = null)
 {
+    private readonly object _availLock = new();
+    private bool? _available;
+    private DateTimeOffset _availableCheckedAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan AvailabilityTtl = TimeSpan.FromMinutes(5);
+
+    private int ProbeTimeoutSeconds =>
+        Math.Clamp(dentalOptions?.Value.ProbeTimeoutSeconds ?? 15, 2, 120);
+
     public bool IsAvailable()
+    {
+        lock (_availLock)
+        {
+            if (_available is not null
+                && DateTimeOffset.UtcNow - _availableCheckedAt < AvailabilityTtl)
+                return _available.Value;
+        }
+
+        var ok = ProbeVersionOnce();
+        lock (_availLock)
+        {
+            _available = ok;
+            _availableCheckedAt = DateTimeOffset.UtcNow;
+            return ok;
+        }
+    }
+
+    /// <summary>Force re-check (tests).</summary>
+    public void InvalidateAvailabilityCache()
+    {
+        lock (_availLock)
+        {
+            _available = null;
+            _availableCheckedAt = DateTimeOffset.MinValue;
+        }
+    }
+
+    private bool ProbeVersionOnce()
     {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo
+            using var p = new Process
             {
-                FileName = "ffprobe",
-                Arguments = "-version",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-            if (p is null) return false;
-            p.WaitForExit(3000);
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            p.StartInfo.ArgumentList.Add("-version");
+            p.Start();
+            if (!p.WaitForExit(3000))
+            {
+                try { p.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                return false;
+            }
             return p.ExitCode == 0;
         }
         catch
@@ -54,26 +102,60 @@ public sealed class MediaProbeService(ILogger<MediaProbeService> logger)
 
         try
         {
-            var args =
-                "-v quiet -print_format json -show_format -show_streams " +
-                "\"" + path.Replace("\"", "") + "\"";
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            linked.CancelAfter(TimeSpan.FromSeconds(ProbeTimeoutSeconds));
+
             using var p = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "ffprobe",
-                    Arguments = args,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
             };
+            // ArgumentList avoids quoting/path injection issues
+            p.StartInfo.ArgumentList.Add("-v");
+            p.StartInfo.ArgumentList.Add("quiet");
+            p.StartInfo.ArgumentList.Add("-print_format");
+            p.StartInfo.ArgumentList.Add("json");
+            p.StartInfo.ArgumentList.Add("-show_format");
+            p.StartInfo.ArgumentList.Add("-show_streams");
+            p.StartInfo.ArgumentList.Add(path);
+
+            var stderr = new StringBuilder(capacity: 256);
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is null || stderr.Length > 4000) return;
+                stderr.AppendLine(e.Data);
+            };
+
             p.Start();
-            var json = await p.StandardOutput.ReadToEndAsync(ct);
-            await p.WaitForExitAsync(ct);
+            p.BeginErrorReadLine();
+            var stdoutTask = p.StandardOutput.ReadToEndAsync(linked.Token);
+
+            try
+            {
+                await p.WaitForExitAsync(linked.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try
+                {
+                    if (!p.HasExited)
+                        p.Kill(entireProcessTree: true);
+                }
+                catch { /* ignore */ }
+                logger.LogWarning("ffprobe timeout path={Path} timeoutSec={Sec}", path, ProbeTimeoutSeconds);
+                return new MediaProbeResult(bytes, null, null, null, null, null, null, "ffprobe timeout");
+            }
+
+            var json = await stdoutTask;
             if (p.ExitCode != 0)
-                return new MediaProbeResult(bytes, null, null, null, null, null, null, "ffprobe exit " + p.ExitCode);
+                return new MediaProbeResult(bytes, null, null, null, null, null, null,
+                    "ffprobe exit " + p.ExitCode);
 
             return ParseFfprobeJson(json, bytes);
         }

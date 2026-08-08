@@ -68,8 +68,15 @@ public static class PocOptionsRegistration
             if (int.TryParse(configuration["DENTAL_MAX_WIDTH"], out var mw) && mw > 0) o.MaxWidth = mw;
             if (int.TryParse(configuration["DENTAL_MAX_HEIGHT"], out var mh) && mh > 0) o.MaxHeight = mh;
             if (int.TryParse(configuration["DENTAL_MAX_FPS"], out var mf) && mf > 0) o.MaxFps = mf;
+            if (int.TryParse(configuration["DENTAL_FALLBACK_WIDTH"], out var fw) && fw > 0) o.FallbackWidth = fw;
+            if (int.TryParse(configuration["DENTAL_FALLBACK_HEIGHT"], out var fh) && fh > 0) o.FallbackHeight = fh;
+            if (int.TryParse(configuration["DENTAL_FALLBACK_FPS"], out var ff) && ff > 0) o.FallbackFps = ff;
+            if (int.TryParse(configuration["DENTAL_BITRATE_360P_KBPS"], out var b360) && b360 > 0)
+                o.Bitrate360pKbps = b360;
             if (int.TryParse(configuration["DENTAL_BITRATE_480P_KBPS"], out var b480) && b480 > 0)
                 o.Bitrate480pKbps = b480;
+            if (int.TryParse(configuration["DENTAL_BITRATE_540P_KBPS"], out var b540) && b540 > 0)
+                o.Bitrate540pKbps = b540;
             if (int.TryParse(configuration["DENTAL_BITRATE_720P20_KBPS"], out var b720_20) && b720_20 > 0)
                 o.Bitrate720p20Kbps = b720_20;
             if (int.TryParse(configuration["DENTAL_BITRATE_720P30_KBPS"], out var b720_30) && b720_30 > 0)
@@ -88,7 +95,8 @@ public static class PocOptionsRegistration
                 || string.Equals(configuration["DENTAL_VIDEO_OPTIMIZE_ENABLED"], "true", StringComparison.OrdinalIgnoreCase);
             if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_CRF"], out var crf) && crf is >= 16 and <= 32)
                 o.OptimizeCrf = crf;
-            o.OptimizePreset = configuration["DENTAL_VIDEO_OPTIMIZE_PRESET"] ?? o.OptimizePreset;
+            if (!string.IsNullOrWhiteSpace(configuration["DENTAL_VIDEO_OPTIMIZE_PRESET"]))
+                o.OptimizePreset = configuration["DENTAL_VIDEO_OPTIMIZE_PRESET"]!.Trim();
             o.DeleteOriginalAfterOptimize =
                 string.Equals(configuration["DENTAL_VIDEO_DELETE_ORIGINAL_AFTER_OPTIMIZE"], "1", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(configuration["DENTAL_VIDEO_DELETE_ORIGINAL_AFTER_OPTIMIZE"], "true", StringComparison.OrdinalIgnoreCase);
@@ -96,6 +104,24 @@ public static class PocOptionsRegistration
                 o.OptimizeIntervalSeconds = oi;
             if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_BATCH"], out var ob) && ob > 0)
                 o.OptimizeBatch = ob;
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_TIMEOUT_SECONDS"], out var ot) && ot > 0)
+                o.OptimizeTimeoutSeconds = ot;
+            if (int.TryParse(configuration["DENTAL_PROBE_TIMEOUT_SECONDS"], out var pt) && pt > 0)
+                o.ProbeTimeoutSeconds = pt;
+            if (double.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_MIN_SAVING_PERCENT"],
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var msp))
+                o.MinSavingPercent = msp;
+            if (long.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_MIN_ORIGINAL_BYTES"], out var mob) && mob >= 0)
+                o.MinOriginalBytes = mob;
+            if (long.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_MIN_DURATION_MS"], out var md) && md >= 0)
+                o.MinDurationMs = md;
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_MAX_ATTEMPTS"], out var ma) && ma > 0)
+                o.OptimizeMaxAttempts = ma;
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_LEASE_SECONDS"], out var ls) && ls > 0)
+                o.OptimizeLeaseSeconds = ls;
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_RETRY_BACKOFF_SECONDS"], out var rb) && rb > 0)
+                o.OptimizeRetryBackoffSeconds = rb;
         });
 
         return services;
@@ -122,11 +148,16 @@ public static class PocOptionsRegistration
         // Existing Phase C S3 rules (mode-aware).
         RecordingS3Config.ValidateOrThrow(app.Configuration, app.Logger);
 
+        var dental = app.Services.GetRequiredService<IOptions<DentalVideoOptions>>().Value;
+        dental.ValidateOrThrow();
+
         app.Logger.LogInformation(
-            "Options OK: LiveKit HttpUrl={HttpUrl} ApiKey={ApiKey} AutoCallAudio={Auto} EgressOutput={Egress}",
+            "Options OK: LiveKit HttpUrl={HttpUrl} ApiKey={ApiKey} AutoCallAudio={Auto} EgressOutput={Egress} DentalMode={Dental} Optimize={Opt}",
             lk.HttpUrl,
             lk.ApiKey,
             app.Services.GetRequiredService<IOptions<FeatureOptions>>().Value.AutoCallAudio,
-            app.Services.GetRequiredService<IOptions<RecordingRuntimeOptions>>().Value.EgressOutput);
+            app.Services.GetRequiredService<IOptions<RecordingRuntimeOptions>>().Value.EgressOutput,
+            dental.EncodingMode,
+            dental.OptimizeEnabled);
     }
 }
