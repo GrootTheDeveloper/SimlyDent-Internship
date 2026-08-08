@@ -20,7 +20,8 @@
   var pollTimer = null;
   var room = null;
   var localTracks = [];
-  var micEnabled = true;
+  /** Cached presentation only — always rewritten by syncLocalMediaStateFromRoom(). */
+  var micEnabled = false;
   var camEnabled = false;
   var joining = false;
   var retryingDevices = false;
@@ -32,13 +33,17 @@
   var remoteHasVideo = false;
   /** Join preference only: 'video' | 'audio' — not a runtime session mode */
   var preferredMedia = 'video';
-  /** Local desired camera after connect / reconnect (independent of peer). */
+  /** Desired camera intent across reconnect (not authoritative for UI until LiveKit confirms). */
   var desiredCameraEnabled = true;
   /** After first successful LiveKit connect — reconnect must not reset from preferredMedia. */
   var mediaSessionStarted = false;
   /** Camera request FSM: idle | sent | received | accepted | rejected | expired */
   var cameraRequestState = 'idle';
+  /** Staff camera-request accept/reject only — not local device toggle. */
   var cameraRequestBusy = false;
+  /** Local device operations (independent). */
+  var micBusy = false;
+  var cameraBusy = false;
   var callSeconds = 0;
   var callTimer = null;
   /** Visitor graceful End: keep LiveKit camera until backend Status=Ended */
@@ -51,6 +56,17 @@
   }
   function mediaModeApi() {
     return (typeof window !== 'undefined' && window.SimlyDentMediaMode) || null;
+  }
+  function localMediaApi() {
+    return (typeof window !== 'undefined' && window.SimlyDentLocalMediaControls) || null;
+  }
+  function mediaLog() {
+    try {
+      if (typeof console !== 'undefined' && console.info) {
+        var args = ['[embed-media]'].concat(Array.prototype.slice.call(arguments));
+        console.info.apply(console, args);
+      }
+    } catch (eLog) { /* ignore */ }
   }
 
   /** idle | waiting | media | reconnect | perm | ended | error */
@@ -136,38 +152,129 @@
     }
   }
 
+  function getActualMicEnabled() {
+    var lm = localMediaApi();
+    if (lm && room && room.localParticipant) {
+      return lm.getActualMicEnabled(room.localParticipant);
+    }
+    if (!room || !room.localParticipant) return false;
+    try {
+      if ('isMicrophoneEnabled' in room.localParticipant) {
+        return !!room.localParticipant.isMicrophoneEnabled;
+      }
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  function getActualCameraEnabled() {
+    var lm = localMediaApi();
+    if (lm && room && room.localParticipant) {
+      return lm.getActualCameraEnabled(room.localParticipant);
+    }
+    if (!room || !room.localParticipant) return false;
+    try {
+      if ('isCameraEnabled' in room.localParticipant) {
+        return !!room.localParticipant.isCameraEnabled;
+      }
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  function isRoomMediaReady() {
+    var lm = localMediaApi();
+    if (lm) return lm.roomIsConnected(room) && !!(room && room.localParticipant);
+    return !!(room && room.localParticipant);
+  }
+
   /**
-   * Local camera track from LiveKit publications (authoritative after setCameraEnabled)
-   * or from initial localTracks acquire.
+   * Local camera MediaStreamTrack for PiP — only when camera actually enabled (not muted).
+   * localTracks is ownership helper only, not source of truth for on/off.
    */
   function getLocalCameraTrack() {
     if (room && room.localParticipant) {
+      var lm = localMediaApi();
+      var pub = lm
+        ? lm.findPublication(room.localParticipant, 'Camera', function (k) {
+            return String(k || '').toLowerCase() === 'video';
+          })
+        : null;
+      if (pub && pub.track && pub.isMuted !== true && getActualCameraEnabled()) {
+        return pub.track;
+      }
       var pubs = room.localParticipant.videoTrackPublications;
-      if (pubs && typeof pubs.values === 'function') {
+      if (pubs && typeof pubs.values === 'function' && getActualCameraEnabled()) {
         var it = pubs.values();
         var n = it.next();
         while (!n.done) {
-          var pub = n.value;
-          if (pub && pub.track && !pub.isMuted) return pub.track;
+          var p = n.value;
+          if (p && p.track && p.isMuted !== true) return p.track;
           n = it.next();
         }
-        // unmuted check failed — still try any published track
-        it = pubs.values();
-        n = it.next();
-        while (!n.done) {
-          var pub2 = n.value;
-          if (pub2 && pub2.track) return pub2.track;
-          n = it.next();
-        }
-      }
-    }
-    for (var i = 0; i < localTracks.length; i++) {
-      var t = localTracks[i];
-      if (t && (t.kind === 'video' || (t.kind && String(t.kind).toLowerCase() === 'video'))) {
-        return t;
       }
     }
     return null;
+  }
+
+  /** Sync presentation caches + buttons from LiveKit LocalParticipant. */
+  function syncLocalMediaStateFromRoom() {
+    if (!room || !room.localParticipant) {
+      micEnabled = false;
+      camEnabled = false;
+      hasLocalVideo = false;
+      hasLocalAudio = false;
+      applyMediaControlButtons();
+      return;
+    }
+    micEnabled = getActualMicEnabled();
+    camEnabled = getActualCameraEnabled();
+    hasLocalAudio = micEnabled;
+    hasLocalVideo = !!getLocalCameraTrack() && camEnabled;
+    applyMediaControlButtons();
+  }
+
+  function applyMediaControlButtons() {
+    var lm = localMediaApi();
+    var ready = isRoomMediaReady() && !gracefulEnding;
+    if (els.btnMic) {
+      var mu = lm
+        ? lm.micButtonUi({
+            enabled: micEnabled,
+            busy: micBusy,
+            roomReady: ready
+          })
+        : {
+            text: micBusy ? 'Micro…' : (micEnabled ? 'Micro' : 'Tắt micro'),
+            title: ready ? (micEnabled ? 'Tắt micro' : 'Bật micro') : 'Media chưa sẵn sàng',
+            off: !micEnabled,
+            disabled: !ready || micBusy
+          };
+      els.btnMic.textContent = mu.text;
+      els.btnMic.title = mu.title;
+      els.btnMic.classList.toggle('off', !!mu.off);
+      els.btnMic.classList.toggle('busy', !!micBusy);
+      els.btnMic.disabled = !!mu.disabled || gracefulEnding;
+    }
+    if (els.btnCam) {
+      var cu = lm
+        ? lm.camButtonUi({
+            enabled: camEnabled,
+            hasVideo: hasLocalVideo,
+            busy: cameraBusy,
+            roomReady: ready
+          })
+        : {
+            text: cameraBusy ? 'Camera…' : (camEnabled && hasLocalVideo ? 'Camera' : (camEnabled ? 'Camera…' : 'Camera tắt')),
+            title: ready ? (camEnabled ? 'Tắt camera' : 'Bật camera') : 'Media chưa sẵn sàng',
+            off: !camEnabled,
+            disabled: !ready || cameraBusy
+          };
+      els.btnCam.textContent = cu.text;
+      els.btnCam.title = cu.title;
+      els.btnCam.classList.toggle('off', !!cu.off);
+      els.btnCam.classList.toggle('busy', !!cameraBusy);
+      els.btnCam.disabled = !!cu.disabled || gracefulEnding;
+      els.btnCam.classList.remove('hidden');
+    }
   }
 
   function isVideoTrack(track, LivekitClient) {
@@ -185,8 +292,9 @@
    * - Local camera on → PiP preview (from LiveKit publication, not stale localTracks)
    */
   function refreshStagePresentation() {
+    // Presentation from authoritative LiveKit state (cached by sync)
     var localTrack = getLocalCameraTrack();
-    hasLocalVideo = !!(localTrack && camEnabled && desiredCameraEnabled);
+    hasLocalVideo = !!(localTrack && camEnabled);
     var showVoice = !remoteHasVideo;
 
     if (els.mediaPane) {
@@ -257,8 +365,7 @@
     if (els.localSample) els.localSample.classList.add('hidden');
     if (els.btnToVideo) els.btnToVideo.classList.add('hidden');
     if (els.btnToAudio) els.btnToAudio.classList.add('hidden');
-    if (els.btnCam) els.btnCam.classList.remove('hidden');
-    syncCamButton();
+    applyMediaControlButtons();
   }
 
   /**
@@ -297,23 +404,6 @@
     updateLocalPreview();
   }
 
-  function syncCamButton() {
-    if (!els.btnCam) return;
-    if (camEnabled && hasLocalVideo) {
-      els.btnCam.classList.remove('off');
-      els.btnCam.textContent = 'Camera';
-      els.btnCam.title = 'Tắt camera của tôi';
-    } else if (camEnabled && !hasLocalVideo) {
-      els.btnCam.classList.remove('off');
-      els.btnCam.textContent = 'Camera…';
-      els.btnCam.title = 'Đang bật camera';
-    } else {
-      els.btnCam.classList.add('off');
-      els.btnCam.textContent = 'Camera tắt';
-      els.btnCam.title = 'Bật camera của tôi';
-    }
-  }
-
   function hideCameraRequestBanner() {
     if (els.mediaModeBanner) els.mediaModeBanner.classList.add('hidden');
   }
@@ -342,113 +432,222 @@
     if (msg) await mm.publishMediaModeMessage(room, msg);
   }
 
-  /** Local camera only — never a global session mode, never forces peer camera. */
+  /**
+   * Local camera only — never a global session mode, never forces peer camera.
+   * Authoritative: await setCameraEnabled + verify participant state. No createLocalTracks fallback.
+   */
   async function setLocalCameraEnabled(want, opts) {
     opts = opts || {};
-    if (!room || !room.localParticipant) return false;
-    try {
-      desiredCameraEnabled = !!want;
-      await room.localParticipant.setCameraEnabled(!!want);
-      camEnabled = !!want;
+    if (!isRoomMediaReady()) {
+      if (opts.showBanner !== false) setDeviceBanner('Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return false;
+    }
+    var current = getActualCameraEnabled();
+    want = !!want;
+    if (current === want) {
+      desiredCameraEnabled = want;
+      syncLocalMediaStateFromRoom();
+      updateLocalPreview();
+      mediaLog('camera set idempotent actual=' + want);
+      return true;
+    }
 
-      // LiveKit creates the track on enable — it is NOT in localTracks from audio-only join.
-      // Sync localTracks for ownership + attach preview from publications.
-      if (want) {
-        var camTrack = getLocalCameraTrack();
-        if (camTrack) {
-          var already = localTracks.some(function (t) { return t === camTrack; });
-          if (!already) localTracks.push(camTrack);
-        } else {
-          // Brief wait: publication can lag setCameraEnabled by a tick
-          await new Promise(function (r) { setTimeout(r, 120); });
-          camTrack = getLocalCameraTrack();
-          if (camTrack && localTracks.indexOf(camTrack) < 0) localTracks.push(camTrack);
-        }
-        if (!getLocalCameraTrack()) {
-          // Fallback: create + publish if SDK did not enable
-          var LivekitClient = window.LivekitClient || window.LiveKit || window.livekit;
-          if (LivekitClient && LivekitClient.createLocalTracks) {
-            try {
-              var created = await LivekitClient.createLocalTracks({
-                audio: false,
-                video: { facingMode: 'user' }
-              });
-              for (var ci = 0; ci < created.length; ci++) {
-                try {
-                  await room.localParticipant.publishTrack(created[ci]);
-                  localTracks.push(created[ci]);
-                } catch (pe) {
-                  try { created[ci].stop(); } catch (se) { /* ignore */ }
-                }
-              }
-            } catch (ce) {
-              console.warn('[embed] fallback create camera failed', ce);
-            }
-          }
-        }
+    cameraBusy = true;
+    applyMediaControlButtons();
+    mediaLog('camera toggle requested current=' + current + ' want=' + want);
+    try {
+      desiredCameraEnabled = want;
+      await room.localParticipant.setCameraEnabled(want);
+
+      var lm = localMediaApi();
+      var verified;
+      if (lm && lm.waitForMediaState) {
+        verified = await lm.waitForMediaState(getActualCameraEnabled, want, { timeoutMs: 2500 });
       } else {
-        // Remove video tracks from localTracks ownership list; stop if we own them
-        var kept = [];
-        for (var li = 0; li < localTracks.length; li++) {
-          var lt = localTracks[li];
-          var isV = lt && (lt.kind === 'video' || String(lt.kind || '').toLowerCase() === 'video');
-          if (isV) {
-            // setCameraEnabled(false) should stop publication; do not double-stop SDK-owned tracks aggressively
-          } else {
-            kept.push(lt);
-          }
-        }
-        localTracks = kept;
+        verified = { ok: getActualCameraEnabled() === want, actual: getActualCameraEnabled() };
       }
 
+      syncLocalMediaStateFromRoom();
       updateLocalPreview();
-      refreshStagePresentation();
-      // Confirm actual publication state
-      var actuallyOn = !!getLocalCameraTrack() && !!want;
-      camEnabled = actuallyOn || (!want ? false : camEnabled);
-      if (want && !getLocalCameraTrack()) {
-        camEnabled = false;
-        desiredCameraEnabled = false;
-        if (opts.showBanner !== false) {
-          setDeviceBanner('Không bật được camera. Cho phép Camera trong trình duyệt rồi thử lại.');
+
+      if (!verified.ok) {
+        // Participant API may already report enabled while publication lags — re-read once
+        var late = getActualCameraEnabled();
+        if (late === want) {
+          mediaLog('camera set success after lag actual=' + late);
+          if (want) setDeviceBanner('');
+          return true;
         }
-        syncCamButton();
+        mediaLog('camera set verify timeout want=' + want + ' actual=' + verified.actual);
+        desiredCameraEnabled = getActualCameraEnabled();
+        syncLocalMediaStateFromRoom();
+        updateLocalPreview();
+        if (opts.showBanner !== false) {
+          setDeviceBanner(want
+            ? 'Không bật được camera. Cho phép Camera trong trình duyệt rồi thử lại.'
+            : 'Không tắt được camera.');
+        }
         return false;
       }
-      if (!want) {
-        camEnabled = false;
-        desiredCameraEnabled = false;
-      }
-      syncCamButton();
-      return camEnabled === !!want || !want;
+
+      mediaLog('camera set success actual=' + want);
+      if (want) setDeviceBanner('');
+      return true;
     } catch (eCam) {
+      mediaLog('camera set failed error=' + (eCam && eCam.message ? eCam.message : String(eCam)));
       console.warn('[embed] setCameraEnabled failed', eCam);
-      camEnabled = false;
-      desiredCameraEnabled = false;
+      desiredCameraEnabled = getActualCameraEnabled();
+      syncLocalMediaStateFromRoom();
       updateLocalPreview();
-      refreshStagePresentation();
       if (opts.showBanner !== false) {
         setDeviceBanner(want
           ? 'Không bật được camera. Kiểm tra quyền trình duyệt.'
           : 'Không tắt được camera.');
       }
-      syncCamButton();
       return false;
+    } finally {
+      cameraBusy = false;
+      applyMediaControlButtons();
+    }
+  }
+
+  async function setLocalMicEnabled(want, opts) {
+    opts = opts || {};
+    if (!isRoomMediaReady()) {
+      if (opts.showBanner !== false) setDeviceBanner('Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return false;
+    }
+    var current = getActualMicEnabled();
+    want = !!want;
+    if (current === want) {
+      syncLocalMediaStateFromRoom();
+      mediaLog('mic set idempotent actual=' + want);
+      return true;
+    }
+
+    micBusy = true;
+    applyMediaControlButtons();
+    mediaLog('mic toggle requested current=' + current + ' want=' + want);
+    try {
+      await room.localParticipant.setMicrophoneEnabled(want);
+
+      var lm = localMediaApi();
+      var verified;
+      if (lm && lm.waitForMediaState) {
+        verified = await lm.waitForMediaState(getActualMicEnabled, want, { timeoutMs: 2500 });
+      } else {
+        verified = { ok: getActualMicEnabled() === want, actual: getActualMicEnabled() };
+      }
+
+      syncLocalMediaStateFromRoom();
+      updateLocalPreview();
+
+      if (!verified.ok && getActualMicEnabled() !== want) {
+        mediaLog('mic set verify timeout want=' + want + ' actual=' + verified.actual);
+        if (opts.showBanner !== false) {
+          setDeviceBanner(want
+            ? 'Không bật được micro. Cho phép Micro trong trình duyệt rồi thử lại.'
+            : 'Không tắt được micro.');
+        }
+        return false;
+      }
+
+      mediaLog('mic set success actual=' + getActualMicEnabled());
+      if (want) setDeviceBanner('');
+      return true;
+    } catch (eMic) {
+      mediaLog('mic set failed error=' + (eMic && eMic.message ? eMic.message : String(eMic)));
+      console.warn('[embed] setMicrophoneEnabled failed', eMic);
+      syncLocalMediaStateFromRoom();
+      updateLocalPreview();
+      if (opts.showBanner !== false) {
+        setDeviceBanner(want
+          ? 'Không bật được micro. Kiểm tra quyền trình duyệt.'
+          : 'Không tắt được micro.');
+      }
+      return false;
+    } finally {
+      micBusy = false;
+      applyMediaControlButtons();
     }
   }
 
   async function toggleLocalCamera() {
-    if (cameraRequestBusy || !room) return;
-    cameraRequestBusy = true;
-    try {
-      await setLocalCameraEnabled(!camEnabled);
-    } finally {
-      cameraRequestBusy = false;
+    var lm = localMediaApi();
+    var plan = lm
+      ? lm.planToggle({
+          busy: cameraBusy,
+          roomConnected: isRoomMediaReady(),
+          participant: room && room.localParticipant,
+          current: getActualCameraEnabled(),
+          busyMessage: 'Đang xử lý camera…'
+        })
+      : null;
+
+    if (plan && plan.action === 'busy') {
+      setDeviceBanner(plan.message || 'Đang xử lý camera…');
+      return;
     }
+    if (plan && plan.action === 'disable') {
+      setDeviceBanner(plan.message || 'Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return;
+    }
+    if (!isRoomMediaReady()) {
+      setDeviceBanner('Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return;
+    }
+    if (cameraBusy) {
+      setDeviceBanner('Đang xử lý camera…');
+      return;
+    }
+    var want = !getActualCameraEnabled();
+    await setLocalCameraEnabled(want);
+  }
+
+  async function toggleLocalMic() {
+    var lm = localMediaApi();
+    var plan = lm
+      ? lm.planToggle({
+          busy: micBusy,
+          roomConnected: isRoomMediaReady(),
+          participant: room && room.localParticipant,
+          current: getActualMicEnabled(),
+          busyMessage: 'Đang xử lý micro…'
+        })
+      : null;
+
+    if (plan && plan.action === 'busy') {
+      setDeviceBanner(plan.message || 'Đang xử lý micro…');
+      return;
+    }
+    if (plan && plan.action === 'disable') {
+      setDeviceBanner(plan.message || 'Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return;
+    }
+    if (!isRoomMediaReady()) {
+      setDeviceBanner('Media chưa sẵn sàng');
+      applyMediaControlButtons();
+      return;
+    }
+    if (micBusy) {
+      setDeviceBanner('Đang xử lý micro…');
+      return;
+    }
+    var want = !getActualMicEnabled();
+    await setLocalMicEnabled(want);
   }
 
   async function acceptCameraRequest() {
-    if (cameraRequestBusy || !room) return;
+    if (cameraRequestBusy) return;
+    if (!isRoomMediaReady()) {
+      setDeviceBanner('Media chưa sẵn sàng');
+      return;
+    }
     cameraRequestBusy = true;
     try {
       var ok = await setLocalCameraEnabled(true);
@@ -849,25 +1048,29 @@
   }
 
   function updateLocalPreview() {
-    var videoTrack = getLocalCameraTrack();
-    hasLocalVideo = !!(videoTrack && camEnabled);
-    hasLocalAudio = localTracks.some(function (t) {
-      return t && (t.kind === 'audio' || String(t.kind || '').toLowerCase() === 'audio');
-    }) || !!(room && room.localParticipant && room.localParticipant.isMicrophoneEnabled);
+    if (room && room.localParticipant) {
+      micEnabled = getActualMicEnabled();
+      camEnabled = getActualCameraEnabled();
+      hasLocalAudio = micEnabled;
+      hasLocalVideo = !!getLocalCameraTrack() && camEnabled;
+    } else {
+      hasLocalVideo = false;
+      hasLocalAudio = false;
+    }
 
     // Attach / hide handled in refreshStagePresentation
     refreshStagePresentation();
+
+    // Do not overwrite explicit busy/error banners while toggling
+    if (micBusy || cameraBusy) return;
 
     if (!desiredCameraEnabled) {
       if (els.btnRetryDevices) {
         els.btnRetryDevices.classList.toggle('hidden', hasLocalAudio);
         els.btnRetryDevices.textContent = 'Thử lại micro';
       }
-      if (!hasLocalAudio) {
-        setDeviceBanner('Chưa bật micro. Bấm «Thử lại micro» khi sẵn sàng.');
-      } else {
-        // Clear banner once mic is fine on audio call — no avatar-pip noise
-        setDeviceBanner('');
+      if (!hasLocalAudio && isRoomMediaReady()) {
+        setDeviceBanner('Chưa bật micro. Bấm Micro hoặc «Thử lại micro» khi sẵn sàng.');
       }
       return;
     }
@@ -875,14 +1078,11 @@
       els.btnRetryDevices.classList.toggle('hidden', hasLocalVideo && hasLocalAudio);
       els.btnRetryDevices.textContent = 'Thử lại micro/camera';
     }
+    if (!isRoomMediaReady()) return;
     if (!hasLocalVideo && !hasLocalAudio) {
       setDeviceBanner('Chưa bật micro/camera — bạn vẫn nghe được. Bấm «Thử lại micro/camera» khi sẵn sàng.');
-    } else if (!hasLocalVideo && camEnabled) {
-      setDeviceBanner('Đang bật camera…');
     } else if (!hasLocalAudio) {
-      setDeviceBanner('Chưa bật micro — chỉ gửi hình. Bấm «Thử lại micro/camera» để xin lại quyền.');
-    } else {
-      setDeviceBanner('');
+      setDeviceBanner('Chưa bật micro — chỉ gửi hình. Bấm Micro hoặc «Thử lại micro/camera».');
     }
   }
 
@@ -1036,15 +1236,14 @@
           console.warn('[embed] publish after retry failed', pubErr);
         }
       }
-      // Enforce desired camera after republish
+      // Enforce desired camera after republish (await + verify)
       if (room.localParticipant) {
         try {
-          await room.localParticipant.setCameraEnabled(!!desiredCameraEnabled);
-          camEnabled = !!desiredCameraEnabled;
+          await setLocalCameraEnabled(!!desiredCameraEnabled, { showBanner: false });
         } catch (eOff) { /* ignore */ }
       }
+      syncLocalMediaStateFromRoom();
       updateLocalPreview();
-      syncCamButton();
       setStatus('Đang tư vấn');
     } catch (err) {
       console.warn(err);
@@ -1066,11 +1265,16 @@
     if (joining || !callId) return;
     joining = true;
     intentionalLeave = false;
+    micBusy = false;
+    cameraBusy = false;
     showPane('media');
     setStatus('Đang kết nối');
     els.mediaHint.classList.remove('hidden');
     els.mediaHint.textContent = 'Đang chuẩn bị…';
     setDeviceBanner('');
+    // Controls disabled until Room Connected
+    if (els.btnMic) { els.btnMic.disabled = true; els.btnMic.title = 'Media chưa sẵn sàng'; }
+    if (els.btnCam) { els.btnCam.disabled = true; els.btnCam.title = 'Media chưa sẵn sàng'; }
 
     try {
       var LivekitClient = await loadLivekit();
@@ -1116,6 +1320,7 @@
       });
       room.on(LivekitClient.RoomEvent.TrackMuted, function (publication, participant) {
         if (participant && participant.isLocal) {
+          syncLocalMediaStateFromRoom();
           updateLocalPreview();
           return;
         }
@@ -1126,6 +1331,7 @@
       });
       room.on(LivekitClient.RoomEvent.TrackUnmuted, function (publication, participant) {
         if (participant && participant.isLocal) {
+          syncLocalMediaStateFromRoom();
           updateLocalPreview();
           return;
         }
@@ -1133,19 +1339,14 @@
           attachRemoteTrackEmbed(LivekitClient, publication.track);
         }
       });
-      room.on(LivekitClient.RoomEvent.LocalTrackPublished, function (publication) {
-        if (publication && (publication.kind === 'video' ||
-            (publication.track && isVideoTrack(publication.track, LivekitClient)))) {
-          camEnabled = true;
-          desiredCameraEnabled = true;
-          updateLocalPreview();
-        }
+      room.on(LivekitClient.RoomEvent.LocalTrackPublished, function () {
+        // Do not force desiredCameraEnabled — only re-sync actual LiveKit state
+        syncLocalMediaStateFromRoom();
+        updateLocalPreview();
       });
-      room.on(LivekitClient.RoomEvent.LocalTrackUnpublished, function (publication) {
-        if (publication && (publication.kind === 'video' ||
-            (publication.track && isVideoTrack(publication.track, LivekitClient)))) {
-          updateLocalPreview();
-        }
+      room.on(LivekitClient.RoomEvent.LocalTrackUnpublished, function () {
+        syncLocalMediaStateFromRoom();
+        updateLocalPreview();
       });
       room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, function () {
         if (room && !room.canPlaybackAudio) {
@@ -1245,8 +1446,11 @@
 
       setStatus(preferredMedia === 'audio' ? 'Cuộc gọi thoại' : 'Đang tư vấn');
       if (els.mediaHint) els.mediaHint.classList.add('hidden');
+      // Authoritative sync after connect + publish — never trust pre-join booleans
+      syncLocalMediaStateFromRoom();
       updateLocalPreview();
       refreshStagePresentation();
+      mediaLog('room connected mic=' + micEnabled + ' cam=' + camEnabled);
       postParent({ type: 'state', state: 'Connected' });
       if (!pollTimer) startPoll();
       saveCallState();
@@ -1260,6 +1464,7 @@
       if (!pollTimer) startPoll();
     } finally {
       joining = false;
+      applyMediaControlButtons();
     }
   }
 
@@ -1415,6 +1620,9 @@
     stopCallTimer();
     remoteHasVideo = false;
     hasLocalVideo = false;
+    hasLocalAudio = false;
+    micBusy = false;
+    cameraBusy = false;
     try {
       if (room) room.disconnect();
     } catch { /* ignore */ }
@@ -1423,6 +1631,9 @@
       try { t.stop(); } catch { /* ignore */ }
     });
     localTracks = [];
+    // Presentation cache — not authoritative until next room
+    micEnabled = false;
+    camEnabled = false;
     try {
       if (els.localVideo) {
         els.localVideo.srcObject = null;
@@ -1434,6 +1645,7 @@
     if (els.mediaPane) {
       els.mediaPane.classList.remove('is-voice-mode', 'has-local-cam');
     }
+    applyMediaControlButtons();
   }
 
   /**
@@ -1590,16 +1802,21 @@
   }
 
   function toggleMic() {
-    micEnabled = !micEnabled;
-    if (room && room.localParticipant) {
-      try { room.localParticipant.setMicrophoneEnabled(micEnabled); } catch { /* ignore */ }
-    }
-    els.btnMic.classList.toggle('off', !micEnabled);
-    els.btnMic.textContent = micEnabled ? 'Micro' : 'Tắt micro';
+    toggleLocalMic().catch(function (e) {
+      mediaLog('mic toggle unhandled error=' + (e && e.message ? e.message : String(e)));
+      console.warn('[embed] toggleMic', e);
+      syncLocalMediaStateFromRoom();
+      applyMediaControlButtons();
+    });
   }
 
   function toggleCam() {
-    toggleLocalCamera();
+    toggleLocalCamera().catch(function (e) {
+      mediaLog('camera toggle unhandled error=' + (e && e.message ? e.message : String(e)));
+      console.warn('[embed] toggleCam', e);
+      syncLocalMediaStateFromRoom();
+      applyMediaControlButtons();
+    });
   }
 
   function resetIdle() {

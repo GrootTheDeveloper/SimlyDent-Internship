@@ -428,6 +428,16 @@ body { overflow: hidden; }
   opacity: 0.55;
   text-decoration: line-through;
 }
+.ctl:disabled,
+.ctl.busy {
+  opacity: 0.65;
+  cursor: wait;
+  pointer-events: none;
+}
+.ctl:disabled:not(.busy) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 .ctl.mode-switch {
   border-color: rgba(0, 113, 227, 0.55);
 }
