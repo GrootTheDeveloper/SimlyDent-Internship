@@ -139,7 +139,8 @@ public static class MediaEndpoints
             foreach (var a in assets)
             {
                 idx++;
-                var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
+                var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
+                          ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
                 items.Add(ConsultationEndpoints.ToDetail(a, idx, obj));
             }
             return Results.Ok(new { items });
@@ -318,7 +319,8 @@ public static class MediaEndpoints
                 foreach (var a in assets.OrderBy(x => x.RequestedAt))
                 {
                     i++;
-                    var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
+                    var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
+                              ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
                     items.Add(ConsultationEndpoints.ToDetail(a, i, obj));
                 }
             }

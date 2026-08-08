@@ -224,7 +224,9 @@ public static class ConsultationEndpoints
 
         foreach (var a in assets.OrderBy(x => x.RequestedAt))
         {
-            var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct)
+            // Prefer Playback (canonical download) then Original — supports post-optimize Original delete.
+            var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
+                      ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct)
                       ?? (await catalog.GetObjectsByAssetAsync(a.Id, ct)).FirstOrDefault();
             if (a.Kind == MediaAssetKinds.CallAudio)
             {
