@@ -93,9 +93,10 @@ public sealed class LiveKitEgressService(
 
     /// <summary>
     /// TrackCompositeEgress — patient camera video track ONLY (no audio).
-    /// Uses video_track_id (singular), no participant_identity.
+    /// Legacy enum path (fixed preset / env advanced with fixed 720p30).
+    /// Prefer <see cref="StartTrackCompositeRecordingAsync(string,string,string,string?,DentalEncodeProfile,CancellationToken)"/>.
     /// </summary>
-    public async Task<EgressResult> StartTrackCompositeRecordingAsync(
+    public Task<EgressResult> StartTrackCompositeRecordingAsync(
         string roomName,
         string videoTrackId,
         string fileName,
@@ -103,9 +104,6 @@ public sealed class LiveKitEgressService(
         DentalQualityProfile profile = DentalQualityProfile.HD_720p_30,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(videoTrackId))
-            throw new ArgumentException("video_track_id is required.", nameof(videoTrackId));
-
         var (width, height, bitrateKbps) = profile switch
         {
             DentalQualityProfile.HD_1080p_30 => (
@@ -117,33 +115,73 @@ public sealed class LiveKitEgressService(
                 ParsePositiveInt(_configuration["DENTAL_HEIGHT_720"], 720),
                 ParsePositiveInt(_configuration["DENTAL_BITRATE_720_KBPS"], 2500))
         };
+        var encode = new DentalEncodeProfile(
+            width, height, 30, bitrateKbps, "H264_MAIN",
+            profile == DentalQualityProfile.HD_1080p_30 ? "legacy-H264_1080P_30" : "legacy-H264_720P_30",
+            null, null, null,
+            UsedAdvanced: string.Equals(_configuration["DENTAL_ENCODING_MODE"], "advanced", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(_configuration["DENTAL_ENCODING_MODE"], "source-aware", StringComparison.OrdinalIgnoreCase));
+        return StartTrackCompositeRecordingAsync(
+            roomName, videoTrackId, fileName, storageKey, encode, cancellationToken);
+    }
 
+    /// <summary>
+    /// TrackComposite with source-aware or legacy profile.
+    /// When <see cref="DentalEncodeProfile.UsedAdvanced"/>, builds advanced width/height/framerate/bitrate
+    /// (no fixed H264_720P_30 preset).
+    /// </summary>
+    public async Task<EgressResult> StartTrackCompositeRecordingAsync(
+        string roomName,
+        string videoTrackId,
+        string fileName,
+        string? storageKey,
+        DentalEncodeProfile encode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoTrackId))
+            throw new ArgumentException("video_track_id is required.", nameof(videoTrackId));
+        ArgumentNullException.ThrowIfNull(encode);
+
+        var request = BuildTrackCompositeRequest(roomName, videoTrackId, fileName, storageKey, encode);
+        return await PostAsync("StartTrackCompositeEgress", request, cancellationToken);
+    }
+
+    /// <summary>Pure request builder for unit tests / diagnostics.</summary>
+    public Dictionary<string, object?> BuildTrackCompositeRequest(
+        string roomName,
+        string videoTrackId,
+        string fileName,
+        string? storageKey,
+        DentalEncodeProfile encode)
+    {
         var fileOutput = BuildFileOutput(fileName, storageKey);
-        // Prefer preset for TrackComposite — advanced options vary by LiveKit Egress version
-        // and can cause 4xx that bubble up as client "Start clip HTTP 400/502".
         var request = new Dictionary<string, object?>
         {
             ["room_name"] = roomName,
             ["video_track_id"] = videoTrackId,
-            ["file_outputs"] = new[] { fileOutput },
-            ["preset"] = profile == DentalQualityProfile.HD_1080p_30
-                ? "H264_1080P_30"
-                : "H264_720P_30"
+            ["file_outputs"] = new[] { fileOutput }
         };
-        // Keep advanced as optional override when env forces custom encode.
-        if (string.Equals(_configuration["DENTAL_ENCODING_MODE"], "advanced", StringComparison.OrdinalIgnoreCase))
+
+        if (encode.UsedAdvanced)
         {
-            request.Remove("preset");
             request["advanced"] = new Dictionary<string, object?>
             {
-                ["width"] = width,
-                ["height"] = height,
-                ["framerate"] = 30,
-                ["videoCodec"] = "H264_MAIN",
-                ["videoBitrate"] = bitrateKbps
+                ["width"] = encode.Width,
+                ["height"] = encode.Height,
+                ["framerate"] = encode.FrameRate,
+                ["videoCodec"] = string.IsNullOrWhiteSpace(encode.Codec) ? "H264_MAIN" : encode.Codec,
+                ["videoBitrate"] = encode.VideoBitrateKbps
             };
         }
-        return await PostAsync("StartTrackCompositeEgress", request, cancellationToken);
+        else
+        {
+            // Legacy preset path (compatibility)
+            request["preset"] = encode.Height >= 1080 && encode.Width >= 1920
+                ? "H264_1080P_30"
+                : "H264_720P_30";
+        }
+
+        return request;
     }
 
     private Dictionary<string, object?> BuildFileOutput(string fileName, string? storageKey)

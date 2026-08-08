@@ -62,6 +62,42 @@ public static class PocOptionsRegistration
                 o.RetentionDays = rd;
         });
 
+        services.Configure<DentalVideoOptions>(o =>
+        {
+            o.EncodingMode = (configuration["DENTAL_ENCODING_MODE"] ?? o.EncodingMode).Trim();
+            if (int.TryParse(configuration["DENTAL_MAX_WIDTH"], out var mw) && mw > 0) o.MaxWidth = mw;
+            if (int.TryParse(configuration["DENTAL_MAX_HEIGHT"], out var mh) && mh > 0) o.MaxHeight = mh;
+            if (int.TryParse(configuration["DENTAL_MAX_FPS"], out var mf) && mf > 0) o.MaxFps = mf;
+            if (int.TryParse(configuration["DENTAL_BITRATE_480P_KBPS"], out var b480) && b480 > 0)
+                o.Bitrate480pKbps = b480;
+            if (int.TryParse(configuration["DENTAL_BITRATE_720P20_KBPS"], out var b720_20) && b720_20 > 0)
+                o.Bitrate720p20Kbps = b720_20;
+            if (int.TryParse(configuration["DENTAL_BITRATE_720P30_KBPS"], out var b720_30) && b720_30 > 0)
+                o.Bitrate720p30Kbps = b720_30;
+            // Legacy alias
+            if (int.TryParse(configuration["DENTAL_BITRATE_720_KBPS"], out var b720) && b720 > 0
+                && string.IsNullOrWhiteSpace(configuration["DENTAL_BITRATE_720P30_KBPS"]))
+                o.Bitrate720p30Kbps = b720;
+            if (int.TryParse(configuration["DENTAL_MIN_BITRATE_KBPS"], out var bmin) && bmin > 0)
+                o.MinBitrateKbps = bmin;
+            if (int.TryParse(configuration["DENTAL_MAX_BITRATE_KBPS"], out var bmax) && bmax > 0)
+                o.MaxBitrateKbps = bmax;
+
+            o.OptimizeEnabled =
+                string.Equals(configuration["DENTAL_VIDEO_OPTIMIZE_ENABLED"], "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(configuration["DENTAL_VIDEO_OPTIMIZE_ENABLED"], "true", StringComparison.OrdinalIgnoreCase);
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_CRF"], out var crf) && crf is >= 16 and <= 32)
+                o.OptimizeCrf = crf;
+            o.OptimizePreset = configuration["DENTAL_VIDEO_OPTIMIZE_PRESET"] ?? o.OptimizePreset;
+            o.DeleteOriginalAfterOptimize =
+                string.Equals(configuration["DENTAL_VIDEO_DELETE_ORIGINAL_AFTER_OPTIMIZE"], "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(configuration["DENTAL_VIDEO_DELETE_ORIGINAL_AFTER_OPTIMIZE"], "true", StringComparison.OrdinalIgnoreCase);
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_INTERVAL_SECONDS"], out var oi) && oi > 0)
+                o.OptimizeIntervalSeconds = oi;
+            if (int.TryParse(configuration["DENTAL_VIDEO_OPTIMIZE_BATCH"], out var ob) && ob > 0)
+                o.OptimizeBatch = ob;
+        });
+
         return services;
     }
 

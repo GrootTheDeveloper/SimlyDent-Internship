@@ -1066,17 +1066,21 @@ export function mountCallWindowApp(opts = {}) {
               ? [...(remotePub.videoTrackPublications?.values?.() || [])][0]
                 ?.track?.mediaStreamTrack?.getSettings?.()
               : null
-            // Round getSettings() floats — backend used to reject 29.97 as int ("Invalid JSON body")
+            // Width/height as ints; frameRate keep float (29.97) — backend StartDentalClipRequest uses double?
             const toInt = (v) => {
               const n = Number(v)
               return Number.isFinite(n) && n > 0 ? Math.round(n) : null
+            }
+            const toFps = (v) => {
+              const n = Number(v)
+              return Number.isFinite(n) && n > 0 ? n : null
             }
             const payload = {
               patientParticipantIdentity: patientIdentity,
               patientVideoTrackSidHint: trackHint || null,
               actualWidth: toInt(settings?.width),
               actualHeight: toInt(settings?.height),
-              actualFrameRate: toInt(settings?.frameRate)
+              actualFrameRate: toFps(settings?.frameRate)
             }
             const res = await apiFetch(`/api/calls/${this.callId}/video-clips/start`, {
               method: 'POST',

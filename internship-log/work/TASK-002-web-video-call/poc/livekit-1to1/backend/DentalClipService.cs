@@ -7,6 +7,8 @@ public sealed class DentalClipService(
     RecordingPolicyRegistry policies,
     RecordingAuditService audit,
     CallMediaGate mediaGate,
+    DentalEncodingProfileSelector profileSelector,
+    Microsoft.Extensions.Options.IOptions<Options.DentalVideoOptions> dentalOptions,
     ILogger<DentalClipService> logger)
 {
     public async Task<(Guid AssetId, string Status)> StartClipAsync(
@@ -16,6 +18,7 @@ public sealed class DentalClipService(
         string? patientVideoTrackSidHint,
         int? actualWidth,
         int? actualHeight,
+        double? actualFrameRate = null,
         CancellationToken ct = default)
     {
         // Gate coordinates with graceful End — do not hold call.SyncRoot across awaits.
@@ -100,10 +103,17 @@ public sealed class DentalClipService(
             call.ConsultationSessionId = session.Id;
         }
 
+        // Source-aware profile (no upscale / no fake FPS). Client dims are hints only.
+        var opt = dentalOptions.Value;
+        var encode = opt.IsLegacyPreset
+            ? profileSelector.SelectLegacy720p30()
+            : profileSelector.Select(actualWidth, actualHeight, actualFrameRate);
+
+        // Persist *output* encode dims as provisional object metadata (probe overwrites later).
         await catalog.UpsertMediaObjectAsync(assetId, MediaObjectKinds.Original, storageKey,
             mimeType: "video/mp4", bytes: null, etag: null,
-            width: actualWidth, height: actualHeight, durationMs: null,
-            bitrateKbps: null, codec: "H264", ct);
+            width: encode.Width, height: encode.Height, durationMs: null,
+            bitrateKbps: encode.VideoBitrateKbps, codec: "H264", ct);
 
         // Abort cleanly if End claimed after insert but before Egress
         if (call.GracefulEndPending || call.Status != CallStatus.Accepted)
@@ -119,12 +129,50 @@ public sealed class DentalClipService(
             throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
         }
 
+        logger.LogInformation(
+            "DentalClip encode call={CallId} asset={AssetId} source={SrcW}x{SrcH}@{SrcFps} output={OutW}x{OutH}@{OutFps} bitrate={Bitrate} mode={Mode} profile={Profile}",
+            call.Id, assetId,
+            actualWidth, actualHeight, actualFrameRate,
+            encode.Width, encode.Height, encode.FrameRate, encode.VideoBitrateKbps,
+            opt.EncodingMode, encode.ProfileName);
+
         EgressResult result;
         try
         {
             result = await egress.StartTrackCompositeRecordingAsync(
-                call.RoomName, resolvedTrackSid, fileName, storageKey,
-                DentalQualityProfile.HD_720p_30, ct);
+                call.RoomName, resolvedTrackSid, fileName, storageKey, encode, ct);
+        }
+        catch (Exception ex) when (encode.UsedAdvanced)
+        {
+            // Safe fallback: some LiveKit versions reject advanced TrackComposite — retry legacy preset.
+            logger.LogWarning(ex,
+                "Dental clip advanced Egress failed call={CallId}; falling back to legacy 720p30 preset",
+                call.Id);
+            try
+            {
+                var legacy = profileSelector.SelectLegacy720p30();
+                result = await egress.StartTrackCompositeRecordingAsync(
+                    call.RoomName, resolvedTrackSid, fileName, storageKey, legacy, ct);
+                encode = legacy;
+                await catalog.UpsertMediaObjectAsync(assetId, MediaObjectKinds.Original, storageKey,
+                    mimeType: "video/mp4", bytes: null, etag: null,
+                    width: legacy.Width, height: legacy.Height, durationMs: null,
+                    bitrateKbps: legacy.VideoBitrateKbps, codec: "H264", ct);
+            }
+            catch (Exception ex2)
+            {
+                logger.LogWarning(ex2, "Dental clip Egress start failed for call {CallId}", call.Id);
+                await catalog.TryMarkFailedAsync(assetId, null, ex2.Message, ct);
+                lock (call.SyncRoot)
+                {
+                    call.ActiveDentalClipAssetId = null;
+                    call.ActiveDentalClipStatus = "Idle";
+                }
+                audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
+                    "DentalClipStartFailed", "Failed", ex2.Message);
+                throw new InvalidOperationException(
+                    "Không start được clip Egress: " + ex2.Message, ex2);
+            }
         }
         catch (Exception ex)
         {
@@ -159,7 +207,7 @@ public sealed class DentalClipService(
 
         audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
             "DentalClipStarted", "Ok",
-            $"track={resolvedTrackSid};egress={result.EgressId};{actualWidth}x{actualHeight}");
+            $"track={resolvedTrackSid};egress={result.EgressId};{encode.AuditDetail}");
         return (assetId, MediaAssetStatus.Recording);
     }
 

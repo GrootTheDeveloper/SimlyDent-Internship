@@ -34,7 +34,8 @@ public sealed class RecordingFinalizeService(
     IConfiguration configuration,
     ILogger<RecordingFinalizeService> logger,
     IOptions<RecordingRuntimeOptions>? recordingOptions = null,
-    IConsultationCatalog? consultationCatalog = null)
+    IConsultationCatalog? consultationCatalog = null,
+    MediaProbeService? mediaProbe = null)
 {
     private int FinalizeTimeoutSeconds =>
         recordingOptions?.Value.FinalizeTimeoutSeconds > 0
@@ -192,13 +193,48 @@ public sealed class RecordingFinalizeService(
             var objectOk = await EnsureMediaObjectExistsAsync(asset, key!, cancellationToken);
             if (objectOk)
             {
+                long? durationMs = null;
+                long? bytes = null;
+                // Best-effort probe for dental clips — never fails finalize
+                if (asset.Kind == MediaAssetKinds.DentalVideoClip && consultationCatalog is not null)
+                {
+                    try
+                    {
+                        var probe = await ProbeDentalOriginalAsync(asset, key!, cancellationToken);
+                        if (probe is not null)
+                        {
+                            durationMs = probe.DurationMs;
+                            bytes = probe.Bytes;
+                            await consultationCatalog.UpsertMediaObjectAsync(
+                                asset.Id, MediaObjectKinds.Original, key!,
+                                mimeType: "video/mp4",
+                                bytes: probe.Bytes,
+                                etag: null,
+                                width: probe.Width,
+                                height: probe.Height,
+                                durationMs: probe.DurationMs,
+                                bitrateKbps: probe.BitrateKbps,
+                                codec: probe.Codec ?? "H264",
+                                cancellationToken);
+                            logger.LogInformation(
+                                "DentalClip probe asset={AssetId} bytes={Bytes} {W}x{H} durMs={Dur} bitrate={Br} codec={Codec}",
+                                asset.Id, probe.Bytes, probe.Width, probe.Height,
+                                probe.DurationMs, probe.BitrateKbps, probe.Codec);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogDebug(ex, "Dental probe skipped asset={AssetId}", asset.Id);
+                    }
+                }
+
                 var endedAt = DateTimeOffset.UtcNow;
                 var ready = await consultationCatalog.TryMarkReadyAsync(
-                    asset.Id, egressId, durationMs: null, endedAt, cancellationToken);
+                    asset.Id, egressId, durationMs, endedAt, cancellationToken);
                 if (ready)
                 {
                     await consultationCatalog.MarkMediaObjectReadyAsync(
-                        asset.Id, MediaObjectKinds.Original, null, null, null, cancellationToken);
+                        asset.Id, MediaObjectKinds.Original, bytes, null, durationMs, cancellationToken);
                     DualWriteMediaCall(asset, failedStatus: false);
                     audit.Append(asset.ClinicId, asset.CallId, asset.Id.ToString(), "system", "System",
                         "MediaReady", "Ok", status);
@@ -263,6 +299,80 @@ public sealed class RecordingFinalizeService(
         }
         return new FinalizeMediaResult(true, failed,
             failed ? MediaAssetStatus.Failed : asset.Status, failMsg);
+    }
+
+    private async Task<MediaProbeResult?> ProbeDentalOriginalAsync(
+        MediaAsset asset,
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        if (mediaProbe is null) return null;
+
+        // Prefer local egress file
+        var local = TryFindLocalEgressFile(asset);
+        string? tempCopy = null;
+        try
+        {
+            if (local is null || !File.Exists(local))
+            {
+                // Stream from storage to temp for probe
+                await using var stream = await storage.OpenReadAsync(storageKey, cancellationToken);
+                if (stream is null) return null;
+                tempCopy = Path.Combine(Path.GetTempPath(), $"probe-{asset.Id:N}.mp4");
+                await using (var fs = File.Create(tempCopy))
+                    await stream.CopyToAsync(fs, cancellationToken);
+                local = tempCopy;
+            }
+
+            var result = await mediaProbe.ProbeFileAsync(local, cancellationToken);
+            if (result.Error is not null && result.Bytes is null && result.Width is null)
+                return null;
+            return result;
+        }
+        finally
+        {
+            if (tempCopy is not null)
+            {
+                try { File.Delete(tempCopy); } catch { /* ignore */ }
+            }
+        }
+    }
+
+    private string? TryFindLocalEgressFile(MediaAsset asset)
+    {
+        var candidates = new List<string>
+        {
+            egress.GetLocalEgressPath($"clip-{asset.CallId:N}-{asset.Id:N}.mp4")
+        };
+        var baseName = Path.GetFileName(MediaStorageKeys.VideoClipKey(asset.ClinicId, asset.CallId, asset.Id));
+        if (!string.IsNullOrWhiteSpace(baseName))
+            candidates.Add(egress.GetLocalEgressPath(baseName));
+
+        foreach (var c in candidates)
+        {
+            if (File.Exists(c)) return c;
+        }
+
+        try
+        {
+            var outDir = Path.GetDirectoryName(egress.GetLocalEgressPath("x")) ?? "/recordings";
+            if (!Directory.Exists(outDir)) return null;
+            var callToken = asset.CallId.ToString("N");
+            var assetToken = asset.Id.ToString("N");
+            return Directory.EnumerateFiles(outDir, "*.mp4")
+                .Where(f =>
+                {
+                    var n = Path.GetFileName(f);
+                    return n.Contains(callToken, StringComparison.OrdinalIgnoreCase)
+                           || n.Contains(assetToken, StringComparison.OrdinalIgnoreCase);
+                })
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<bool> EnsureMediaObjectExistsAsync(

@@ -60,7 +60,9 @@ public static class MediaEndpoints
                     call, current,
                     body.PatientParticipantIdentity.Trim(),
                     body.PatientVideoTrackSidHint,
-                    body.WidthPx, body.HeightPx, ct);
+                    body.WidthPx, body.HeightPx,
+                    body.ActualFrameRate, // may be 29.97 — selector normalizes
+                    ct);
                 await dispatcher.NotifyCallAsync(call);
                 return Results.Ok(new { assetId, status });
             }
