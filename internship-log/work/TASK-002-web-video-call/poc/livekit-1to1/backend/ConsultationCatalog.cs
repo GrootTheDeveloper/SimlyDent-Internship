@@ -74,6 +74,34 @@ public static class MediaAssetStatus
     public static bool IsDownloadable(string s) => s == Ready;
 }
 
+/// <summary>Background CRF optimizer lifecycle on DentalVideoClip assets.</summary>
+public static class DentalOptimizationStatus
+{
+    public const string Pending = "Pending";
+    public const string Optimizing = "Optimizing";
+    public const string Ready = "Ready";
+    public const string Skipped = "Skipped";
+    public const string Failed = "Failed";
+}
+
+/// <summary>
+/// Cross-clinic candidate for background optimize (system worker only).
+/// Does not expose data to user-facing endpoints.
+/// </summary>
+public sealed record DentalOptimizationCandidate(
+    Guid AssetId,
+    Guid SessionId,
+    Guid CallId,
+    string ClinicId,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? CompletedAt,
+    string? OptimizationStatus,
+    int OptimizationAttempts,
+    DateTimeOffset? OptimizationLeaseUntil,
+    string OriginalStorageKey,
+    long? OriginalBytes,
+    DateTimeOffset? OriginalReadyAt);
+
 public sealed class MediaAssetConflictException : Exception
 {
     public MediaAssetConflictException(string message) : base(message) { }
@@ -137,6 +165,34 @@ public interface IConsultationCatalog
     Task<IReadOnlyList<MediaAsset>> ListDeletePendingAsync(int limit, CancellationToken ct = default);
 
     Task<(int audio, int video, int photo)> GetMediaCountsAsync(Guid sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// System-only: Ready DentalVideoClip with usable Original and no Ready Playback,
+    /// not permanently Skipped/Ready-optimized, lease free. Cross-clinic, bounded, deterministic order.
+    /// </summary>
+    Task<IReadOnlyList<DentalOptimizationCandidate>> ListDentalVideoOptimizationCandidatesAsync(
+        int limit, int maxAttempts, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomic claim for optimizer. Returns true if this worker holds the lease.
+    /// Does not hold a DB transaction during FFmpeg.
+    /// </summary>
+    Task<bool> TryClaimDentalOptimizationAsync(
+        Guid assetId, string workerId, DateTimeOffset leaseUntil, int maxAttempts,
+        CancellationToken ct = default);
+
+    Task CompleteDentalOptimizationAsync(
+        Guid assetId, string status, string? error, CancellationToken ct = default);
+
+    /// <summary>
+    /// Release claim after transient failure: increments attempts, sets backoff lease, status Failed or Pending.
+    /// </summary>
+    Task ReleaseDentalOptimizationClaimAsync(
+        Guid assetId, string workerId, bool permanent, string? error, TimeSpan backoff,
+        CancellationToken ct = default);
+
+    /// <summary>Remove a media_objects row (e.g. Original after verified Playback + delete flag).</summary>
+    Task<bool> RemoveMediaObjectAsync(Guid assetId, string kind, CancellationToken ct = default);
 }
 
 // === Memory implementation ===
@@ -147,8 +203,18 @@ public sealed class MemoryConsultationCatalog : IConsultationCatalog
     private readonly ConcurrentDictionary<Guid, MediaAsset> _assets = new();
     private readonly ConcurrentDictionary<long, MediaObject> _objects = new();
     private readonly ConcurrentDictionary<Guid, Guid> _sessionByCall = new();
+    private readonly ConcurrentDictionary<Guid, DentalOptState> _opt = new();
     private long _objectSeq;
     private readonly object _gate = new();
+
+    private sealed class DentalOptState
+    {
+        public string? Status;
+        public string? ClaimedBy;
+        public DateTimeOffset? LeaseUntil;
+        public int Attempts;
+        public string? LastError;
+    }
 
     public string BackendName => "memory";
 
@@ -582,6 +648,154 @@ public sealed class MemoryConsultationCatalog : IConsultationCatalog
         var photo = assets.Count(a => a.Kind == MediaAssetKinds.Snapshot && a.Status == MediaAssetStatus.Ready);
         return Task.FromResult((audio, video, photo));
     }
+
+    public Task<IReadOnlyList<DentalOptimizationCandidate>> ListDentalVideoOptimizationCandidatesAsync(
+        int limit, int maxAttempts, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var take = Math.Clamp(limit, 1, 100);
+        lock (_gate)
+        {
+            var list = new List<DentalOptimizationCandidate>();
+            foreach (var a in _assets.Values
+                         .Where(x => x.Kind == MediaAssetKinds.DentalVideoClip
+                                     && x.Status == MediaAssetStatus.Ready)
+                         .OrderBy(x => x.CompletedAt ?? x.RequestedAt)
+                         .ThenBy(x => x.Id))
+            {
+                if (list.Count >= take) break;
+                _opt.TryGetValue(a.Id, out var st);
+                if (!IsClaimableOptState(st, maxAttempts, now)) continue;
+
+                var original = _objects.Values.FirstOrDefault(o =>
+                    o.MediaAssetId == a.Id
+                    && string.Equals(o.Kind, MediaObjectKinds.Original, StringComparison.OrdinalIgnoreCase));
+                if (original is null || string.IsNullOrWhiteSpace(original.StorageKey)
+                    || original.ReadyAt is null)
+                    continue;
+
+                var playback = _objects.Values.FirstOrDefault(o =>
+                    o.MediaAssetId == a.Id
+                    && string.Equals(o.Kind, MediaObjectKinds.Playback, StringComparison.OrdinalIgnoreCase));
+                if (playback?.ReadyAt is not null && playback.Bytes is > 0)
+                    continue;
+
+                list.Add(new DentalOptimizationCandidate(
+                    a.Id, a.SessionId, a.CallId, a.ClinicId,
+                    a.RequestedAt, a.CompletedAt,
+                    st?.Status, st?.Attempts ?? 0, st?.LeaseUntil,
+                    original.StorageKey, original.Bytes, original.ReadyAt));
+            }
+            return Task.FromResult<IReadOnlyList<DentalOptimizationCandidate>>(list);
+        }
+    }
+
+    private static bool IsClaimableOptState(DentalOptState? st, int maxAttempts, DateTimeOffset now)
+    {
+        if (st is null) return true;
+        if (st.Status is DentalOptimizationStatus.Ready or DentalOptimizationStatus.Skipped)
+            return false;
+        if (st.Status == DentalOptimizationStatus.Optimizing)
+            return st.LeaseUntil is null || st.LeaseUntil <= now;
+        if (st.Status == DentalOptimizationStatus.Failed)
+            return st.Attempts < maxAttempts && (st.LeaseUntil is null || st.LeaseUntil <= now);
+        // Pending or unknown
+        return st.LeaseUntil is null || st.LeaseUntil <= now;
+    }
+
+    public Task<bool> TryClaimDentalOptimizationAsync(
+        Guid assetId, string workerId, DateTimeOffset leaseUntil, int maxAttempts,
+        CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            if (!_assets.TryGetValue(assetId, out var a)) return Task.FromResult(false);
+            if (a.Kind != MediaAssetKinds.DentalVideoClip || a.Status != MediaAssetStatus.Ready)
+                return Task.FromResult(false);
+
+            var playback = _objects.Values.FirstOrDefault(o =>
+                o.MediaAssetId == assetId
+                && string.Equals(o.Kind, MediaObjectKinds.Playback, StringComparison.OrdinalIgnoreCase));
+            if (playback?.ReadyAt is not null && playback.Bytes is > 0)
+                return Task.FromResult(false);
+
+            var original = _objects.Values.FirstOrDefault(o =>
+                o.MediaAssetId == assetId
+                && string.Equals(o.Kind, MediaObjectKinds.Original, StringComparison.OrdinalIgnoreCase));
+            if (original is null || original.ReadyAt is null || string.IsNullOrWhiteSpace(original.StorageKey))
+                return Task.FromResult(false);
+
+            _opt.TryGetValue(assetId, out var st);
+            st ??= new DentalOptState();
+            if (!IsClaimableOptState(st, maxAttempts, DateTimeOffset.UtcNow))
+                return Task.FromResult(false);
+
+            st.Status = DentalOptimizationStatus.Optimizing;
+            st.ClaimedBy = workerId;
+            st.LeaseUntil = leaseUntil;
+            _opt[assetId] = st;
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task CompleteDentalOptimizationAsync(
+        Guid assetId, string status, string? error, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            _opt.TryGetValue(assetId, out var st);
+            st ??= new DentalOptState();
+            st.Status = status;
+            st.ClaimedBy = null;
+            st.LeaseUntil = null;
+            st.LastError = error;
+            if (status is DentalOptimizationStatus.Ready or DentalOptimizationStatus.Skipped)
+            {
+                // terminal success paths — keep attempts as-is
+            }
+            _opt[assetId] = st;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task ReleaseDentalOptimizationClaimAsync(
+        Guid assetId, string workerId, bool permanent, string? error, TimeSpan backoff,
+        CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            _opt.TryGetValue(assetId, out var st);
+            st ??= new DentalOptState();
+            if (st.ClaimedBy is not null
+                && !string.Equals(st.ClaimedBy, workerId, StringComparison.Ordinal))
+                return Task.CompletedTask;
+
+            st.Attempts += 1;
+            st.LastError = error;
+            st.ClaimedBy = null;
+            st.LeaseUntil = DateTimeOffset.UtcNow.Add(backoff);
+            st.Status = permanent || st.Attempts >= 100
+                ? DentalOptimizationStatus.Failed
+                : DentalOptimizationStatus.Pending;
+            if (permanent)
+                st.Status = DentalOptimizationStatus.Failed;
+            _opt[assetId] = st;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> RemoveMediaObjectAsync(Guid assetId, string kind, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            var existing = _objects.FirstOrDefault(kv =>
+                kv.Value.MediaAssetId == assetId
+                && string.Equals(kv.Value.Kind, kind, StringComparison.OrdinalIgnoreCase));
+            if (existing.Value is null) return Task.FromResult(false);
+            _objects.TryRemove(existing.Key, out _);
+            return Task.FromResult(true);
+        }
+    }
 }
 
 // === PostgreSQL implementation ===
@@ -743,6 +957,23 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
             GROUP BY clinic_id
             ON CONFLICT (clinic_id) DO UPDATE
             SET next_seq = GREATEST(clinic_guest_counters.next_seq, EXCLUDED.next_seq);
+
+            -- Additive: dental video optimization claim/lease (background CRF worker)
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_status TEXT NULL;
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_claimed_by TEXT NULL;
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_lease_until TIMESTAMPTZ NULL;
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_attempts INT NOT NULL DEFAULT 0;
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_last_error TEXT NULL;
+            ALTER TABLE media_assets
+                ADD COLUMN IF NOT EXISTS optimization_updated_at TIMESTAMPTZ NULL;
+            CREATE INDEX IF NOT EXISTS ix_media_assets_opt_candidates
+                ON media_assets (kind, status, optimization_status, optimization_lease_until)
+                WHERE kind = 'DentalVideoClip' AND status = 'Ready';
             """;
         await cmd.ExecuteNonQueryAsync(ct);
         logger.LogInformation("Consultation media catalog schema ensured (PostgreSQL).");
@@ -1410,6 +1641,182 @@ public sealed class PostgresConsultationCatalog(IConfiguration configuration, IL
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return (0, 0, 0);
         return (reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2));
+    }
+
+    public async Task<IReadOnlyList<DentalOptimizationCandidate>> ListDentalVideoOptimizationCandidatesAsync(
+        int limit, int maxAttempts, CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT a.id, a.session_id, a.call_id, a.clinic_id, a.requested_at, a.completed_at,
+                   a.optimization_status, COALESCE(a.optimization_attempts, 0), a.optimization_lease_until,
+                   o.storage_key, o.bytes, o.ready_at
+            FROM media_assets a
+            INNER JOIN media_objects o
+                ON o.media_asset_id = a.id AND o.kind = 'Original'
+            WHERE a.kind = 'DentalVideoClip'
+              AND a.status = 'Ready'
+              AND o.ready_at IS NOT NULL
+              AND o.storage_key IS NOT NULL
+              AND btrim(o.storage_key) <> ''
+              AND (a.optimization_status IS NULL
+                   OR a.optimization_status = 'Pending'
+                   OR (a.optimization_status = 'Optimizing'
+                       AND (a.optimization_lease_until IS NULL OR a.optimization_lease_until < now()))
+                   OR (a.optimization_status = 'Failed'
+                       AND COALESCE(a.optimization_attempts, 0) < @maxAttempts
+                       AND (a.optimization_lease_until IS NULL OR a.optimization_lease_until < now())))
+              AND NOT EXISTS (
+                  SELECT 1 FROM media_objects p
+                  WHERE p.media_asset_id = a.id
+                    AND p.kind = 'Playback'
+                    AND p.ready_at IS NOT NULL
+                    AND p.bytes IS NOT NULL
+                    AND p.bytes > 0
+              )
+            ORDER BY COALESCE(a.completed_at, a.requested_at) ASC, a.id ASC
+            LIMIT @lim
+            """;
+        cmd.Parameters.AddWithValue("maxAttempts", Math.Max(1, maxAttempts));
+        cmd.Parameters.AddWithValue("lim", Math.Clamp(limit, 1, 100));
+        var list = new List<DentalOptimizationCandidate>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            list.Add(new DentalOptimizationCandidate(
+                reader.GetGuid(0),
+                reader.GetGuid(1),
+                reader.GetGuid(2),
+                reader.GetString(3),
+                reader.GetFieldValue<DateTimeOffset>(4),
+                reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.GetInt32(7),
+                reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8),
+                reader.GetString(9),
+                reader.IsDBNull(10) ? null : reader.GetInt64(10),
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11)));
+        }
+        return list;
+    }
+
+    public async Task<bool> TryClaimDentalOptimizationAsync(
+        Guid assetId, string workerId, DateTimeOffset leaseUntil, int maxAttempts,
+        CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        // Atomic conditional update — no query-then-update race.
+        cmd.CommandText = """
+            UPDATE media_assets a
+            SET optimization_status = 'Optimizing',
+                optimization_claimed_by = @worker,
+                optimization_lease_until = @lease,
+                optimization_updated_at = now(),
+                updated_at = now()
+            WHERE a.id = @id
+              AND a.kind = 'DentalVideoClip'
+              AND a.status = 'Ready'
+              AND (a.optimization_status IS NULL
+                   OR a.optimization_status = 'Pending'
+                   OR (a.optimization_status = 'Optimizing'
+                       AND (a.optimization_lease_until IS NULL OR a.optimization_lease_until < now()))
+                   OR (a.optimization_status = 'Failed'
+                       AND COALESCE(a.optimization_attempts, 0) < @maxAttempts
+                       AND (a.optimization_lease_until IS NULL OR a.optimization_lease_until < now())))
+              AND EXISTS (
+                  SELECT 1 FROM media_objects o
+                  WHERE o.media_asset_id = a.id
+                    AND o.kind = 'Original'
+                    AND o.ready_at IS NOT NULL
+                    AND o.storage_key IS NOT NULL
+                    AND btrim(o.storage_key) <> ''
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM media_objects p
+                  WHERE p.media_asset_id = a.id
+                    AND p.kind = 'Playback'
+                    AND p.ready_at IS NOT NULL
+                    AND p.bytes IS NOT NULL
+                    AND p.bytes > 0
+              )
+            """;
+        cmd.Parameters.AddWithValue("id", assetId);
+        cmd.Parameters.AddWithValue("worker", workerId);
+        cmd.Parameters.AddWithValue("lease", leaseUntil);
+        cmd.Parameters.AddWithValue("maxAttempts", Math.Max(1, maxAttempts));
+        var n = await cmd.ExecuteNonQueryAsync(ct);
+        return n == 1;
+    }
+
+    public async Task CompleteDentalOptimizationAsync(
+        Guid assetId, string status, string? error, CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE media_assets
+            SET optimization_status = @status,
+                optimization_claimed_by = NULL,
+                optimization_lease_until = NULL,
+                optimization_last_error = @err,
+                optimization_updated_at = now(),
+                updated_at = now()
+            WHERE id = @id
+            """;
+        cmd.Parameters.AddWithValue("id", assetId);
+        cmd.Parameters.AddWithValue("status", status);
+        cmd.Parameters.AddWithValue("err", (object?)error ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task ReleaseDentalOptimizationClaimAsync(
+        Guid assetId, string workerId, bool permanent, string? error, TimeSpan backoff,
+        CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE media_assets
+            SET optimization_attempts = COALESCE(optimization_attempts, 0) + 1,
+                optimization_claimed_by = NULL,
+                optimization_lease_until = @lease,
+                optimization_last_error = @err,
+                optimization_status = CASE
+                    WHEN @permanent THEN 'Failed'
+                    ELSE 'Pending'
+                END,
+                optimization_updated_at = now(),
+                updated_at = now()
+            WHERE id = @id
+              AND (optimization_claimed_by IS NULL OR optimization_claimed_by = @worker)
+            """;
+        cmd.Parameters.AddWithValue("id", assetId);
+        cmd.Parameters.AddWithValue("worker", workerId);
+        cmd.Parameters.AddWithValue("permanent", permanent);
+        cmd.Parameters.AddWithValue("err", (object?)error ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("lease", DateTimeOffset.UtcNow.Add(backoff));
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<bool> RemoveMediaObjectAsync(Guid assetId, string kind, CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM media_objects
+            WHERE media_asset_id = @aid AND kind = @kind
+            """;
+        cmd.Parameters.AddWithValue("aid", assetId);
+        cmd.Parameters.AddWithValue("kind", kind);
+        var n = await cmd.ExecuteNonQueryAsync(ct);
+        return n > 0;
     }
 
     private const string SelectAssetSql = """
