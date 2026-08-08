@@ -142,12 +142,14 @@ public sealed class DentalClipService(
             result = await egress.StartTrackCompositeRecordingAsync(
                 call.RoomName, resolvedTrackSid, fileName, storageKey, encode, ct);
         }
-        catch (Exception ex) when (encode.UsedAdvanced)
+        catch (LiveKitEgressException ex) when (
+            encode.UsedAdvanced && ex.IsSafeToRetryStartWithDifferentPayload)
         {
-            // Safe fallback: some LiveKit versions reject advanced TrackComposite — retry legacy preset.
+            // ONLY deterministic RequestRejected (e.g. advanced options invalid/unsupported).
+            // Never retry StartEgress on timeout / 5xx / transport — may already have created Egress.
             logger.LogWarning(ex,
-                "Dental clip advanced Egress failed call={CallId}; falling back to legacy 720p30 preset",
-                call.Id);
+                "DentalClip advanced Egress rejected (safe fallback) call={CallId} asset={AssetId} track={Track} class={Class} http={Http} twirp={Twirp}",
+                call.Id, assetId, resolvedTrackSid, ex.Classification, ex.HttpStatus, ex.TwirpCode);
             try
             {
                 var legacy = profileSelector.SelectLegacy720p30();
@@ -158,33 +160,36 @@ public sealed class DentalClipService(
                     mimeType: "video/mp4", bytes: null, etag: null,
                     width: legacy.Width, height: legacy.Height, durationMs: null,
                     bitrateKbps: legacy.VideoBitrateKbps, codec: "H264", ct);
+                audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
+                    "DentalClipLegacyFallback", "Ok",
+                    $"class={ex.Classification};http={ex.HttpStatus};twirp={ex.TwirpCode}");
             }
             catch (Exception ex2)
             {
-                logger.LogWarning(ex2, "Dental clip Egress start failed for call {CallId}", call.Id);
-                await catalog.TryMarkFailedAsync(assetId, null, ex2.Message, ct);
-                lock (call.SyncRoot)
-                {
-                    call.ActiveDentalClipAssetId = null;
-                    call.ActiveDentalClipStatus = "Idle";
-                }
-                audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
-                    "DentalClipStartFailed", "Failed", ex2.Message);
+                await FailStartAsync(call, assetId, staff, ex2, ct);
                 throw new InvalidOperationException(
                     "Không start được clip Egress: " + ex2.Message, ex2);
             }
         }
+        catch (LiveKitEgressException ex)
+        {
+            // Ambiguous or non-retryable: do NOT StartEgress a second time (avoids duplicate recording).
+            logger.LogError(ex,
+                "DentalClip Egress start failed (no fallback) call={CallId} asset={AssetId} track={Track} class={Class} http={Http} twirp={Twirp} safeRetry={Safe}",
+                call.Id, assetId, resolvedTrackSid, ex.Classification, ex.HttpStatus, ex.TwirpCode,
+                ex.IsSafeToRetryStartWithDifferentPayload);
+            var detail =
+                $"class={ex.Classification};http={ex.HttpStatus};twirp={ex.TwirpCode};{ex.Message}";
+            await FailStartAsync(call, assetId, staff, ex, ct, detail);
+            throw new InvalidOperationException(
+                "Không start được clip Egress (không retry để tránh duplicate): " + ex.Message, ex);
+        }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Dental clip Egress start failed for call {CallId}", call.Id);
-            await catalog.TryMarkFailedAsync(assetId, null, ex.Message, ct);
-            lock (call.SyncRoot)
-            {
-                call.ActiveDentalClipAssetId = null;
-                call.ActiveDentalClipStatus = "Idle";
-            }
-            audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
-                "DentalClipStartFailed", "Failed", ex.Message);
+            logger.LogWarning(ex,
+                "Dental clip Egress start failed (unexpected) call={CallId} asset={AssetId} track={Track}",
+                call.Id, assetId, resolvedTrackSid);
+            await FailStartAsync(call, assetId, staff, ex, ct);
             throw new InvalidOperationException(
                 "Không start được clip Egress: " + ex.Message, ex);
         }
@@ -209,6 +214,32 @@ public sealed class DentalClipService(
             "DentalClipStarted", "Ok",
             $"track={resolvedTrackSid};egress={result.EgressId};{encode.AuditDetail}");
         return (assetId, MediaAssetStatus.Recording);
+    }
+
+    private async Task FailStartAsync(
+        CallSession call,
+        Guid assetId,
+        TestIdentity staff,
+        Exception ex,
+        CancellationToken ct,
+        string? errorDetail = null)
+    {
+        var msg = errorDetail ?? ex.Message;
+        try { await catalog.TryMarkFailedAsync(assetId, null, msg, ct); }
+        catch (Exception markEx)
+        {
+            logger.LogWarning(markEx, "TryMarkFailed after Egress start failure asset={AssetId}", assetId);
+        }
+        lock (call.SyncRoot)
+        {
+            if (call.ActiveDentalClipAssetId == assetId)
+            {
+                call.ActiveDentalClipAssetId = null;
+                call.ActiveDentalClipStatus = "Idle";
+            }
+        }
+        audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
+            "DentalClipStartFailed", "Failed", msg);
     }
 
     public async Task StopClipCoreAsync(

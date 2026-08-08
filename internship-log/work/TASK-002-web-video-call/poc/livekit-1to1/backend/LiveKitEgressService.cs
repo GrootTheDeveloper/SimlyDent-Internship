@@ -295,8 +295,16 @@ public sealed class LiveKitEgressService(
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var message = TryReadError(body) ?? $"LiveKit RoomService returned HTTP {(int)response.StatusCode}.";
-            throw new InvalidOperationException(message);
+            var status = (int)response.StatusCode;
+            var (twirpCode, twirpMsg) = TryReadTwirp(body);
+            var message = twirpMsg ?? TryReadError(body) ?? $"LiveKit RoomService returned HTTP {status}.";
+            throw new LiveKitEgressException(
+                "CreateRoom",
+                LiveKitEgressException.ClassifyHttp(status, twirpCode),
+                message,
+                httpStatus: status,
+                twirpCode: twirpCode,
+                twirpMessage: twirpMsg);
         }
     }
 
@@ -332,13 +340,28 @@ public sealed class LiveKitEgressService(
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(ControlTimeout);
-        using var request = CreateRequest("Egress", "ListEgress", new { egress_id = egressId });
-        using var response = await httpClient.SendAsync(request, cts.Token);
-        var body = await response.Content.ReadAsStringAsync(cts.Token);
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException(TryReadError(body) ?? $"LiveKit Egress returned HTTP {(int)response.StatusCode}.");
-        var list = JsonSerializer.Deserialize<EgressListResult>(body);
-        return list?.Items?.FirstOrDefault();
+        try
+        {
+            using var request = CreateRequest("Egress", "ListEgress", new { egress_id = egressId });
+            using var response = await httpClient.SendAsync(request, cts.Token);
+            var body = await response.Content.ReadAsStringAsync(cts.Token);
+            if (!response.IsSuccessStatusCode)
+                throw BuildHttpException("ListEgress", response.StatusCode, body);
+            var list = JsonSerializer.Deserialize<EgressListResult>(body);
+            return list?.Items?.FirstOrDefault();
+        }
+        catch (LiveKitEgressException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw WrapTransport("ListEgress", ex);
+        }
     }
 
     private async Task<EgressResult> PostAsync(
@@ -346,21 +369,60 @@ public sealed class LiveKitEgressService(
         object payload,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest("Egress", method, payload);
-
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var message = TryReadError(body) ?? $"LiveKit Egress returned HTTP {(int)response.StatusCode}.";
-            throw new InvalidOperationException(message);
-        }
+            using var request = CreateRequest("Egress", method, payload);
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                throw BuildHttpException(method, response.StatusCode, body);
 
-        // StopEgress may return empty body; List/Start return EgressInfo.
-        if (string.IsNullOrWhiteSpace(body))
-            return new EgressResult(string.Empty, null, null, null);
-        var result = JsonSerializer.Deserialize<EgressResult>(body);
-        return result ?? new EgressResult(string.Empty, null, null, null);
+            // StopEgress may return empty body; List/Start return EgressInfo.
+            if (string.IsNullOrWhiteSpace(body))
+                return new EgressResult(string.Empty, null, null, null);
+            var result = JsonSerializer.Deserialize<EgressResult>(body);
+            return result ?? new EgressResult(string.Empty, null, null, null);
+        }
+        catch (LiveKitEgressException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw WrapTransport(method, ex);
+        }
+    }
+
+    public static LiveKitEgressException BuildHttpException(
+        string method,
+        System.Net.HttpStatusCode statusCode,
+        string body)
+    {
+        var status = (int)statusCode;
+        var (twirpCode, twirpMsg) = TryReadTwirp(body);
+        var message = twirpMsg
+                      ?? TryReadError(body)
+                      ?? $"LiveKit Egress returned HTTP {status}.";
+        var classification = LiveKitEgressException.ClassifyHttp(status, twirpCode);
+        return new LiveKitEgressException(
+            method, classification, message,
+            httpStatus: status,
+            twirpCode: twirpCode,
+            twirpMessage: twirpMsg);
+    }
+
+    private static LiveKitEgressException WrapTransport(string method, Exception ex)
+    {
+        var classification = LiveKitEgressException.ClassifyTransport(ex);
+        return new LiveKitEgressException(
+            method,
+            classification,
+            $"LiveKit Egress {method} transport failure: {ex.Message}",
+            inner: ex);
     }
 
     private HttpRequestMessage CreateRequest(string service, string method, object payload)
@@ -377,17 +439,32 @@ public sealed class LiveKitEgressService(
 
     private static string? TryReadError(string body)
     {
+        var (_, msg) = TryReadTwirp(body);
+        if (!string.IsNullOrWhiteSpace(msg)) return msg;
+        return string.IsNullOrWhiteSpace(body) ? null : body;
+    }
+
+    /// <summary>Parse Twirp error JSON: { "code": "...", "msg": "..." }.</summary>
+    public static (string? code, string? msg) TryReadTwirp(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return (null, null);
         try
         {
             using var json = JsonDocument.Parse(body);
-            if (json.RootElement.TryGetProperty("msg", out var message)) return message.GetString();
-            if (json.RootElement.TryGetProperty("message", out message)) return message.GetString();
+            string? code = null;
+            string? msg = null;
+            if (json.RootElement.TryGetProperty("code", out var c))
+                code = c.GetString();
+            if (json.RootElement.TryGetProperty("msg", out var m))
+                msg = m.GetString();
+            else if (json.RootElement.TryGetProperty("message", out m))
+                msg = m.GetString();
+            return (code, msg);
         }
         catch (JsonException)
         {
-            // Return the raw response below when it is not JSON.
+            return (null, null);
         }
-        return string.IsNullOrWhiteSpace(body) ? null : body;
     }
 }
 
