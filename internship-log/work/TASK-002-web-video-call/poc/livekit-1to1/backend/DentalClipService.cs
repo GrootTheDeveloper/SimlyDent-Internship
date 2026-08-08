@@ -6,6 +6,7 @@ public sealed class DentalClipService(
     LiveKitRoomService roomService,
     RecordingPolicyRegistry policies,
     RecordingAuditService audit,
+    CallMediaGate mediaGate,
     ILogger<DentalClipService> logger)
 {
     public async Task<(Guid AssetId, string Status)> StartClipAsync(
@@ -17,24 +18,27 @@ public sealed class DentalClipService(
         int? actualHeight,
         CancellationToken ct = default)
     {
+        // Gate coordinates with graceful End — do not hold call.SyncRoot across awaits.
+        using var _gate = await mediaGate.AcquireAsync(call.Id, ct);
+
         if (call.Status != CallStatus.Accepted)
             throw new InvalidOperationException("Call must be Accepted to record dental clip.");
         if (call.GracefulEndPending)
             throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
 
-        // Product: clips are staff-initiated (start/stop). Multiple clips per call are allowed
-        // sequentially — only one active clip at a time (unique partial index).
-        // Consent is not required; staff action is the intentional gate.
         var policy = policies.Get(call.ClinicId);
 
         var session = await catalog.GetSessionByCallIdAsync(call.Id, ct)
                       ?? throw new InvalidOperationException("Consultation session not found.");
 
+        // Re-check after catalog await — End may have been claimed
+        if (call.GracefulEndPending || call.Status != CallStatus.Accepted)
+            throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
+
         var existing = await catalog.GetActiveDentalClipAsync(call.Id, ct);
         if (existing is not null)
             throw new MediaAssetConflictException("A dental clip is already active for this call.");
 
-        // Prefer client track SID (staff already sees remote video). Server RoomService is best-effort.
         string? resolvedTrackSid = null;
         try
         {
@@ -52,7 +56,6 @@ public sealed class DentalClipService(
             && !string.IsNullOrWhiteSpace(patientVideoTrackSidHint))
         {
             var hint = patientVideoTrackSidHint.Trim();
-            // Reject obvious smoke/fake SIDs — LiveKit Egress would return "track not found" later.
             if (hint.StartsWith("TR_", StringComparison.Ordinal)
                 && !hint.Contains("smoke", StringComparison.OrdinalIgnoreCase)
                 && hint.Length >= 8)
@@ -67,6 +70,9 @@ public sealed class DentalClipService(
         if (string.IsNullOrWhiteSpace(resolvedTrackSid))
             throw new InvalidOperationException(
                 "Không tìm thấy camera bệnh nhân trong room. Khách phải join LiveKit và bật camera trước khi quay clip.");
+
+        if (call.GracefulEndPending || call.Status != CallStatus.Accepted)
+            throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
 
         var assetId = Guid.NewGuid();
         var storageKey = MediaStorageKeys.VideoClipKey(call.ClinicId, call.Id, assetId);
@@ -86,10 +92,32 @@ public sealed class DentalClipService(
             throw;
         }
 
+        // Local hint so End barrier sees activity even if catalog list races
+        lock (call.SyncRoot)
+        {
+            call.ActiveDentalClipAssetId = assetId;
+            call.ActiveDentalClipStatus = "Requested";
+            call.ConsultationSessionId = session.Id;
+        }
+
         await catalog.UpsertMediaObjectAsync(assetId, MediaObjectKinds.Original, storageKey,
             mimeType: "video/mp4", bytes: null, etag: null,
             width: actualWidth, height: actualHeight, durationMs: null,
             bitrateKbps: null, codec: "H264", ct);
+
+        // Abort cleanly if End claimed after insert but before Egress
+        if (call.GracefulEndPending || call.Status != CallStatus.Accepted)
+        {
+            await catalog.TryMarkFailedAsync(assetId, null, "Aborted: call end requested before egress start", ct);
+            lock (call.SyncRoot)
+            {
+                call.ActiveDentalClipAssetId = null;
+                call.ActiveDentalClipStatus = "Idle";
+            }
+            audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
+                "DentalClipAbortedOnEnd", "Failed", "end before egress");
+            throw new InvalidOperationException("Cuộc gọi đang kết thúc — không thể quay clip mới.");
+        }
 
         EgressResult result;
         try
@@ -120,6 +148,15 @@ public sealed class DentalClipService(
             call.ActiveDentalClipStatus = "Recording";
             call.ConsultationSessionId = session.Id;
         }
+
+        // If End claimed during StartEgress, asset is a known barrier with egressId — End will stop it.
+        if (call.GracefulEndPending)
+        {
+            logger.LogInformation(
+                "Dental clip started under End pending call={CallId} asset={AssetId} egress={EgressId} — End will stop",
+                call.Id, assetId, result.EgressId);
+        }
+
         audit.Append(call.ClinicId, call.Id, assetId.ToString(), staff.Id, staff.Role,
             "DentalClipStarted", "Ok",
             $"track={resolvedTrackSid};egress={result.EgressId};{actualWidth}x{actualHeight}");

@@ -1283,16 +1283,30 @@ export function mountCallWindowApp(opts = {}) {
         if (this.gracefulEnding) {
           this.endingStatusText = 'Đang lưu clip và kết thúc cuộc gọi…'
         }
+        // Remaining grace from server GracefulEndRequestedAt (not full grace from HTTP response)
         const graceSec = Math.max(
           3,
           Number(call?.gracefulEndGraceSeconds || call?.GracefulEndGraceSeconds || 12)
         )
+        let remainingMs = graceSec * 1000
+        const requestedAt = call?.gracefulEndRequestedAt || call?.GracefulEndRequestedAt
+        if (requestedAt) {
+          const elapsedMs = Date.now() - new Date(requestedAt).getTime()
+          remainingMs = Math.max(0, graceSec * 1000 - elapsedMs)
+        }
+        if (call?.canForceEnd === true || remainingMs <= 0) {
+          if (this.gracefulEnding && this.call?.status === 'Accepted') {
+            this.showForceEndOption = true
+            this.endingStatusText = 'Video đang mất nhiều thời gian để xử lý…'
+          }
+          return
+        }
         this._forceEndTimer = setTimeout(() => {
           if (this.gracefulEnding && this.call?.status === 'Accepted') {
             this.showForceEndOption = true
             this.endingStatusText = 'Video đang mất nhiều thời gian để xử lý…'
           }
-        }, graceSec * 1000)
+        }, remainingMs)
       },
       /**
        * Hang up. During active/finalizing dental clip, backend keeps call Accepted
@@ -1373,12 +1387,8 @@ export function mountCallWindowApp(opts = {}) {
           } else {
             const errBody = await res.json().catch(() => ({}))
             console.warn('end API', res.status, errBody)
-            // If still Accepted after error, stay (do not kill tracks)
-            if (this.call?.status === 'Accepted') {
-              this.error = errBody.error || 'Không kết thúc được cuộc gọi. Thử lại.'
-              this.gracefulEnding = false
-              return
-            }
+            await this.recoverAfterEndTransportError(errBody)
+            return
           }
 
           // Fallback: if we cannot tell, only leave when not mid-grace
@@ -1387,14 +1397,53 @@ export function mountCallWindowApp(opts = {}) {
             this.handleCallEnded()
           }
         } catch (e) {
-          console.error(e)
-          if (!this.gracefulEnding || force) {
-            this.intentionalLeave = true
-            this.handleCallEnded()
-          }
+          console.error('endCall transport', e)
+          // Do NOT disconnect media on network error — re-sync server state
+          await this.recoverAfterEndTransportError({ error: e.message })
         } finally {
           this._endingCall = false
         }
+      },
+      /**
+       * After End POST fails: GET call state.
+       * - Ended → teardown
+       * - Accepted + gracefulEndPending → keep wait UI
+       * - Accepted + !pending → allow retry End
+       */
+      async recoverAfterEndTransportError(errBody) {
+        try {
+          const res = await apiFetch(`/api/calls/${this.callId}`, { headers: authHeaders() })
+          if (res.ok) {
+            const body = await res.json()
+            this.call = body
+            if (body.status === 'Ended' || ['Rejected', 'Cancelled'].includes(body.status)) {
+              this.intentionalLeave = true
+              this.gracefulEnding = false
+              this.clearForceEndTimer()
+              this.handleCallEnded()
+              return
+            }
+            if (body.status === 'Accepted' && body.gracefulEndPending) {
+              this.gracefulEnding = true
+              this.endingStatusText = 'Đang lưu clip và kết thúc cuộc gọi…'
+              this.scheduleForceEndOption(body)
+              return
+            }
+            // Accepted without pending — request never landed; allow retry
+            this.gracefulEnding = false
+            this.clearForceEndTimer()
+            this.error = (errBody && errBody.error)
+              || 'Không gửi được yêu cầu kết thúc. Bấm Kết thúc để thử lại.'
+            return
+          }
+        } catch (e2) {
+          console.warn('recoverAfterEnd', e2)
+        }
+        // Cannot re-sync — allow retry, keep media
+        this.gracefulEnding = false
+        this.clearForceEndTimer()
+        this.error = (errBody && errBody.error)
+          || 'Mất kết nối khi kết thúc. Bấm Kết thúc để thử lại (media vẫn giữ).'
       },
       async forceEndCall() {
         this.showForceEndOption = false

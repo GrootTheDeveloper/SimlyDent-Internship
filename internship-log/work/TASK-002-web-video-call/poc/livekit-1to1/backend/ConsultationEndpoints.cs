@@ -107,60 +107,83 @@ public static class ConsultationEndpoints
             if (ready.Count == 0)
                 return Results.Conflict(new { error = "Chưa có media Ready để đóng gói." });
 
-            var ms = new MemoryStream();
+            // Stream ZIP via temp file — do not buffer entire package in RAM (large MP4s).
+            // Media already compressed → NoCompression packaging.
+            var tempPath = Path.Combine(Path.GetTempPath(), $"simlydent-zip-{sessionId:N}-{Guid.NewGuid():N}.zip");
             var fileCount = 0;
-            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            try
             {
-                var videoIdx = 0;
-                var photoIdx = 0;
-                foreach (var a in ready)
+                await using (var fs = new FileStream(
+                    tempPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 64 * 1024,
+                    options: FileOptions.Asynchronous | FileOptions.SequentialScan))
+                using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: true))
                 {
-                    var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
-                              ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
-                    if (obj is null || string.IsNullOrWhiteSpace(obj.StorageKey)) continue;
-                    if (!await storage.ExistsAsync(obj.StorageKey, ct)) continue;
+                    var videoIdx = 0;
+                    var photoIdx = 0;
+                    foreach (var a in ready)
+                    {
+                        var obj = await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Playback, ct)
+                                  ?? await catalog.GetObjectByAssetAndKindAsync(a.Id, MediaObjectKinds.Original, ct);
+                        if (obj is null || string.IsNullOrWhiteSpace(obj.StorageKey)) continue;
+                        if (!await storage.ExistsAsync(obj.StorageKey, ct)) continue;
 
-                    await using var stream = await storage.OpenReadAsync(obj.StorageKey, ct);
-                    if (stream is null) continue;
+                        await using var stream = await storage.OpenReadAsync(obj.StorageKey, ct);
+                        if (stream is null) continue;
 
-                    string entryName;
-                    if (a.Kind == MediaAssetKinds.CallAudio)
-                    {
-                        entryName = "audio.mp3";
-                    }
-                    else if (a.Kind == MediaAssetKinds.DentalVideoClip)
-                    {
-                        videoIdx++;
-                        entryName = $"videos/clip-{videoIdx:D2}.mp4";
-                    }
-                    else if (a.Kind == MediaAssetKinds.Snapshot)
-                    {
-                        photoIdx++;
-                        entryName = $"images/photo-{photoIdx:D2}.jpg";
-                    }
-                    else
-                    {
-                        entryName = $"other/{a.Kind.ToLowerInvariant()}-{a.Id:N}.bin";
-                    }
+                        string entryName;
+                        if (a.Kind == MediaAssetKinds.CallAudio)
+                            entryName = "audio.mp3";
+                        else if (a.Kind == MediaAssetKinds.DentalVideoClip)
+                        {
+                            videoIdx++;
+                            entryName = $"videos/clip-{videoIdx:D2}.mp4";
+                        }
+                        else if (a.Kind == MediaAssetKinds.Snapshot)
+                        {
+                            photoIdx++;
+                            entryName = $"images/photo-{photoIdx:D2}.jpg";
+                        }
+                        else
+                            entryName = $"other/{a.Kind.ToLowerInvariant()}-{a.Id:N}.bin";
 
-                    var entry = zip.CreateEntry(entryName, CompressionLevel.Fastest);
-                    await using (var entryStream = entry.Open())
-                    {
-                        await stream.CopyToAsync(entryStream, ct);
+                        var entry = zip.CreateEntry(entryName, CompressionLevel.NoCompression);
+                        await using (var entryStream = entry.Open())
+                        {
+                            await stream.CopyToAsync(entryStream, 64 * 1024, ct);
+                        }
+                        fileCount++;
                     }
-                    fileCount++;
                 }
+
+                if (fileCount == 0)
+                {
+                    try { File.Delete(tempPath); } catch { /* ignore */ }
+                    return Results.Conflict(new { error = "Không đọc được file media trên disk." });
+                }
+
+                var patient = FormatPatientDisplayName(session.CallerId, session.CallerDisplayName)
+                    .Replace('#', '-')
+                    .Replace(' ', '_');
+                var zipName = $"consultation-{patient}-{session.CallId:N}.zip";
+                // DeleteOnClose so temp is removed after response finishes streaming
+                var readFs = new FileStream(
+                    tempPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 64 * 1024,
+                    options: FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+                return Results.File(readFs, "application/zip", fileDownloadName: zipName);
             }
-
-            if (fileCount == 0)
-                return Results.Conflict(new { error = "Không đọc được file media trên disk." });
-
-            ms.Position = 0;
-            var patient = FormatPatientDisplayName(session.CallerId, session.CallerDisplayName)
-                .Replace('#', '-')
-                .Replace(' ', '_');
-            var zipName = $"consultation-{patient}-{session.CallId:N}.zip";
-            return Results.File(ms, "application/zip", fileDownloadName: zipName);
+            catch
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* ignore */ }
+                throw;
+            }
         }).RequireAuthorization();
 
         return app;

@@ -4,8 +4,8 @@ namespace LiveKitPoc.Api;
 
 /// <summary>
 /// Shared end path for staff + embed visitor.
-/// Dental TrackComposite clips need a graceful barrier: StopEgress + wait Egress terminal
-/// BEFORE business End + participant disconnect. Asset Ready is NOT the barrier.
+/// Dental TrackComposite: claim End intent early, fail-closed barrier lookup,
+/// wait Egress terminal (not asset Ready) before business Ended.
 /// </summary>
 public sealed class CallEndService(
     ConcurrentDictionary<Guid, CallSession> calls,
@@ -15,19 +15,15 @@ public sealed class CallEndService(
     RecordingAuditService audit,
     IConsultationCatalog consultationCatalog,
     DentalClipService clipService,
+    CallMediaGate mediaGate,
     ILogger<CallEndService> logger,
     ConsultationMediaLifecycleService? mediaLifecycle = null,
     IConfiguration? configuration = null)
 {
     private static readonly ConcurrentDictionary<Guid, byte> GraceLoops = new();
 
-    /// <summary>Soft UI grace before offering force-end (seconds). Env: GRACEFUL_END_GRACE_SECONDS</summary>
     public static int GraceSeconds { get; private set; } = 12;
-
-    /// <summary>Hard upper bound before auto-complete End (seconds). Env: GRACEFUL_END_HARD_TIMEOUT_SECONDS</summary>
     public static int HardTimeoutSeconds { get; private set; } = 45;
-
-    /// <summary>Max time the End HTTP request will wait for fast path (seconds). Env: GRACEFUL_END_INLINE_WAIT_SECONDS</summary>
     public static int InlineWaitSeconds { get; private set; } = 10;
 
     private void RefreshTimeouts()
@@ -41,9 +37,7 @@ public sealed class CallEndService(
     }
 
     public Task<CallTransitionResult> EndWithRecordingAsync(
-        Guid callId,
-        TestIdentity actor,
-        CancellationToken cancellationToken = default) =>
+        Guid callId, TestIdentity actor, CancellationToken cancellationToken = default) =>
         EndWithRecordingAsync(callId, actor, force: false, cancellationToken);
 
     public async Task<CallTransitionResult> EndWithRecordingAsync(
@@ -71,62 +65,89 @@ public sealed class CallEndService(
         {
             logger.LogInformation(
                 "Force end call {CallId} by {Actor} (graceful interrupted)", callId, actor.Id);
-            await InterruptActiveDentalClipsAsync(call, "Interrupted by force end", cancellationToken);
-            return await CompleteBusinessEndAsync(callId, actor, cancellationToken);
-        }
-
-        // Barriers: TrackComposite dental clips still Recording/Finalizing with an egress id
-        var barriers = await ListDentalEgressBarriersAsync(call, cancellationToken);
-        if (barriers.Count == 0)
-        {
-            // Fast path — no track-dependent finalize
-            return await CompleteBusinessEndAsync(callId, actor, cancellationToken);
-        }
-
-        bool startedNow;
-        lock (call.SyncRoot)
-        {
-            if (call.Status == CallStatus.Ended)
-                return CallTransitionResult.Ok(call);
-
-            startedNow = !call.GracefulEndPending;
-            if (startedNow)
+            // Claim end intent so StartClip aborts
+            ClaimGracefulEndIntent(call, actor);
+            using (await mediaGate.AcquireAsync(callId, cancellationToken))
             {
-                call.GracefulEndPending = true;
-                call.GracefulEndRequestedAt = DateTimeOffset.UtcNow;
-                call.GracefulEndRequestedBy = actor.Id;
-                call.UpdatedAt = DateTimeOffset.UtcNow;
+                await InterruptActiveDentalClipsAsync(call, "Interrupted by force end", cancellationToken);
+            }
+            return await CompleteBusinessEndAsync(callId, actor, cancellationToken);
+        }
+
+        // 1) Atomically claim End intent BEFORE barrier discovery / network work
+        //    so StartClip cannot win a race and StartEgress after "empty" scan.
+        var startedNow = ClaimGracefulEndIntent(call, actor);
+        if (startedNow)
+            await dispatcher.NotifyCallAsync(call);
+
+        // 2) Acquire media gate so in-flight StartClip finishes or aborts
+        BarrierLookupResult lookup;
+        IReadOnlyList<MediaAsset> barriers;
+        using (await mediaGate.AcquireAsync(callId, cancellationToken))
+        {
+            lookup = await ListDentalEgressBarriersAsync(call, cancellationToken);
+            barriers = lookup.Barriers;
+
+            if (lookup.MayFastPathEnd && !LocalClipHintNeedsProtection(call))
+            {
+                logger.LogInformation(
+                    "Graceful end fast-path call={CallId} (known empty barriers)", callId);
+                return await CompleteBusinessEndAsync(callId, actor, cancellationToken);
+            }
+
+            if (lookup.Kind == BarrierLookupKind.KnownBarriers)
+            {
+                logger.LogInformation(
+                    "Graceful end barriers call={CallId} count={Count} startedNow={Started}",
+                    callId, barriers.Count, startedNow);
+                await RequestStopDentalBarriersAsync(call, barriers, cancellationToken);
+            }
+            else if (lookup.Kind == BarrierLookupKind.Unknown)
+            {
+                logger.LogWarning(
+                    "Graceful end barrier Unknown call={CallId} error={Error} — fail-closed, keep media",
+                    callId, lookup.Error);
             }
         }
 
-        if (startedNow)
-        {
-            logger.LogInformation(
-                "Graceful end start call={CallId} actor={Actor} barriers={Count} grace={Grace}s hard={Hard}s",
-                callId, actor.Id, barriers.Count, GraceSeconds, HardTimeoutSeconds);
-            // Stop any still-Recording clips once (idempotent StopClipCore)
-            await RequestStopDentalBarriersAsync(call, barriers, cancellationToken);
-            await dispatcher.NotifyCallAsync(call);
-            EnsureGraceLoop(callId, actor);
-        }
-        else
-        {
-            logger.LogInformation(
-                "Graceful end re-entry call={CallId} actor={Actor} (idempotent)", callId, actor.Id);
-            EnsureGraceLoop(callId, actor);
-        }
+        EnsureGraceLoop(callId, actor);
 
-        // Bounded inline wait so short finalizes return Ended in one round-trip
+        // 3) Bounded inline wait (only when we have known barriers or recover from unknown)
         var inline = TimeSpan.FromSeconds(InlineWaitSeconds);
-        if (await WaitBarriersTerminalAsync(call, barriers, inline, cancellationToken))
+        if (await WaitUntilSafeToEndAsync(call, inline, cancellationToken))
         {
-            logger.LogInformation(
-                "Graceful end inline barrier clear call={CallId}", callId);
+            logger.LogInformation("Graceful end inline clear call={CallId}", callId);
             return await CompleteBusinessEndAsync(callId, actor, cancellationToken);
         }
 
-        // Still Accepted + GracefulEndPending — FE keeps LiveKit alive
         return CallTransitionResult.Ok(call);
+    }
+
+    /// <summary>Set GracefulEndPending under SyncRoot. Returns true if newly claimed.</summary>
+    private static bool ClaimGracefulEndIntent(CallSession call, TestIdentity actor)
+    {
+        lock (call.SyncRoot)
+        {
+            if (call.Status == CallStatus.Ended)
+                return false;
+            if (call.GracefulEndPending)
+                return false;
+            call.GracefulEndPending = true;
+            call.GracefulEndRequestedAt = DateTimeOffset.UtcNow;
+            call.GracefulEndRequestedBy = actor.Id;
+            call.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        }
+    }
+
+    private static bool LocalClipHintNeedsProtection(CallSession call)
+    {
+        lock (call.SyncRoot)
+        {
+            var st = call.ActiveDentalClipStatus ?? "Idle";
+            return st is "Recording" or "Finalizing" or "Requested"
+                   || call.ActiveDentalClipAssetId is not null;
+        }
     }
 
     private void EnsureGraceLoop(Guid callId, TestIdentity actor)
@@ -136,18 +157,12 @@ public sealed class CallEndService(
 
         _ = Task.Run(async () =>
         {
-            try
-            {
-                await GraceLoopAsync(callId, actor);
-            }
+            try { await GraceLoopAsync(callId, actor); }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Graceful end loop crashed for {CallId}", callId);
             }
-            finally
-            {
-                GraceLoops.TryRemove(callId, out _);
-            }
+            finally { GraceLoops.TryRemove(callId, out _); }
         });
     }
 
@@ -161,64 +176,187 @@ public sealed class CallEndService(
             started = call.GracefulEndRequestedAt ?? DateTimeOffset.UtcNow;
 
         var hardDeadline = started.AddSeconds(HardTimeoutSeconds);
-        var poll = TimeSpan.FromMilliseconds(500);
+        var attempt = 0;
 
         while (DateTimeOffset.UtcNow < hardDeadline)
         {
+            attempt++;
             if (!calls.TryGetValue(callId, out call))
                 return;
-
             lock (call.SyncRoot)
             {
                 if (call.Status == CallStatus.Ended)
                     return;
             }
 
-            var barriers = await ListDentalEgressBarriersAsync(call, CancellationToken.None);
-            if (barriers.Count == 0
-                || await WaitBarriersTerminalAsync(call, barriers, TimeSpan.Zero, CancellationToken.None))
+            if (await WaitUntilSafeToEndAsync(call, TimeSpan.Zero, CancellationToken.None))
             {
                 logger.LogInformation(
-                    "Graceful end loop barrier clear call={CallId} → business End", callId);
+                    "Graceful end loop safe call={CallId} attempt={Attempt} → business End",
+                    callId, attempt);
                 await CompleteBusinessEndAsync(callId, actor, CancellationToken.None);
                 return;
             }
 
-            await Task.Delay(poll);
+            var elapsed = (DateTimeOffset.UtcNow - started).TotalSeconds;
+            logger.LogDebug(
+                "Graceful end loop wait call={CallId} attempt={Attempt} elapsed={Elapsed:F1}s",
+                callId, attempt, elapsed);
+            await Task.Delay(500);
         }
 
-        // Hard timeout — complete End so user is never stuck
         logger.LogWarning(
-            "Graceful end hard timeout call={CallId} after {Hard}s — completing End",
+            "Graceful end hard timeout call={CallId} after {Hard}s — force cleanup",
             callId, HardTimeoutSeconds);
         if (calls.TryGetValue(callId, out call))
-            await InterruptActiveDentalClipsAsync(call, "Graceful end hard timeout", CancellationToken.None);
+        {
+            using (await mediaGate.AcquireAsync(callId, CancellationToken.None))
+            {
+                await InterruptActiveDentalClipsAsync(call, "Graceful end hard timeout", CancellationToken.None);
+            }
+        }
         await CompleteBusinessEndAsync(callId, actor, CancellationToken.None);
     }
 
     /// <summary>
-    /// Dental TrackComposite only — RoomComposite audio does not require patient camera track.
+    /// True only when barrier lookup is KnownEmpty (or all barriers egress-terminal).
+    /// Unknown / Requested-without-egress → false.
     /// </summary>
-    private async Task<IReadOnlyList<MediaAsset>> ListDentalEgressBarriersAsync(
+    private async Task<bool> WaitUntilSafeToEndAsync(
+        CallSession call, TimeSpan maxWait, CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow + maxWait;
+        do
+        {
+            BarrierLookupResult lookup;
+            using (await mediaGate.AcquireAsync(call.Id, ct))
+            {
+                lookup = await ListDentalEgressBarriersAsync(call, ct);
+            }
+
+            if (lookup.MayFastPathEnd && !LocalClipHintNeedsProtection(call))
+                return true;
+
+            if (lookup.Kind == BarrierLookupKind.Unknown)
+            {
+                if (maxWait <= TimeSpan.Zero || DateTimeOffset.UtcNow >= deadline)
+                    return false;
+                await Task.Delay(400, ct);
+                continue;
+            }
+
+            if (lookup.Kind == BarrierLookupKind.KnownBarriers)
+            {
+                // Stop any still-recording (idempotent)
+                using (await mediaGate.AcquireAsync(call.Id, ct))
+                {
+                    await RequestStopDentalBarriersAsync(call, lookup.Barriers, ct);
+                }
+
+                if (await AllBarriersEgressTerminalAsync(call, lookup.Barriers, ct))
+                    return true;
+            }
+
+            if (maxWait <= TimeSpan.Zero || DateTimeOffset.UtcNow >= deadline)
+                return false;
+
+            await Task.Delay(400, ct);
+        } while (DateTimeOffset.UtcNow < deadline);
+
+        return false;
+    }
+
+    /// <summary>
+    /// Fail-closed barrier list. Includes Requested without egressId (StartClip in-flight).
+    /// </summary>
+    internal async Task<BarrierLookupResult> ListDentalEgressBarriersAsync(
         CallSession call, CancellationToken ct)
     {
         try
         {
             var active = await consultationCatalog.ListActiveAssetsByCallAsync(call.Id, ct);
-            return active
+            var barriers = active
                 .Where(a =>
                     a.Kind == MediaAssetKinds.DentalVideoClip
-                    && !string.IsNullOrWhiteSpace(a.EgressId)
                     && a.Status is MediaAssetStatus.Requested
                         or MediaAssetStatus.Recording
                         or MediaAssetStatus.Finalizing)
                 .ToList();
+
+            if (barriers.Count == 0)
+            {
+                // Local hint: call thinks clip is active but catalog empty → Unknown (race)
+                if (LocalClipHintNeedsProtection(call))
+                {
+                    return BarrierLookupResult.Unknown(
+                        "Catalog empty but CallSession ActiveDentalClip hints protection needed");
+                }
+                return BarrierLookupResult.Empty();
+            }
+
+            return BarrierLookupResult.WithBarriers(barriers);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "List dental barriers failed for {CallId}", call.Id);
-            return Array.Empty<MediaAsset>();
+            logger.LogWarning(ex,
+                "List dental barriers failed call={CallId} — fail-closed Unknown", call.Id);
+            return BarrierLookupResult.Unknown(ex.Message);
         }
+    }
+
+    private async Task<bool> AllBarriersEgressTerminalAsync(
+        CallSession call, IReadOnlyList<MediaAsset> barriers, CancellationToken ct)
+    {
+        if (barriers.Count == 0)
+            return true;
+
+        foreach (var asset in barriers)
+        {
+            MediaAsset? fresh = null;
+            try { fresh = await consultationCatalog.GetAssetByIdAsync(asset.Id, ct); }
+            catch
+            {
+                return false; // fail-closed
+            }
+
+            var row = fresh ?? asset;
+            if (MediaAssetStatus.IsTerminal(row.Status))
+                continue;
+
+            // Requested / Recording without egress — StartClip still in flight or failed mid-way
+            if (string.IsNullOrWhiteSpace(row.EgressId))
+                return false;
+
+            try
+            {
+                var info = await egress.GetEgressStatusAsync(row.EgressId, ct);
+                var st = info?.Status;
+                logger.LogDebug(
+                    "Barrier poll call={CallId} asset={AssetId} egress={EgressId} status={Status}",
+                    call.Id, row.Id, row.EgressId, st);
+
+                if (!EgressLifecycle.IsTerminal(st))
+                    return false;
+
+                if (EgressLifecycle.IsFailedTerminal(st))
+                {
+                    try
+                    {
+                        await consultationCatalog.TryMarkFailedAsync(
+                            row.Id, row.EgressId,
+                            info?.Error ?? EgressLifecycle.Normalize(st), ct);
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "ListEgress failed {EgressId}", row.EgressId);
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private async Task RequestStopDentalBarriersAsync(
@@ -228,7 +366,19 @@ public sealed class CallEndService(
         {
             try
             {
-                // StopClipCore is safe when already Finalizing (marks + RequestStop once-ish)
+                if (string.IsNullOrWhiteSpace(asset.EgressId)
+                    && asset.Status == MediaAssetStatus.Requested)
+                {
+                    // No egress yet — mark failed so it does not block forever if Start aborted
+                    // (StartClip under gate should re-check End intent; this is safety net)
+                    await consultationCatalog.TryMarkFailedAsync(
+                        asset.Id, null, "Aborted: call end requested before egress start", ct);
+                    logger.LogInformation(
+                        "Graceful end abort Requested asset={AssetId} call={CallId}",
+                        asset.Id, call.Id);
+                    continue;
+                }
+
                 await clipService.StopClipCoreAsync(asset, call, ct);
                 logger.LogInformation(
                     "Graceful end stop clip call={CallId} asset={AssetId} egress={EgressId} status={Status}",
@@ -236,103 +386,9 @@ public sealed class CallEndService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex,
-                    "Graceful end StopClip failed asset={AssetId}", asset.Id);
+                logger.LogWarning(ex, "Graceful end StopClip failed asset={AssetId}", asset.Id);
             }
         }
-    }
-
-    /// <summary>
-    /// True when every barrier egress is terminal (or asset catalog already terminal).
-    /// Does NOT require asset Ready.
-    /// </summary>
-    private async Task<bool> WaitBarriersTerminalAsync(
-        CallSession call,
-        IReadOnlyList<MediaAsset> barriers,
-        TimeSpan maxWait,
-        CancellationToken ct)
-    {
-        var deadline = DateTimeOffset.UtcNow + maxWait;
-        IReadOnlyList<MediaAsset> current = barriers;
-
-        do
-        {
-            if (current.Count == 0)
-                return true;
-
-            var allTerminal = true;
-            foreach (var asset in current)
-            {
-                // Fresh catalog row
-                MediaAsset? fresh = null;
-                try
-                {
-                    fresh = await consultationCatalog.GetAssetByIdAsync(asset.Id, ct);
-                }
-                catch { /* ignore */ }
-
-                var row = fresh ?? asset;
-                if (MediaAssetStatus.IsTerminal(row.Status))
-                    continue; // Ready/Failed — barrier clear for this asset
-
-                if (string.IsNullOrWhiteSpace(row.EgressId))
-                {
-                    allTerminal = false;
-                    continue;
-                }
-
-                try
-                {
-                    var info = await egress.GetEgressStatusAsync(row.EgressId, ct);
-                    var st = info?.Status;
-                    logger.LogDebug(
-                        "Graceful barrier poll call={CallId} asset={AssetId} egress={EgressId} status={Status}",
-                        call.Id, row.Id, row.EgressId, st);
-
-                    if (!EgressLifecycle.IsTerminal(st))
-                    {
-                        allTerminal = false;
-                        continue;
-                    }
-
-                    // Best-effort: feed finalize service path via Apply if COMPLETE/FAILED
-                    // (webhook may race; reconcile also handles). Do not wait for Ready.
-                    try
-                    {
-                        // Trigger catalog update for FAILED early; COMPLETE Ready is async OK
-                        if (EgressLifecycle.IsFailedTerminal(st))
-                        {
-                            await consultationCatalog.TryMarkFailedAsync(
-                                row.Id, row.EgressId,
-                                info?.Error ?? EgressLifecycle.Normalize(st), ct);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogDebug(ex, "Barrier catalog touch failed for {AssetId}", row.Id);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug(ex, "ListEgress barrier poll failed {EgressId}", row.EgressId);
-                    allTerminal = false;
-                }
-            }
-
-            if (allTerminal)
-                return true;
-
-            if (maxWait <= TimeSpan.Zero || DateTimeOffset.UtcNow >= deadline)
-                return false;
-
-            await Task.Delay(400, ct);
-            current = await ListDentalEgressBarriersAsync(call, ct);
-            // If list empty (moved to Ready/Failed), clear
-            if (current.Count == 0)
-                return true;
-        } while (DateTimeOffset.UtcNow < deadline);
-
-        return false;
     }
 
     private async Task InterruptActiveDentalClipsAsync(
@@ -374,10 +430,6 @@ public sealed class CallEndService(
         }
     }
 
-    /// <summary>
-    /// Business End + stop remaining media (audio etc.). Call status → Ended.
-    /// Frontend may disconnect LiveKit only after this.
-    /// </summary>
     private async Task<CallTransitionResult> CompleteBusinessEndAsync(
         Guid callId,
         TestIdentity actor,
@@ -407,7 +459,6 @@ public sealed class CallEndService(
                 call.RecordingStatus = "Stopping";
         }
 
-        // Stop remaining consultation media (audio + any residual clips)
         if (mediaLifecycle is not null)
         {
             try
@@ -440,14 +491,13 @@ public sealed class CallEndService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "StopEgress control failed on call end (keeping Finalizing) {EgressId}", egressId);
+                logger.LogWarning(ex, "StopEgress control failed on call end {EgressId}", egressId);
                 audit.Append(call.ClinicId, call.Id, recId, actor.Id, actor.Role,
                     "RecordingStopRequested", "TransportError", ex.Message);
             }
         }
 
-        logger.LogInformation(
-            "Business call Ended call={CallId} actor={Actor}", callId, actor.Id);
+        logger.LogInformation("Business call Ended call={CallId} actor={Actor}", callId, actor.Id);
         await dispatcher.NotifyCallAsync(call);
         return CallTransitionResult.Ok(call);
     }

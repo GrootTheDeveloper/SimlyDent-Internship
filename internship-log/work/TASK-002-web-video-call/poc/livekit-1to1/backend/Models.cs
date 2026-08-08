@@ -236,11 +236,27 @@ public sealed record EmbedCallView(
     string RecordingStatus = "Idle",
     string ConsentStatus = "Pending",
     /// <summary>Audio | Video — join preference set at enqueue (not runtime session mode).</summary>
-    string InitialMediaMode = "Video")
+    string InitialMediaMode = "Video",
+    /// <summary>End requested; keep LiveKit camera until Status is Ended.</summary>
+    bool GracefulEndPending = false,
+    DateTimeOffset? GracefulEndRequestedAt = null,
+    int GracefulEndGraceSeconds = 12)
 {
+    public bool CanForceEnd =>
+        GracefulEndPending
+        && GracefulEndRequestedAt is not null
+        && (DateTimeOffset.UtcNow - GracefulEndRequestedAt.Value).TotalSeconds >= GracefulEndGraceSeconds;
+
     public static EmbedCallView From(CallSession call)
     {
         var waiting = Math.Max(0, (int)(DateTimeOffset.UtcNow - call.CreatedAt).TotalSeconds);
+        bool pending;
+        DateTimeOffset? requestedAt;
+        lock (call.SyncRoot)
+        {
+            pending = call.GracefulEndPending;
+            requestedAt = call.GracefulEndRequestedAt;
+        }
         return new EmbedCallView(
             call.Id,
             call.Status.ToString(),
@@ -250,7 +266,10 @@ public sealed record EmbedCallView(
             call.RecordingMode.ToString(),
             call.RecordingStatus,
             call.ConsentStatus.ToString(),
-            CallSession.NormalizeMediaMode(call.InitialMediaMode));
+            CallSession.NormalizeMediaMode(call.InitialMediaMode),
+            pending,
+            requestedAt,
+            CallEndService.GraceSeconds);
     }
 }
 

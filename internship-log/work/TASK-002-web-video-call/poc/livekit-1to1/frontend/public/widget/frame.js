@@ -41,6 +41,9 @@
   var cameraRequestBusy = false;
   var callSeconds = 0;
   var callTimer = null;
+  /** Visitor graceful End: keep LiveKit camera until backend Status=Ended */
+  var gracefulEnding = false;
+  var endingBusy = false;
 
   /** @shared-pair src/domain/media/media-primitives.js via window.SimlyDentMediaPrimitives */
   function mediaP() {
@@ -762,6 +765,15 @@
     }
 
     if (status === 'Accepted') {
+      // Graceful end: staff/backend saving clip — keep room + camera source alive
+      if (res.body.gracefulEndPending || res.body.GracefulEndPending) {
+        enterVisitorGracefulEnding(res.body);
+        return;
+      }
+      if (gracefulEnding) {
+        // Still accepted without pending — recovery path
+        gracefulEnding = false;
+      }
       // Product: visitor auto-enters call after staff Accept — no "Tham gia" confirm.
       if (uiState === 'media' && room) {
         setStatus('Đang tư vấn');
@@ -1469,38 +1481,111 @@
     }
   }
 
+  function enterVisitorGracefulEnding(body) {
+    gracefulEnding = true;
+    intentionalLeave = false;
+    // Keep LiveKit room + camera tracks alive for TrackComposite Egress
+    setStatus('Đang lưu video…');
+    if (els.mediaHint) {
+      els.mediaHint.classList.remove('hidden');
+      els.mediaHint.textContent = 'Đang lưu clip và kết thúc cuộc gọi…';
+    }
+    if (els.btnEnd) els.btnEnd.disabled = true;
+    if (els.btnMic) els.btnMic.disabled = true;
+    if (els.btnCam) els.btnCam.disabled = true;
+    if (els.btnRetryDevices) els.btnRetryDevices.disabled = true;
+    // Soft text after grace elapsed (poll-based)
+    var requestedAt = body && (body.gracefulEndRequestedAt || body.GracefulEndRequestedAt);
+    var graceSec = Number((body && (body.gracefulEndGraceSeconds || body.GracefulEndGraceSeconds)) || 12);
+    if (requestedAt) {
+      try {
+        var elapsed = (Date.now() - new Date(requestedAt).getTime()) / 1000;
+        if (elapsed >= graceSec && els.mediaHint) {
+          els.mediaHint.textContent = 'Video đang mất nhiều thời gian để xử lý…';
+        }
+      } catch (eG) { /* ignore */ }
+    }
+    if (!pollTimer) startPoll();
+  }
+
   /**
-   * End only finishes locally after backend Ended (or already terminal).
+   * End: POST first, disconnect LiveKit only after backend terminal.
+   * Patient camera is dental TrackComposite source — never kill before barrier.
    */
   async function endCall() {
     if (!callId) {
       applyTerminal('Ended');
       return;
     }
-    intentionalLeave = true;
-    disconnectMedia({ silent: true });
+    if (endingBusy || gracefulEnding) return;
+    endingBusy = true;
+
+    // Not yet connected media — cancel if possible
+    if (!room && lastServerStatus !== 'Accepted') {
+      try {
+        intentionalLeave = true;
+        var c0 = await api('/embed/calls/' + callId + '/cancel', { method: 'POST', body: '{}' });
+        if (c0.ok && c0.body && isTerminal(c0.body.status)) {
+          applyTerminal(c0.body.status);
+          return;
+        }
+        var e0 = await api('/embed/calls/' + callId + '/end', { method: 'POST', body: '{}' });
+        if (e0.ok && e0.body && isTerminal(e0.body.status)) {
+          applyTerminal(e0.body.status);
+          return;
+        }
+      } catch (e) { console.warn(e); }
+      intentionalLeave = true;
+      applyTerminal('Ended');
+      endingBusy = false;
+      return;
+    }
+
     try {
+      setStatus('Đang kết thúc…');
+      if (els.btnEnd) els.btnEnd.disabled = true;
       var res = await api('/embed/calls/' + callId + '/end', { method: 'POST', body: '{}' });
-      if (res.ok && res.body && isTerminal(res.body.status)) {
-        applyTerminal(res.body.status);
-        return;
+
+      if (res.ok && res.body) {
+        applyServerInitialMedia(res.body);
+        lastServerStatus = res.body.status || lastServerStatus;
+
+        if (isTerminal(res.body.status)) {
+          intentionalLeave = true;
+          gracefulEnding = false;
+          disconnectMedia({ silent: true });
+          applyTerminal(res.body.status);
+          return;
+        }
+
+        if (res.body.status === 'Accepted'
+            && (res.body.gracefulEndPending || res.body.GracefulEndPending)) {
+          enterVisitorGracefulEnding(res.body);
+          return;
+        }
       }
+
       if (res.status === 409) {
-        // Not Accepted yet — try cancel path
         var c = await api('/embed/calls/' + callId + '/cancel', { method: 'POST', body: '{}' });
         if (c.ok && c.body && isTerminal(c.body.status)) {
+          intentionalLeave = true;
+          disconnectMedia({ silent: true });
           applyTerminal(c.body.status);
           return;
         }
       }
-      // Keep call; re-sync
-      intentionalLeave = false;
+
+      // Transport / unexpected — re-poll without killing media
       if (!pollTimer) startPoll();
       await refreshCall();
     } catch (err) {
-      intentionalLeave = false;
+      console.warn('[embed] endCall failed', err);
       if (!pollTimer) startPoll();
-      console.warn(err);
+      try { await refreshCall(); } catch (e2) { /* ignore */ }
+      // Allow retry if not graceful-pending
+      if (!gracefulEnding && els.btnEnd) els.btnEnd.disabled = false;
+    } finally {
+      endingBusy = false;
     }
   }
 

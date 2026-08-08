@@ -63,6 +63,7 @@ builder.Services.AddSingleton<IConsultationCatalog>(ConsultationCatalogFactory.C
 builder.Services.AddSingleton<LiveKitWebhookValidator>();
 builder.Services.AddSingleton<RecordingFinalizeService>();
 builder.Services.AddSingleton<ConsultationAudioService>();
+builder.Services.AddSingleton<CallMediaGate>();
 builder.Services.AddSingleton<DentalClipService>();
 builder.Services.AddSingleton<ConsultationMediaLifecycleService>();
 builder.Services.AddSingleton<SnapshotService>();
